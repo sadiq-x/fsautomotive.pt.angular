@@ -1,0 +1,26 @@
+<section class="relative isolate overflow-hidden bg-ink-950">
+  <span
+    class="pointer-events-none absolute inset-0 opacity-[0.07]"
+    style="background-image: repeating-linear-gradient(135deg, #fff 0 1px, transparent 1px 14px)"
+    aria-hidden="true"
+  ></span>
+  <span
+    class="pointer-events-none absolute -top-40 right-0 size-96 rounded-full bg-brand-600/20 blur-3xl"
+    aria-hidden="true"
+  ></span>
+  <span class="absolute inset-x-0 bottom-0 h-1 bg-brand-600" aria-hidden="true"></span>
+
+  <div class="relative container-page py-16 sm:py-20 lg:py-24">
+    <p class="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-brand-400 uppercase">
+      <app-icon name="chevron-right" [size]="14" [strokeWidth]="2.5" />
+      {{ eyebrow() }}
+    </p>
+    <h1 class="mt-4 max-w-4xl text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+      {{ title() }}
+    </h1>
+    @if (lead(); as text) {
+      <p class="mt-6 max-w-2xl text-base leading-relaxed text-bone-300 sm:text-lg">{{ text }}</p>
+    }
+    <ng-content />
+  </div>
+</section>

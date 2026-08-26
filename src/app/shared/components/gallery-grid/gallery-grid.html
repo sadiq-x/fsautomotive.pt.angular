@@ -1,0 +1,37 @@
+<ul class="grid gap-4" [class]="columns() === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'">
+  @for (image of images(); track image.src) {
+    <li>
+      <button
+        type="button"
+        (click)="openAt($index)"
+        [attr.aria-label]="'Ampliar: ' + image.alt"
+        class="group relative block w-full cursor-pointer overflow-hidden rounded-2xl bg-ink-900 shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-card-hover"
+      >
+        <img
+          [src]="image.src"
+          [alt]="image.alt"
+          loading="lazy"
+          decoding="async"
+          width="1920"
+          height="1080"
+          class="aspect-4/3 w-full object-cover transition duration-500 ease-out group-hover:scale-105"
+        />
+        <span
+          class="absolute inset-0 bg-linear-to-t from-ink-950/80 via-ink-950/10 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-95"
+          aria-hidden="true"
+        ></span>
+        <span
+          class="absolute right-3 bottom-3 grid size-9 place-items-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur-sm transition duration-300 group-hover:opacity-100"
+          aria-hidden="true"
+        >
+          <app-icon name="external-link" [size]="16" />
+        </span>
+        @if (image.caption) {
+          <span class="absolute inset-x-0 bottom-0 px-4 pb-4 text-left text-sm font-semibold text-white">{{
+            image.caption
+          }}</span>
+        }
+      </button>
+    </li>
+  }
+</ul>

@@ -1,0 +1,12 @@
+<article [class]="cardClasses()">
+  @if (formattedIndex(); as label) {
+    <span [class]="indexClasses()" aria-hidden="true">{{ label }}</span>
+  }
+
+  <span [class]="iconWrapClasses()">
+    <app-icon [name]="feature().icon" [size]="26" />
+  </span>
+
+  <h3 [class]="titleClasses()">{{ feature().title }}</h3>
+  <p [class]="bodyClasses()">{{ feature().description }}</p>
+</article>

@@ -1,0 +1,197 @@
+/* ============================================================================
+   FS Automotive — Global stylesheet
+   Tailwind CSS v4 · design tokens, base layer and shared utilities.
+   Component-level styling lives in the templates as utility classes.
+   ========================================================================== */
+
+@import 'tailwindcss';
+
+/* Template scanning root (all Angular templates live under src/). */
+@source './';
+
+/* ----------------------------------------------------------------------------
+   Design tokens — the single source of truth for the brand.
+   Every token below is exposed to Tailwind as a utility (bg-brand-600, …).
+   -------------------------------------------------------------------------- */
+@theme {
+  /* Typography */
+  --font-sans:
+    'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-display: var(--font-sans);
+
+  /* Brand red — extracted from the FS Automotive logo (#d91c1f) */
+  --color-brand-50: #fff1f1;
+  --color-brand-100: #ffe0e0;
+  --color-brand-200: #ffc5c6;
+  --color-brand-300: #ff9c9d;
+  --color-brand-400: #f86366;
+  --color-brand-500: #e8383b;
+  --color-brand-600: #d91c1f;
+  --color-brand-700: #b4171a;
+  --color-brand-800: #921619;
+  --color-brand-900: #7a191b;
+  --color-brand-950: #42090a;
+
+  /* Ink — the dark, near-black neutral used by the header/footer */
+  --color-ink-50: #f6f6f7;
+  --color-ink-100: #e9e9eb;
+  --color-ink-200: #d2d3d6;
+  --color-ink-300: #acaeb3;
+  --color-ink-400: #7f828a;
+  --color-ink-500: #63666e;
+  --color-ink-600: #4e5158;
+  --color-ink-700: #414349;
+  --color-ink-800: #2c2d32;
+  --color-ink-900: #1a1b1e;
+  --color-ink-950: #0d0e10;
+
+  /* Bone — the warm off-white page background of the original site */
+  --color-bone-50: #fbfaf8;
+  --color-bone-100: #f5f2ed;
+  --color-bone-200: #ece7e1;
+  --color-bone-300: #ded7cd;
+  --color-bone-400: #c9c0b3;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(13 14 16 / 0.04), 0 8px 24px -12px rgb(13 14 16 / 0.18);
+  --shadow-card-hover: 0 2px 4px rgb(13 14 16 / 0.06), 0 20px 40px -16px rgb(13 14 16 / 0.28);
+  --shadow-brand: 0 12px 28px -14px rgb(217 28 31 / 0.65);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-up: fade-up 0.7s var(--ease-out-soft) both;
+  --animate-fade-in: fade-in 0.5s var(--ease-out-soft) both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Base layer
+   -------------------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 6rem;
+  }
+
+  body {
+    background-color: var(--color-bone-100);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-600);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* Thin, brand-tinted scrollbar on supporting browsers. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-300) transparent;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Shared utilities
+   -------------------------------------------------------------------------- */
+
+/** Consistent page gutter + max width used by every section. */
+@utility container-page {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+
+  @media (width >= 40rem) {
+    padding-inline: 2rem;
+  }
+
+  @media (width >= 64rem) {
+    padding-inline: 2.5rem;
+  }
+}
+
+/** Bottom padding that clears the fixed mobile tab bar. */
+@utility pb-safe-nav {
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+
+  @media (width >= 64rem) {
+    padding-bottom: 0;
+  }
+}
+
+/** Scroll-reveal: elements start hidden and animate in when observed. */
+@utility reveal {
+  opacity: 0;
+  transform: translate3d(0, 1.5rem, 0);
+  transition:
+    opacity 0.7s var(--ease-out-soft),
+    transform 0.7s var(--ease-out-soft);
+  will-change: opacity, transform;
+}
+
+@utility reveal-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}

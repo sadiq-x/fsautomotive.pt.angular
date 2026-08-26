@@ -1,0 +1,36 @@
+<app-page-section tone="bone" spacing="lg">
+  <div class="mx-auto max-w-2xl text-center">
+    <span class="mx-auto grid size-16 place-items-center rounded-2xl bg-brand-50 text-brand-600">
+      <app-icon name="wrench" [size]="30" />
+    </span>
+
+    <p class="mt-8 text-7xl font-black tracking-tight text-ink-950/10 tabular-nums sm:text-8xl">404</p>
+    <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-ink-950 sm:text-4xl">
+      Esta página saiu para reparação
+    </h1>
+    <p class="mt-5 text-base leading-relaxed text-ink-600">
+      O endereço que procura não existe ou foi movido. Use os atalhos abaixo — ou ligue-nos e dizemos-lhe o
+      que precisa de saber.
+    </p>
+
+    <div class="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+      <app-button routerLink="/" variant="primary" size="lg" icon="arrow-right">Voltar ao início</app-button>
+      <app-button [action]="callAction" variant="secondary" size="lg" iconPosition="left" />
+    </div>
+
+    <ul class="mt-12 flex flex-wrap justify-center gap-2">
+      @for (link of links; track link.path) {
+        <li>
+          <app-button
+            [routerLink]="link.path"
+            variant="secondary"
+            size="sm"
+            [icon]="link.icon"
+            iconPosition="left"
+            >{{ link.label }}</app-button
+          >
+        </li>
+      }
+    </ul>
+  </div>
+</app-page-section>

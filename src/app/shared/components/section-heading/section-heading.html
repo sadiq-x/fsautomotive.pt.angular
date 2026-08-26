@@ -1,0 +1,20 @@
+@if (eyebrow(); as text) {
+  <p [class]="eyebrowClasses()">
+    <span class="h-px w-6 bg-current" aria-hidden="true"></span>
+    {{ text }}
+  </p>
+}
+
+@if (level() === 1) {
+  <h1 [class]="titleClasses()">{{ title() }}</h1>
+} @else {
+  <h2 [class]="titleClasses()">{{ title() }}</h2>
+}
+
+<div [class]="ruleClasses()" aria-hidden="true"></div>
+
+@if (lead(); as text) {
+  <p [class]="leadClasses()">{{ text }}</p>
+}
+
+<ng-content />

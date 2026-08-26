@@ -1,0 +1,96 @@
+<app-page-hero
+  eyebrow="Sobre nós"
+  title="Uma oficina que trata a sua viatura como trataria a própria"
+  [lead]="
+    'A ' +
+    site.name +
+    ' é uma oficina especializada em serviços automóveis de alta qualidade, com uma equipa dedicada e experiente, liderada por ' +
+    site.owner +
+    '.'
+  "
+/>
+
+<!-- ============================================================ História === -->
+<app-page-section tone="bone">
+  <app-section-heading
+    eyebrow="Quem somos"
+    title="O que nos move"
+    lead="Quatro princípios que estão por trás de cada intervenção que fazemos."
+    appReveal
+  />
+
+  <div class="mt-14 grid gap-6 sm:grid-cols-2">
+    @for (item of story; track item.title) {
+      <app-feature-card [feature]="item" [index]="$index + 1" appReveal [revealDelay]="$index * 80" />
+    }
+  </div>
+</app-page-section>
+
+<!-- ======================================================== Comodidades === -->
+<app-page-section tone="white">
+  <div class="grid gap-12 lg:grid-cols-12 lg:gap-16">
+    <div class="lg:col-span-5">
+      <app-section-heading
+        align="left"
+        eyebrow="Comodidades para clientes"
+        title="Enquanto espera, fica bem entregue"
+        lead="A ida à oficina não tem de ser um transtorno. Preparámos o espaço para que possa esperar em conforto — ou deixar a viatura e seguir o seu dia."
+        appReveal
+      />
+
+      <ul class="mt-9 space-y-4">
+        @for (amenity of amenities; track amenity.title) {
+          <li
+            class="flex items-start gap-4 rounded-2xl bg-bone-100 p-6"
+            appReveal
+            [revealDelay]="$index * 80"
+          >
+            <span
+              class="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-brand-600 shadow-sm"
+            >
+              <app-icon [name]="amenity.icon" [size]="22" />
+            </span>
+            <span>
+              <span class="block text-base font-bold tracking-tight text-ink-950">{{ amenity.title }}</span>
+              <span class="mt-1.5 block text-sm leading-relaxed text-ink-600">{{ amenity.description }}</span>
+            </span>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="lg:col-span-7" appReveal>
+      <app-gallery-grid [images]="gallery" [columns]="2" />
+      <p class="mt-4 text-center text-xs text-ink-400">Toque numa fotografia para ampliar.</p>
+    </div>
+  </div>
+</app-page-section>
+
+<!-- ============================================================= Horário === -->
+<app-page-section tone="bone" sectionId="horario">
+  <div
+    class="mx-auto grid max-w-4xl gap-10 rounded-3xl bg-white p-8 shadow-card sm:p-12 lg:grid-cols-2 lg:gap-16"
+  >
+    <div>
+      <app-section-heading
+        align="left"
+        eyebrow="Horário de funcionamento"
+        title="Quando pode contar connosco"
+      />
+      <p class="mt-6 text-sm leading-relaxed text-ink-600">
+        Estamos abertos de segunda a sexta-feira. Se precisar de deixar a viatura fora deste horário,
+        ligue-nos e encontramos uma solução.
+      </p>
+      <app-button [href]="site.phone.href" variant="primary" icon="phone" iconPosition="left" class="mt-8">{{
+        site.phone.display
+      }}</app-button>
+    </div>
+
+    <app-opening-hours class="self-center" />
+  </div>
+</app-page-section>
+
+<!-- ================================================================ CTA === -->
+<app-page-section tone="bone" spacing="sm">
+  <app-cta-band />
+</app-page-section>

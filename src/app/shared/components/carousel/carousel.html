@@ -1,0 +1,76 @@
+<div
+  class="group relative isolate h-full w-full overflow-hidden bg-ink-950"
+  role="group"
+  aria-roledescription="carrossel"
+  aria-label="Fotografias da oficina FS Automotive"
+  (mouseenter)="pause()"
+  (mouseleave)="resume()"
+  (focusin)="pause()"
+  (focusout)="resume()"
+>
+  <div
+    class="flex h-full w-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+    [style.transform]="trackStyle()"
+  >
+    @for (slide of slides(); track slide.src) {
+      <figure
+        class="relative h-full w-full shrink-0 grow-0 basis-full"
+        role="group"
+        aria-roledescription="slide"
+        [attr.aria-label]="$index + 1 + ' de ' + count()"
+        [attr.aria-hidden]="current() !== $index ? 'true' : null"
+      >
+        <img
+          [src]="slide.src"
+          [alt]="slide.alt"
+          class="h-full w-full object-cover"
+          [attr.loading]="eager() && $first ? 'eager' : 'lazy'"
+          [attr.fetchpriority]="eager() && $first ? 'high' : 'auto'"
+          decoding="async"
+          width="1920"
+          height="1080"
+        />
+        @if (showCaptions() && slide.caption) {
+          <figcaption
+            class="absolute inset-x-0 bottom-0 bg-linear-to-t from-ink-950/90 to-transparent px-6 pt-16 pb-6 text-sm font-medium text-white"
+          >
+            {{ slide.caption }}
+          </figcaption>
+        }
+      </figure>
+    }
+  </div>
+
+  @if (showControls() && count() > 1) {
+    <button
+      type="button"
+      (click)="previous()"
+      aria-label="Fotografia anterior"
+      class="absolute top-1/2 left-3 z-10 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-ink-950/40 text-white opacity-0 backdrop-blur-sm transition duration-200 group-hover:opacity-100 hover:bg-brand-600 focus-visible:opacity-100 sm:left-5"
+    >
+      <app-icon name="chevron-right" [size]="20" [strokeWidth]="2.25" class="rotate-180" />
+    </button>
+
+    <button
+      type="button"
+      (click)="next()"
+      aria-label="Fotografia seguinte"
+      class="absolute top-1/2 right-3 z-10 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-ink-950/40 text-white opacity-0 backdrop-blur-sm transition duration-200 group-hover:opacity-100 hover:bg-brand-600 focus-visible:opacity-100 sm:right-5"
+    >
+      <app-icon name="chevron-right" [size]="20" [strokeWidth]="2.25" />
+    </button>
+
+    <div class="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-2.5">
+      @for (slide of slides(); track slide.src) {
+        <button
+          type="button"
+          (click)="goTo($index)"
+          [attr.aria-label]="'Ir para a fotografia ' + ($index + 1)"
+          [attr.aria-current]="current() === $index ? 'true' : null"
+          class="h-1.5 cursor-pointer rounded-full transition-all duration-300"
+          [class]="current() === $index ? 'w-8 bg-brand-600' : 'w-4 bg-white/50 hover:bg-white/80'"
+        ></button>
+      }
+    </div>
+  }
+</div>

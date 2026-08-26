@@ -1,0 +1,23 @@
+<article
+  class="group flex h-full flex-col items-center rounded-2xl bg-white p-6 text-center shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-card-hover"
+>
+  <span
+    class="grid size-20 place-items-center rounded-2xl bg-bone-200 transition-colors duration-300 group-hover:bg-brand-50"
+  >
+    <img
+      [src]="vehicle().image"
+      [alt]="''"
+      aria-hidden="true"
+      loading="lazy"
+      decoding="async"
+      width="125"
+      height="125"
+      class="size-12 object-contain transition-transform duration-300 group-hover:scale-110"
+    />
+  </span>
+
+  <h3 class="mt-5 text-sm font-bold tracking-tight text-ink-950 sm:text-base">
+    {{ vehicle().label }}
+  </h3>
+  <p class="mt-2 text-xs leading-relaxed text-ink-500 sm:text-sm">{{ vehicle().description }}</p>
+</article>

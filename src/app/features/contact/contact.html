@@ -1,0 +1,67 @@
+<app-page-hero
+  eyebrow="Contactos"
+  title="Falamos consigo antes de tocar no carro"
+  lead="Ligue, escreva ou apareça. Explicamos o que a sua viatura precisa em linguagem simples e sem compromisso."
+>
+  <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+    <app-button [action]="callAction" variant="primary" size="lg" iconPosition="left" />
+    <app-button [action]="emailAction" variant="ghost" size="lg" iconPosition="left" />
+  </div>
+</app-page-hero>
+
+<!-- =========================================================== Canais === -->
+<app-page-section tone="bone">
+  <app-section-heading
+    eyebrow="Como nos encontrar"
+    title="Escolha o canal que lhe der mais jeito"
+    appReveal
+  />
+
+  <app-contact-channels class="mt-14" appReveal />
+</app-page-section>
+
+<!-- =========================================================== Morada === -->
+<app-page-section tone="white" sectionId="onde-estamos">
+  <div class="grid gap-12 lg:grid-cols-12 lg:gap-16">
+    <div class="lg:col-span-5">
+      <app-section-heading
+        align="left"
+        eyebrow="Onde estamos"
+        title="Rua do Olival Santo 16b, Vialonga"
+        lead="Ficamos em Vialonga, com acesso rápido a partir de Alverca, Vila Franca de Xira e Loures. Estacionamento próprio para clientes."
+        appReveal
+      />
+
+      <address class="mt-8 rounded-2xl bg-bone-100 p-6 text-sm leading-relaxed text-ink-700 not-italic">
+        <span class="flex items-start gap-3">
+          <app-icon name="map-pin" [size]="18" class="mt-0.5 shrink-0 text-brand-600" />
+          <span>
+            <strong class="block font-bold text-ink-950">{{ site.name }}</strong>
+            {{ site.address.street }}<br />
+            {{ site.address.postalCode }} {{ site.address.city }}<br />
+            {{ site.address.country }}
+          </span>
+        </span>
+      </address>
+
+      <app-button [action]="directionsAction" variant="dark" iconPosition="left" class="mt-6" />
+
+      <div class="mt-10">
+        <h3 class="flex items-center gap-2 text-sm font-bold tracking-tight text-ink-950">
+          <app-icon name="clock" [size]="18" class="text-brand-600" />
+          Horário de funcionamento
+        </h3>
+        <app-opening-hours class="mt-2" />
+      </div>
+
+      <div class="mt-10">
+        <h3 class="text-xs font-bold tracking-[0.16em] text-ink-400 uppercase">Siga-nos</h3>
+        <app-social-links class="mt-4" tone="light" />
+      </div>
+    </div>
+
+    <div class="lg:col-span-7" appReveal>
+      <app-map-embed frameClass="aspect-[4/3] lg:aspect-auto lg:h-full lg:min-h-125" />
+    </div>
+  </div>
+</app-page-section>

@@ -1,0 +1,22 @@
+<nav
+  aria-label="Navegação principal (móvel)"
+  class="fixed inset-x-0 bottom-0 z-50 border-t-2 border-brand-600 bg-ink-950/97 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
+>
+  <ul class="flex items-stretch">
+    @for (link of links; track link.path) {
+      <li class="flex-1">
+        <a
+          [routerLink]="link.path"
+          routerLinkActive="text-brand-500 bg-white/5"
+          [routerLinkActiveOptions]="{ exact: !!link.exact }"
+          #rla="routerLinkActive"
+          [attr.aria-current]="rla.isActive ? 'page' : null"
+          class="flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-bone-400 transition-colors duration-200 active:bg-white/10"
+        >
+          <app-icon [name]="link.icon" [size]="21" />
+          <span class="text-[0.68rem] leading-none font-semibold tracking-tight">{{ link.shortLabel }}</span>
+        </a>
+      </li>
+    }
+  </ul>
+</nav>

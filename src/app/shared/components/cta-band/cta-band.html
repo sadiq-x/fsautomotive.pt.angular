@@ -1,0 +1,40 @@
+<div class="relative isolate overflow-hidden rounded-3xl bg-ink-950 px-6 py-14 sm:px-12 sm:py-16">
+  <!-- Decorative brand glow -->
+  <span
+    class="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-brand-600/25 blur-3xl"
+    aria-hidden="true"
+  ></span>
+  <span
+    class="pointer-events-none absolute -bottom-32 -left-20 size-72 rounded-full bg-brand-600/10 blur-3xl"
+    aria-hidden="true"
+  ></span>
+
+  <div class="relative flex flex-col items-start gap-10 lg:flex-row lg:items-center lg:justify-between">
+    <div class="max-w-2xl">
+      <p class="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-brand-400 uppercase">
+        <span class="h-px w-6 bg-current" aria-hidden="true"></span>
+        {{ eyebrow() }}
+      </p>
+      <h2 class="mt-4 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+        {{ title() }}
+      </h2>
+      <p class="mt-4 text-base leading-relaxed text-bone-300">{{ lead() }}</p>
+
+      <p class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-bone-400">
+        <span class="inline-flex items-center gap-2">
+          <app-icon name="clock" [size]="16" class="text-brand-400" />
+          Seg–Sex · 08:30–13:00 e 14:30–18:30
+        </span>
+        <span class="inline-flex items-center gap-2">
+          <app-icon name="map-pin" [size]="16" class="text-brand-400" />
+          {{ site.address.city }}
+        </span>
+      </p>
+    </div>
+
+    <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row lg:flex-col xl:flex-row">
+      <app-button [action]="primary" variant="primary" size="lg" iconPosition="left" />
+      <app-button [action]="secondary" variant="ghost" size="lg" iconPosition="left" />
+    </div>
+  </div>
+</div>

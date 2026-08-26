@@ -1,0 +1,46 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  [attr.width]="size()"
+  [attr.height]="size()"
+  fill="none"
+  stroke="currentColor"
+  [attr.stroke-width]="strokeWidth()"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  [attr.aria-hidden]="decorative() ? 'true' : null"
+  [attr.role]="decorative() ? null : 'img'"
+  [attr.aria-label]="label()"
+  focusable="false"
+>
+  @for (shape of shapes(); track $index) {
+    @switch (shape.kind) {
+      @case ('path') {
+        <svg:path [attr.d]="shape.d" [attr.fill]="shape.filled ? 'currentColor' : 'none'" />
+      }
+      @case ('circle') {
+        <svg:circle
+          [attr.cx]="shape.cx"
+          [attr.cy]="shape.cy"
+          [attr.r]="shape.r"
+          [attr.fill]="shape.filled ? 'currentColor' : 'none'"
+        />
+      }
+      @case ('rect') {
+        <svg:rect
+          [attr.x]="shape.x"
+          [attr.y]="shape.y"
+          [attr.width]="shape.width"
+          [attr.height]="shape.height"
+          [attr.rx]="shape.rx"
+        />
+      }
+      @case ('line') {
+        <svg:line [attr.x1]="shape.x1" [attr.y1]="shape.y1" [attr.x2]="shape.x2" [attr.y2]="shape.y2" />
+      }
+      @case ('polyline') {
+        <svg:polyline [attr.points]="shape.points" />
+      }
+    }
+  }
+</svg>

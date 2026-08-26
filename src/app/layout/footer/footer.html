@@ -1,0 +1,113 @@
+<footer class="bg-ink-950 text-bone-300">
+  <div class="container-page py-16 lg:py-20">
+    <div class="grid gap-12 lg:grid-cols-12 lg:gap-10">
+      <!-- Brand -->
+      <div class="lg:col-span-4">
+        <img
+          [src]="site.logo"
+          alt="FS Automotive"
+          width="661"
+          height="182"
+          loading="lazy"
+          class="h-11 w-auto"
+        />
+        <p class="mt-6 max-w-sm text-sm leading-relaxed text-bone-400">
+          {{ site.description }}
+        </p>
+        <app-social-links class="mt-7" tone="dark" />
+      </div>
+
+      <!-- Sitemap -->
+      <nav class="lg:col-span-2" aria-label="Mapa do site">
+        <h2 class="text-xs font-bold tracking-[0.16em] text-white uppercase">Navegação</h2>
+        <ul class="mt-5 space-y-3">
+          @for (link of links; track link.path) {
+            <li>
+              <a
+                [routerLink]="link.path"
+                class="group inline-flex items-center gap-1.5 text-sm text-bone-400 transition-colors duration-200 hover:text-brand-500"
+              >
+                <app-icon
+                  name="chevron-right"
+                  [size]="13"
+                  class="text-brand-600 transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+                {{ link.label }}
+              </a>
+            </li>
+          }
+        </ul>
+      </nav>
+
+      <!-- Contacts -->
+      <div class="lg:col-span-3">
+        <h2 class="text-xs font-bold tracking-[0.16em] text-white uppercase">Contactos</h2>
+        <ul class="mt-5 space-y-4 text-sm">
+          <li>
+            <a
+              [href]="site.phone.href"
+              class="group flex items-start gap-3 text-bone-400 transition-colors duration-200 hover:text-white"
+            >
+              <app-icon name="phone" [size]="17" class="mt-0.5 text-brand-500" />
+              <span class="font-semibold tabular-nums">{{ site.phone.display }}</span>
+            </a>
+          </li>
+          <li>
+            <a
+              [href]="'mailto:' + site.email"
+              class="group flex items-start gap-3 break-all text-bone-400 transition-colors duration-200 hover:text-white"
+            >
+              <app-icon name="mail" [size]="17" class="mt-0.5 shrink-0 text-brand-500" />
+              <span>{{ site.email }}</span>
+            </a>
+          </li>
+          <li>
+            <a
+              [href]="site.address.directionsUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="group flex items-start gap-3 text-bone-400 transition-colors duration-200 hover:text-white"
+            >
+              <app-icon name="map-pin" [size]="17" class="mt-0.5 shrink-0 text-brand-500" />
+              <span>
+                {{ site.address.street }}<br />
+                {{ site.address.postalCode }} {{ site.address.city }}
+              </span>
+            </a>
+          </li>
+        </ul>
+
+        <h2 class="mt-9 text-xs font-bold tracking-[0.16em] text-white uppercase">Horário</h2>
+        <app-opening-hours class="mt-2" tone="dark" />
+      </div>
+
+      <!-- Map -->
+      <div class="lg:col-span-3">
+        <h2 class="text-xs font-bold tracking-[0.16em] text-white uppercase">Onde estamos</h2>
+        <app-map-embed class="mt-5" frameClass="aspect-[4/3]" />
+        <a
+          [href]="site.address.directionsUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-bone-300 transition-colors duration-200 hover:text-brand-500"
+        >
+          Abrir no Google Maps
+          <app-icon name="arrow-up-right" [size]="16" />
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="border-t border-white/8">
+    <div
+      class="container-page flex flex-col items-center justify-between gap-3 py-6 text-center sm:flex-row sm:text-left"
+    >
+      <p class="text-bone-500 text-xs">
+        &copy; {{ currentYear }} {{ site.name }}. Todos os direitos reservados.
+      </p>
+      <p class="text-bone-500 text-xs">
+        Oficina multimarca em {{ site.address.city }} &middot; {{ site.address.country }}
+      </p>
+    </div>
+  </div>
+</footer>
