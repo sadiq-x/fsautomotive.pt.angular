@@ -20,15 +20,11 @@
         [attr.aria-label]="$index + 1 + ' de ' + count()"
         [attr.aria-hidden]="current() !== $index ? 'true' : null"
       >
-        <img
-          [src]="slide.src"
-          [alt]="slide.alt"
-          class="h-full w-full object-cover"
-          [attr.loading]="eager() && $first ? 'eager' : 'lazy'"
-          [attr.fetchpriority]="eager() && $first ? 'high' : 'auto'"
-          decoding="async"
-          width="1920"
-          height="1080"
+        <app-responsive-image
+          [image]="slide"
+          [priority]="eager() && $first"
+          sizes="100vw"
+          imgClass="h-full w-full object-cover"
         />
         @if (showCaptions() && slide.caption) {
           <figcaption

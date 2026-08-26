@@ -12,6 +12,7 @@ export * from './components/map-embed/map-embed';
 export * from './components/opening-hours/opening-hours';
 export * from './components/page-hero/page-hero';
 export * from './components/page-section/page-section';
+export * from './components/responsive-image/responsive-image';
 export * from './components/section-heading/section-heading';
 export * from './components/social-links/social-links';
 export * from './components/ui-button/ui-button';

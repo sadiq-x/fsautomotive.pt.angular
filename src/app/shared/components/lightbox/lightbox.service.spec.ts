@@ -4,9 +4,9 @@ import type { GalleryImage } from '../../../core/models';
 import { LightboxService } from './lightbox.service';
 
 const IMAGES: readonly GalleryImage[] = [
-  { src: 'a.jpg', alt: 'A' },
-  { src: 'b.jpg', alt: 'B' },
-  { src: 'c.jpg', alt: 'C' },
+  { src: 'a.jpg', alt: 'A', width: 1920, height: 1080 },
+  { src: 'b.jpg', alt: 'B', width: 1920, height: 1080 },
+  { src: 'c.jpg', alt: 'C', width: 1920, height: 1080 },
 ];
 
 describe('LightboxService', () => {

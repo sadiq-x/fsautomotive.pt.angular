@@ -1,4 +1,4 @@
-<footer class="bg-ink-950 text-bone-300">
+<footer class="bg-ink-950 pb-safe-nav text-bone-300">
   <div class="container-page py-16 lg:py-20">
     <div class="grid gap-12 lg:grid-cols-12 lg:gap-10">
       <!-- Brand -->
@@ -25,7 +25,7 @@
             <li>
               <a
                 [routerLink]="link.path"
-                class="group inline-flex items-center gap-1.5 text-sm text-bone-400 transition-colors duration-200 hover:text-brand-500"
+                class="group inline-flex items-center gap-1.5 py-1 text-sm text-bone-400 transition-colors duration-200 hover:text-brand-500 touch:py-2"
               >
                 <app-icon
                   name="chevron-right"
@@ -46,7 +46,7 @@
           <li>
             <a
               [href]="site.phone.href"
-              class="group flex items-start gap-3 text-bone-400 transition-colors duration-200 hover:text-white"
+              class="group flex items-start gap-3 py-1 text-bone-400 transition-colors duration-200 hover:text-white touch:py-2"
             >
               <app-icon name="phone" [size]="17" class="mt-0.5 text-brand-500" />
               <span class="font-semibold tabular-nums">{{ site.phone.display }}</span>
@@ -55,7 +55,7 @@
           <li>
             <a
               [href]="'mailto:' + site.email"
-              class="group flex items-start gap-3 break-all text-bone-400 transition-colors duration-200 hover:text-white"
+              class="group flex items-start gap-3 py-1 break-all text-bone-400 transition-colors duration-200 hover:text-white touch:py-2"
             >
               <app-icon name="mail" [size]="17" class="mt-0.5 shrink-0 text-brand-500" />
               <span>{{ site.email }}</span>
@@ -66,7 +66,7 @@
               [href]="site.address.directionsUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex items-start gap-3 text-bone-400 transition-colors duration-200 hover:text-white"
+              class="group flex items-start gap-3 py-1 text-bone-400 transition-colors duration-200 hover:text-white touch:py-2"
             >
               <app-icon name="map-pin" [size]="17" class="mt-0.5 shrink-0 text-brand-500" />
               <span>

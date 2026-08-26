@@ -11,6 +11,7 @@ import {
 
 import type { GalleryImage } from '../../../core/models';
 import { Icon } from '../icon/icon';
+import { ResponsiveImage } from '../responsive-image/responsive-image';
 
 /**
  * Auto-advancing image carousel used by the home hero.
@@ -22,7 +23,7 @@ import { Icon } from '../icon/icon';
 @Component({
   selector: 'app-carousel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Icon],
+  imports: [Icon, ResponsiveImage],
   templateUrl: './carousel.html',
   host: { class: 'block' },
 })

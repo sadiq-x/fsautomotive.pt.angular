@@ -29,17 +29,15 @@ export class SectionHeading {
 
   protected readonly eyebrowClasses = computed(() =>
     [
-      'inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]',
+      'inline-flex items-center gap-2 text-eyebrow uppercase',
       this.tone() === 'dark' ? 'text-brand-400' : 'text-brand-600',
     ].join(' '),
   );
 
   protected readonly titleClasses = computed(() =>
     [
-      'font-extrabold tracking-tight',
-      this.level() === 1
-        ? 'text-4xl sm:text-5xl lg:text-6xl'
-        : 'text-3xl sm:text-4xl lg:text-[2.75rem]',
+      'font-extrabold',
+      this.level() === 1 ? 'text-h1' : 'text-h2',
       this.tone() === 'dark' ? 'text-white' : 'text-ink-950',
       this.eyebrow() ? 'mt-4' : '',
     ]
@@ -49,7 +47,7 @@ export class SectionHeading {
 
   protected readonly leadClasses = computed(() =>
     [
-      'mt-5 text-base leading-relaxed sm:text-lg',
+      'mt-5 text-lead',
       this.tone() === 'dark' ? 'text-bone-300' : 'text-ink-600',
       this.align() === 'center' ? 'mx-auto max-w-2xl' : 'max-w-2xl',
     ].join(' '),

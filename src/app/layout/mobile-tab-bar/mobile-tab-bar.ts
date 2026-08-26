@@ -13,7 +13,7 @@ import { Icon } from '../../shared/components/icon/icon';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, RouterLinkActive, Icon],
   templateUrl: './mobile-tab-bar.html',
-  host: { class: 'lg:hidden' },
+  host: { class: 'md:hidden' },
 })
 export class MobileTabBar {
   protected readonly links = NAV_LINKS;

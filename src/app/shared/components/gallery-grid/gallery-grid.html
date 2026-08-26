@@ -7,14 +7,10 @@
         [attr.aria-label]="'Ampliar: ' + image.alt"
         class="group relative block w-full cursor-pointer overflow-hidden rounded-2xl bg-ink-900 shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-card-hover"
       >
-        <img
-          [src]="image.src"
-          [alt]="image.alt"
-          loading="lazy"
-          decoding="async"
-          width="1920"
-          height="1080"
-          class="aspect-4/3 w-full object-cover transition duration-500 ease-out group-hover:scale-105"
+        <app-responsive-image
+          [image]="image"
+          [sizes]="sizes()"
+          imgClass="aspect-4/3 w-full object-cover transition duration-500 ease-out group-hover:scale-105"
         />
         <span
           class="absolute inset-0 bg-linear-to-t from-ink-950/80 via-ink-950/10 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-95"

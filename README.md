@@ -129,6 +129,95 @@ Cada padrão visual existe exatamente uma vez:
 
 ---
 
+## Escala responsiva
+
+O site cobre desde um telemóvel de 320 px até uma televisão 4K. A estratégia
+tem três camadas que se complementam em vez de se sobreporem.
+
+### 1. Breakpoints por dispositivo
+
+| Token | Largura | Dispositivo alvo                  |
+| ----- | ------- | --------------------------------- |
+| `xs`  | 480 px  | Telemóveis grandes                |
+| `sm`  | 640 px  | Phablets, tablets pequenos        |
+| `md`  | 768 px  | Tablet em retrato                 |
+| `lg`  | 1024 px | Tablet em paisagem, portáteis     |
+| `xl`  | 1280 px | Portáteis                         |
+| `2xl` | 1536 px | Desktop                           |
+| `3xl` | 1920 px | Desktop grande, televisão Full HD |
+| `4xl` | 2560 px | Ecrãs QHD                         |
+| `5xl` | 3840 px | Televisões 4K                     |
+
+Declarados em `rem`: em _media queries_ o `rem` resolve sempre contra o tamanho
+de letra inicial do browser, por isso os breakpoints não são afetados pelo
+escalamento da raiz e respeitam um tamanho de letra personalizado do visitante.
+
+### 2. Tipografia e espaçamento fluidos
+
+Títulos, texto e ritmo vertical usam `clamp()` — crescem continuamente entre os
+375 px e os 1536 px, sem "saltos" nos breakpoints:
+
+```css
+--text-h1: clamp(2rem, 1.354rem + 2.76vw, 4rem); /* 32 px → 64 px */
+--spacing-section-md: clamp(4rem, 2.87rem + 4.82vw, 7.5rem);
+```
+
+Os tokens (`text-display`, `text-h1`, `text-h2`, `text-h3`, `text-lead`,
+`text-body`, `text-meta`, `text-eyebrow`) substituem escadas do tipo
+`text-3xl sm:text-4xl lg:text-5xl`. O mínimo é 12 px em qualquer ecrã.
+
+### 3. Escalamento da raiz acima dos 1920 px
+
+Onde o `clamp` termina, o tamanho de letra da raiz assume:
+
+| Largura | `font-size` da raiz |
+| ------- | ------------------- |
+| ≥1920px | 17 px               |
+| ≥2560px | 19 px               |
+| ≥3840px | 24 px               |
+
+Como todo o espaçamento do Tailwind é baseado em `rem`, isto amplia de uma só
+vez tipografia, espaçamentos, ícones e raios de canto — que é exatamente o que
+uma distância de visualização de 3 metros exige. A largura máxima do conteúdo
+acompanha (80rem → 112rem) para o texto não ficar isolado no meio do ecrã.
+
+### Variantes de capacidade
+
+A largura não descreve tudo. Três variantes próprias cobrem o resto:
+
+| Variante | Media query                                | Uso                                 |
+| -------- | ------------------------------------------ | ----------------------------------- |
+| `tv:`    | `(≥1920px e pointer: coarse)` ou `≥2560px` | Margem de _overscan_, alvos maiores |
+| `touch:` | `(hover: none)`                            | Áreas de toque mais generosas       |
+| `short:` | `(altura ≤ 544px e paisagem)`              | Telemóvel deitado                   |
+
+O `hover:` do Tailwind v4 já vem embrulhado em `@media (hover: hover)`, por isso
+ecrãs táteis nunca ficam com estados de _hover_ "presos".
+
+### Comportamento por dispositivo
+
+- **Telemóvel (<768px)** — barra de navegação fixa no fundo, com alvos de 64 px;
+  o herói ocupa `min(88svh, 50rem)` para preencher o ecrã sem cortar conteúdo.
+- **Telemóvel deitado** — `short:` reduz o espaçamento do herói e esconde a
+  faixa de estatísticas, para o título e os botões caberem em 375 px de altura.
+- **Tablet (≥768px)** — passa a navegação de topo; a barra inferior desaparece.
+- **Portátil / desktop (≥1024px)** — número de telefone e botão de orçamento no
+  cabeçalho; o gradiente do herói passa a horizontal, deixando a fotografia da
+  oficina respirar à direita do título.
+- **Televisão (≥1920px com comando)** — escalamento da raiz, `--tv-safe` de
+  2.5vw contra o _overscan_, e anel de foco de 4 px com halo para navegação por
+  D-pad.
+
+### Imagens responsivas
+
+As fotografias da oficina são servidas em quatro tamanhos (480 / 768 / 1200 /
+1920). O componente `app-responsive-image` deriva o `srcset` do nome do ficheiro
+por convenção (`oficina-1.jpg` → `oficina-1-480.jpg`) e cada consumidor declara
+o `sizes` da sua grelha. Um telemóvel descarrega ~40 kB por fotografia em vez
+dos ~205 kB do original.
+
+---
+
 ## Acessibilidade
 
 - Link _"Saltar para o conteúdo"_ visível ao focar.
@@ -137,7 +226,11 @@ Cada padrão visual existe exatamente uma vez:
 - `aria-expanded` / `aria-controls` / `aria-current` nos controlos interativos.
 - Ícones decorativos com `aria-hidden`; ícones informativos com `role="img"`.
 - `prefers-reduced-motion` desliga animações, autoplay e _scroll reveal_.
-- Alvos de toque de 44 px+ na barra de navegação móvel.
+- Alvos de toque de 44 px+ na barra de navegação móvel; a variante `touch:`
+  aumenta os alvos mais compactos onde não existe rato.
+- Tamanho de letra mínimo de 12 px em qualquer dispositivo.
+- Anel de foco reforçado (4 px + halo) acima dos 1920 px, para navegação por
+  comando de televisão.
 
 ## SEO
 
@@ -176,5 +269,5 @@ public/
 └── images/
     ├── brand/        # logótipos
     ├── vehicles/     # ícones dos tipos de veículo
-    └── workshop/     # fotografias da oficina
+    └── workshop/     # fotografias da oficina (1920px + 480/768/1200)
 ```

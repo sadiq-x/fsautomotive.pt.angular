@@ -26,7 +26,7 @@ export class Header {
 
   protected readonly barClasses = computed(() =>
     [
-      'border-b border-white/5 bg-ink-950/95 backdrop-blur-md transition-shadow duration-300',
+      'border-b border-white/5 bg-ink-950/95 backdrop-blur-md py-1 transition-shadow duration-300 tv:py-5',
       this.scrolled() ? 'shadow-lg shadow-ink-950/25' : '',
     ]
       .filter(Boolean)

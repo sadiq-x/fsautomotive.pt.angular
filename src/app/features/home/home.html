@@ -1,29 +1,29 @@
 <!-- ============================================================== Hero === -->
-<section class="relative isolate bg-ink-950">
+<section class="relative isolate flex min-h-[min(88svh,50rem)] items-center bg-ink-950 short:min-h-0">
   <div class="absolute inset-0">
     <app-carousel class="h-full" [slides]="slides" [interval]="6000" [showControls]="false" [eager]="true" />
   </div>
   <div
-    class="absolute inset-0 bg-linear-to-br from-ink-950 via-ink-950/85 to-ink-950/45"
+    class="absolute inset-0 bg-ink-950/78 lg:bg-transparent lg:bg-linear-to-r lg:from-ink-950 lg:from-6% lg:via-ink-950/80 lg:via-46% lg:to-ink-950/25"
     aria-hidden="true"
   ></div>
   <span class="absolute inset-x-0 bottom-0 h-1 bg-brand-600" aria-hidden="true"></span>
 
-  <div class="relative container-page py-20 sm:py-28 lg:py-36">
+  <div class="relative container-page w-full py-section-lg short:py-12">
     <div class="max-w-3xl">
       <p
-        class="inline-flex items-center gap-2 rounded-full bg-white/8 px-4 py-1.5 text-xs font-bold tracking-[0.16em] text-brand-400 uppercase ring-1 ring-white/15 backdrop-blur-sm ring-inset"
+        class="inline-flex items-center gap-2 rounded-full bg-white/8 px-4 py-1.5 text-eyebrow text-brand-400 uppercase ring-1 ring-white/15 backdrop-blur-sm ring-inset"
       >
         <app-icon name="map-pin" [size]="14" />
         {{ site.tagline }}
       </p>
 
-      <h1 class="mt-7 text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl">
+      <h1 class="mt-7 text-display font-extrabold text-white">
         Cuidamos do seu veículo
         <span class="text-brand-500">como se fosse nosso.</span>
       </h1>
 
-      <p class="mt-7 max-w-2xl text-base leading-relaxed text-bone-200 sm:text-lg">
+      <p class="mt-7 max-w-2xl text-lead text-bone-200">
         Está à procura de um serviço automóvel de confiança? A {{ site.name }} garante-lhe
         <strong class="font-bold text-white">qualidade</strong>,
         <strong class="font-bold text-white">eficiência</strong> e um
@@ -37,21 +37,21 @@
         >
       </div>
 
-      <dl class="mt-14 grid max-w-lg grid-cols-3 gap-6 border-t border-white/12 pt-8">
+      <dl class="mt-14 grid max-w-lg grid-cols-3 gap-6 border-t border-white/12 pt-8 short:hidden">
         <div>
           <dt class="sr-only">Serviços disponíveis</dt>
-          <dd class="text-3xl font-extrabold text-white tabular-nums">{{ totalServices }}</dd>
-          <p class="mt-1 text-xs font-medium tracking-wide text-bone-400">Serviços especializados</p>
+          <dd class="text-h2 font-extrabold text-white tabular-nums">{{ totalServices }}</dd>
+          <p class="mt-1 text-meta font-medium text-bone-400">Serviços especializados</p>
         </div>
         <div>
           <dt class="sr-only">Tipos de veículos</dt>
-          <dd class="text-3xl font-extrabold text-white tabular-nums">{{ vehicles.length }}</dd>
-          <p class="mt-1 text-xs font-medium tracking-wide text-bone-400">Tipos de veículo</p>
+          <dd class="text-h2 font-extrabold text-white tabular-nums">{{ vehicles.length }}</dd>
+          <p class="mt-1 text-meta font-medium text-bone-400">Tipos de veículo</p>
         </div>
         <div>
           <dt class="sr-only">Abordagem</dt>
-          <dd class="text-3xl font-extrabold text-white">100%</dd>
-          <p class="mt-1 text-xs font-medium tracking-wide text-bone-400">Multimarca</p>
+          <dd class="text-h2 font-extrabold text-white">100%</dd>
+          <p class="mt-1 text-meta font-medium text-bone-400">Multimarca</p>
         </div>
       </dl>
     </div>
@@ -103,12 +103,12 @@
             <app-icon [name]="service.icon" [size]="24" />
           </span>
           <h3
-            class="mt-6 text-lg font-bold tracking-tight text-ink-950 transition-colors duration-300 group-hover:text-white"
+            class="mt-6 text-h3 font-bold text-ink-950 transition-colors duration-300 group-hover:text-white"
           >
             {{ service.title }}
           </h3>
           <p
-            class="mt-2.5 flex-1 text-sm leading-relaxed text-ink-600 transition-colors duration-300 group-hover:text-bone-300"
+            class="mt-2.5 flex-1 text-body text-ink-600 transition-colors duration-300 group-hover:text-bone-300"
           >
             {{ service.description }}
           </p>

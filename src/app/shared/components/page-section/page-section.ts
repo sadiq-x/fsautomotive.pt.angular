@@ -11,9 +11,9 @@ const TONES: Record<SectionTone, string> = {
 };
 
 const SPACING: Record<SectionSpacing, string> = {
-  sm: 'py-12 sm:py-16',
-  md: 'py-16 sm:py-20 lg:py-24',
-  lg: 'py-20 sm:py-28 lg:py-32',
+  sm: 'py-section-sm',
+  md: 'py-section-md',
+  lg: 'py-section-lg',
 };
 
 /**

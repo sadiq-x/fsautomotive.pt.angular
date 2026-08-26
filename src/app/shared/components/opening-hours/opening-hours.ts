@@ -27,7 +27,7 @@ export class OpeningHours {
   );
   protected readonly closedBadgeClasses = computed(() =>
     [
-      'rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase',
+      'rounded-full px-3 py-1 text-meta font-bold tracking-wide uppercase',
       this.tone() === 'dark' ? 'bg-white/10 text-bone-400' : 'bg-ink-950/5 text-ink-500',
     ].join(' '),
   );

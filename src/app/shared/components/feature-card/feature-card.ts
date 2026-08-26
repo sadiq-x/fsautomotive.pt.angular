@@ -47,10 +47,7 @@ export class FeatureCard {
   );
 
   protected readonly titleClasses = computed(() =>
-    [
-      'mt-6 text-lg font-bold tracking-tight',
-      this.tone() === 'dark' ? 'text-white' : 'text-ink-950',
-    ].join(' '),
+    ['mt-6 text-h3 font-bold', this.tone() === 'dark' ? 'text-white' : 'text-ink-950'].join(' '),
   );
 
   protected readonly indexClasses = computed(() =>
@@ -61,9 +58,6 @@ export class FeatureCard {
   );
 
   protected readonly bodyClasses = computed(() =>
-    [
-      'mt-2.5 text-sm leading-relaxed',
-      this.tone() === 'dark' ? 'text-bone-300' : 'text-ink-600',
-    ].join(' '),
+    ['mt-2.5 text-body', this.tone() === 'dark' ? 'text-bone-300' : 'text-ink-600'].join(' '),
   );
 }

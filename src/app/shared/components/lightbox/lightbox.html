@@ -36,11 +36,10 @@
 
     @if (lightbox.current(); as image) {
       <figure class="max-h-full w-full max-w-5xl" (click)="$event.stopPropagation()">
-        <img
-          [src]="image.src"
-          [alt]="image.alt"
-          class="mx-auto max-h-[78vh] w-auto rounded-lg object-contain shadow-2xl"
-          decoding="async"
+        <app-responsive-image
+          [image]="image"
+          sizes="(min-width: 64rem) 62vw, 92vw"
+          imgClass="mx-auto max-h-[78svh] w-auto rounded-lg object-contain shadow-2xl"
         />
         <figcaption class="mt-4 flex items-center justify-center gap-3 text-sm text-bone-300">
           @if (image.caption) {
