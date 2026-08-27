@@ -33,6 +33,9 @@ npm test            # correr os testes uma vez
 npm run test:watch  # testes em modo watch
 npm run format      # formatar todo o código
 npm run verify      # format:check + test + build (usar antes de fazer push)
+npm run audit:responsive  # falha se alguma página deslizar na horizontal (precisa de Chrome)
+npm run verify:full # verify + audit responsivo (usar antes de publicar)
+npm run deploy      # publica no GitHub Pages
 ```
 
 ---
@@ -115,6 +118,49 @@ Cada padrão visual existe exatamente uma vez:
 | `app-social-links`     | Facebook / Instagram / e-mail                                          |
 | `app-cta-band`         | Faixa final de chamada à ação                                          |
 | `app-page-hero`        | Banner escuro de topo das páginas interiores                           |
+
+### Sistema de botões
+
+`app-button` tem cinco variantes, cada uma pensada para uma superfície:
+
+| Variante    | Superfície              | Tratamento                                  |
+| ----------- | ----------------------- | ------------------------------------------- |
+| `primary`   | qualquer                | Preenchimento vermelho + sombra de contacto |
+| `secondary` | fundo claro (bone)      | Branco + aro tingido + sombra               |
+| `dark`      | fundo claro             | Tinta quase preta                           |
+| `ghost`     | fotografia / faixa dark | Aro gelado, sem preenchimento sólido        |
+| `link`      | dentro de texto         | Só texto sublinhado, sem _chrome_           |
+
+Cada variante define **quatro estados** — repouso, `hover`, `active` e
+`focus-visible`. O `hover` clareia _e_ eleva: a sombra maior é o que torna um
+deslocamento de 2 px percetível, e o `active` volta a assentar o botão, para
+que o clique tenha resposta física.
+
+Duas decisões que valem a pena registar:
+
+- **As sombras dos botões não são as dos cartões.** Um cartão flutua sobre a
+  página (sombra larga e suave); um botão assenta na superfície (desfoque curto
+  - sombra de contacto). Usar a sombra de cartão num botão deixava uma mancha
+    difusa no fundo bone. A camada vermelha do `--shadow-brand` é propositadamente
+    discreta — com mais opacidade, transformava-se num halo sobre o cabeçalho
+    quase preto.
+- **A variante `link` não recebe as classes de tamanho do pill.** As dimensões
+  são escolhidas em `classes()` conforme a variante, o que dispensa os
+  `px-0!`/`py-0!` que antes lutavam contra o `SIZES`.
+
+**O host do `app-button` é uma caixa real.** Era `display: contents`, que não
+gera caixa nenhuma: um `class="mt-8"` no host era calculado pelo browser e
+depois descartado em silêncio — o botão ficava colado ao elemento acima. Agora
+o `display` por omissão vive na _base layer_ (`app-button { display: inline-flex }`),
+e não numa classe do host. A distinção importa: uma classe estática no host
+empata em especificidade com o `hidden` de quem o usa e a ordem da folha de
+estilos decide o vencedor — foi assim que o botão do cabeçalho apareceu no
+telemóvel. Um seletor de elemento perde sempre para qualquer utilitário, pelo
+que `class="hidden lg:inline-flex"` funciona como seria de esperar.
+
+Superfícies pálidas sobre fundo claro (o disco do acordeão, o botão
+`secondary`) usam sempre um aro tingido — `ring-ink-950/8` — em vez de um
+cinzento liso: define a forma sem parecer desenhado por cima.
 
 ### Convenções
 
@@ -208,6 +254,30 @@ ecrãs táteis nunca ficam com estados de _hover_ "presos".
   2.5vw contra o _overscan_, e anel de foco de 4 px com halo para navegação por
   D-pad.
 
+### Garantia contra deslize horizontal
+
+Nenhuma página pode deslizar para os lados. Isso é assegurado em três níveis:
+
+1. **Nada transborda por construção.** Os brilhos decorativos das faixas
+   escuras são pintados como `background` (`glow-corner`, `glow-diagonal`) em
+   vez de círculos desfocados posicionados fora do contentor. A abordagem
+   anterior dependia de `overflow: hidden` para recortar um elemento com
+   `blur()` — combinação que escapa ao recorte no iOS Safari quando o
+   contentor também tem `border-radius`, alargando a página. Como efeito
+   secundário, desapareceu um filtro `blur` caro para GPUs móveis.
+2. **Guarda na raiz.** `html, body { overflow-x: clip }`. `clip` e não
+   `hidden`: `hidden` transformaria a raiz num contentor de scroll e partiria
+   o cabeçalho `sticky`; `clip` apenas recusa o deslize lateral.
+   `overscroll-behavior-x: none` impede que um arrasto lateral encadeie no
+   gesto de retroceder do browser.
+3. **Guarda automatizada.** `npm run audit:responsive` serve o _bundle_ de
+   produção, percorre 9 larguras × 5 páginas em Chrome _headless_ e falha se
+   algum elemento escapar ao _viewport_. Corre dentro de `npm run verify`.
+
+> O teste ignora deliberadamente o guarda da raiz ao procurar transbordos —
+> caso contrário o `overflow-x: clip` mascararia todos os problemas reais e o
+> teste passaria sempre.
+
 ### Imagens responsivas
 
 As fotografias da oficina são servidas em quatro tamanhos (480 / 768 / 1200 /
@@ -245,19 +315,35 @@ dos ~205 kB do original.
 
 ## Deployment
 
-`npm run build` produz uma aplicação estática em `dist/fsautomotive/browser/`.
+O projeto está configurado para **GitHub Pages** através do `angular-cli-ghpages`:
 
-Por ser uma SPA, o servidor tem de reencaminhar todos os caminhos para
-`index.html` (fallback de SPA):
+```bash
+npm run deploy    # ng deploy --base-href=/fsautomotive.pt.angular/
+```
 
-- **Netlify** — `_redirects` com `/* /index.html 200`
-- **Vercel** — `rewrites` para `/index.html`
-- **Apache** — `RewriteRule ^ index.html [L]`
-- **Nginx** — `try_files $uri $uri/ /index.html;`
+O `--base-href` é obrigatório porque o site é servido a partir de um
+subdiretório (`https://<utilizador>.github.io/fsautomotive.pt.angular/`). Todos
+os recursos no `index.html` são referenciados de forma relativa, pelo que
+resolvem corretamente contra esse `<base href>`.
 
-Sem esse fallback, um acesso direto a `/servicos` devolve 404.
+O `angular-cli-ghpages` trata automaticamente de dois detalhes do GitHub Pages:
 
----
+- **`404.html`** — cópia do `index.html`, que dá o _fallback_ de SPA. Sem ele,
+  abrir `/servicos` diretamente ou recarregar a página devolveria um 404.
+- **`.nojekyll`** — impede o Jekyll de processar (e ignorar) ficheiros do build.
+
+Para mudar de anfitrião, o requisito é sempre o mesmo — reencaminhar caminhos
+desconhecidos para o `index.html`:
+
+| Anfitrião | Configuração                        |
+| --------- | ----------------------------------- |
+| Netlify   | `public/_redirects` (já incluído)   |
+| Vercel    | `rewrites` para `/index.html`       |
+| Apache    | `RewriteRule ^ index.html [L]`      |
+| Nginx     | `try_files $uri $uri/ /index.html;` |
+
+Se o site passar a ter domínio próprio, o `--base-href` volta a ser `/` e deve
+ser gerado um `CNAME` (`ng deploy --cname=fsautomotive.pt`).
 
 ## Assets
 

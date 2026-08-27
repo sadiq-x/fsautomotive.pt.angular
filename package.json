@@ -14,10 +14,13 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "deploy": "ng deploy --base-href=/fsautomotive.pt.angular/",
     "test:watch": "ng test --watch",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run format:check && npm run test && npm run build"
+    "verify": "npm run format:check && npm run test && npm run build",
+    "audit:responsive": "node scripts/audit-responsive.mjs",
+    "verify:full": "npm run verify && npm run audit:responsive"
   },
   "dependencies": {
     "@angular/common": "^21.2.0",
@@ -34,6 +37,7 @@
     "@angular/cli": "^21.2.12",
     "@angular/compiler-cli": "^21.2.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "angular-cli-ghpages": "^3.1.0",
     "jsdom": "^28.0.0",
     "postcss": "^8.5.26",
     "prettier": "^3.8.1",

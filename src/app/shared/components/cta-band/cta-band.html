@@ -1,13 +1,6 @@
 <div class="relative isolate overflow-hidden rounded-3xl bg-ink-950 px-6 py-section-sm sm:px-12">
-  <!-- Decorative brand glow -->
-  <span
-    class="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-brand-600/25 blur-3xl"
-    aria-hidden="true"
-  ></span>
-  <span
-    class="pointer-events-none absolute -bottom-32 -left-20 size-72 rounded-full bg-brand-600/10 blur-3xl"
-    aria-hidden="true"
-  ></span>
+  <!-- Decorative brand glow: a background layer, so it cannot overflow. -->
+  <span class="pointer-events-none absolute inset-0 glow-diagonal" aria-hidden="true"></span>
 
   <div class="relative flex flex-col items-start gap-10 lg:flex-row lg:items-center lg:justify-between">
     <div class="max-w-2xl">
