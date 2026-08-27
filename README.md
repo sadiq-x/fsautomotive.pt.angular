@@ -318,7 +318,26 @@ dos ~205 kB do original.
 O projeto está configurado para **GitHub Pages** através do `angular-cli-ghpages`:
 
 ```bash
-npm run deploy    # ng deploy --base-href=/fsautomotive.pt.angular/
+npm run deploy              # ng deploy --base-href=/fsautomotive.pt.angular/
+./scripts/deploy.ps1        # o mesmo, com verificações antes de publicar
+```
+
+O `scripts/deploy.ps1` (PowerShell 5.1+ ou `pwsh` 7+) é a via recomendada:
+executa a partir da raiz do repositório independentemente de onde é invocado,
+instala dependências em falta, **recusa publicar com alterações por commitar**,
+corre o `npm run verify` antes de qualquer publicação e pede confirmação. Como
+usa `SupportsShouldProcess`, aceita `-WhatIf` e `-Confirm`:
+
+| Parâmetro     | Efeito                                            |
+| ------------- | ------------------------------------------------- |
+| `-BaseHref`   | Caminho base; `'/'` quando houver domínio próprio |
+| `-SkipVerify` | Salta formatação, testes e build                  |
+| `-AllowDirty` | Publica mesmo com a árvore de trabalho suja       |
+| `-WhatIf`     | Mostra o que aconteceria, sem publicar            |
+
+```powershell
+./scripts/deploy.ps1 -WhatIf            # ensaio, não publica nada
+./scripts/deploy.ps1 -BaseHref '/'      # para domínio próprio
 ```
 
 O `--base-href` é obrigatório porque o site é servido a partir de um
