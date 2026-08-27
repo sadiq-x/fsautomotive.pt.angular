@@ -7,6 +7,10 @@ Angular com TypeScript estrito e Tailwind CSS.
 
 ---
 
+> **Documentação técnica completa:** [`docs/APPLICATION.md`](docs/APPLICATION.md)
+> — arquitetura, lógica do código, guia passo a passo, mapa de ficheiros,
+> utilização dos scripts e registo de desenvolvimento.
+
 ## Stack
 
 | Camada     | Tecnologia                                                     |
