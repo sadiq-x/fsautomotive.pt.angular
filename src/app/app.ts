@@ -4,27 +4,30 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
 import type { PageMeta } from './core/models';
-import { SeoService, StructuredDataService } from './core/services';
+import { AnalyticsService, SeoService, StructuredDataService } from './core/services';
 import { Footer } from './layout/footer/footer';
 import { Header } from './layout/header/header';
 import { MobileTabBar } from './layout/mobile-tab-bar/mobile-tab-bar';
+import { CookieNotice } from './shared/components/cookie-notice/cookie-notice';
 import { Lightbox } from './shared/components/lightbox/lightbox';
 
 /**
  * Application shell: header, routed content, footer, mobile tab bar and the
- * single lightbox instance. It also keeps the document head in sync with the
- * active route's `data.meta`.
+ * single lightbox instance and the privacy notice. It also keeps the document
+ * head in sync with the active route's `data.meta`, and starts analytics (a
+ * no-op until a Measurement ID is configured, or if the visitor opted out).
  */
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Header, Footer, MobileTabBar, Lightbox],
+  imports: [RouterOutlet, Header, Footer, MobileTabBar, Lightbox, CookieNotice],
   templateUrl: './app.html',
 })
 export class App {
   private readonly router = inject(Router);
   private readonly seo = inject(SeoService);
   private readonly structuredData = inject(StructuredDataService);
+  private readonly analytics = inject(AnalyticsService);
 
   /** The deepest active route's `meta`, recomputed after every navigation. */
   private readonly activeMeta = toSignal(
@@ -38,6 +41,7 @@ export class App {
 
   constructor() {
     this.structuredData.publishLocalBusiness();
+    this.analytics.initialize();
 
     effect(() => {
       const meta = this.activeMeta();

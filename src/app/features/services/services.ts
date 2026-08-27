@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
-import { SERVICES, VEHICLE_TYPES } from '../../core/data';
+import { SERVICES, SITE, VEHICLE_TYPES } from '../../core/data';
 import {
   Accordion,
   AccordionItem,
@@ -31,6 +31,7 @@ import {
   templateUrl: './services.html',
 })
 export class Services {
+  protected readonly site = SITE;
   protected readonly services = SERVICES;
   protected readonly vehicles = VEHICLE_TYPES;
 }

@@ -43,6 +43,9 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 
-# Environment variables file
+# Environment variables. `.env.example` is the committed template and is
+# deliberately NOT ignored — it is what a new checkout copies from.
 .env
 .env.local
+.env.example
+

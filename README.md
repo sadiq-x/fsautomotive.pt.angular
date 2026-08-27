@@ -35,8 +35,9 @@ npm start           # servidor de desenvolvimento em http://localhost:4200
 npm run build       # build de produção para dist/fsautomotive
 npm test            # correr os testes uma vez
 npm run test:watch  # testes em modo watch
+npm run test:scripts # testes das ferramentas de build (scripts/)
 npm run format      # formatar todo o código
-npm run verify      # format:check + test + build (usar antes de fazer push)
+npm run verify      # format:check + testes + build (usar antes de fazer push)
 npm run audit:responsive  # falha se alguma página deslizar na horizontal (precisa de Chrome)
 npm run verify:full # verify + audit responsivo (usar antes de publicar)
 npm run deploy      # publica no GitHub Pages
@@ -68,8 +69,9 @@ src/
     │
     ├── core/                    # sem UI — modelos, conteúdo e serviços singleton
     │   ├── models/              # interfaces do domínio (+ barrel `index.ts`)
+    │   ├── config/              # constantes injetadas no build (GA4)
     │   ├── data/                # TODO o conteúdo do site, tipado
-    │   └── services/            # SeoService, StructuredDataService
+    │   └── services/            # Seo, StructuredData, Analytics, Consent
     │
     ├── shared/                  # componentes reutilizáveis, sem regras de negócio
     │   ├── components/
@@ -117,6 +119,7 @@ Cada padrão visual existe exatamente uma vez:
 | `app-gallery-grid`     | Grelha de fotografias que abre o lightbox                              |
 | `app-vehicle-card`     | Tipo de veículo aceite                                                 |
 | `app-contact-channels` | Telefone / e-mail / morada                                             |
+| `app-cookie-notice`    | Aviso de privacidade com recusa — instância única no shell             |
 | `app-opening-hours`    | Tabela de horário                                                      |
 | `app-map-embed`        | Google Maps (lazy)                                                     |
 | `app-social-links`     | Facebook / Instagram / e-mail                                          |
@@ -291,6 +294,61 @@ o `sizes` da sua grelha. Um telemóvel descarrega ~40 kB por fotografia em vez
 dos ~205 kB do original.
 
 ---
+
+## Analytics
+
+O Google Analytics 4 está implementado. Para o activar, defina a variável no
+ficheiro `.env` (copie de [`.env.example`](.env.example)):
+
+```dotenv
+GOOGLE_ANALYTICS_ID=G-ABCD123456
+GOOGLE_ANALYTICS_ENABLED=      # opcional: `false` desliga sem apagar o ID
+```
+
+| Ficheiro       | Papel                                                     |
+| -------------- | --------------------------------------------------------- |
+| `.env`         | Valor da equipa. Ignorado pelo git.                       |
+| `.env.local`   | Sobrepõe-se ao `.env` — valor pessoal. Ignorado pelo git. |
+| `.env.example` | Modelo versionado. Nunca contém um valor real.            |
+
+O site é apenas cliente, por isso não existe processo que leia o `.env` em
+tempo de execução: o valor é **compilado no bundle** por
+[`scripts/ng-env.mjs`](scripts/ng-env.mjs), que reencaminha as variáveis
+autorizadas para a opção `--define` do Angular CLI. Os ficheiros são lidos pelo
+próprio Node (`--env-file-if-exists`), sem qualquer dependência adicional.
+
+> Só as variáveis na lista explícita do runner chegam ao browser — um segredo
+> colocado por engano no `.env` nunca é exposto. O Measurement ID do GA4 não é
+> segredo: está visível no código-fonte de qualquer site com Analytics.
+
+**Um ID malformado falha o build de produção.** Um erro de escrita não dá
+qualquer sinal no browser — o site continua a funcionar e não regista nada —
+por isso é validado antes de compilar. Em desenvolvimento apenas avisa e
+desliga o Analytics.
+
+Sem `GOOGLE_ANALYTICS_ID` definido nada é carregado nem pedido. Com ele:
+funciona **sem cookies** (Consent Mode v2 com todas as categorias negadas),
+regista visualizações em cada navegação e um evento por cada contacto —
+`phone_click`, `email_click` e `directions_click`.
+
+### Aviso de privacidade
+
+Como não há cookies, não é legalmente preciso um banner de consentimento. Ainda
+assim o site mostra um **aviso informativo** (`app-cookie-notice`) que explica a
+medição anónima e oferece uma recusa a sério:
+
+| Escolha       | Aviso     | Medição                       | Guardado  |
+| ------------- | --------- | ----------------------------- | --------- |
+| _por decidir_ | visível   | corre — sem cookies           | **nada**  |
+| Aceitar       | escondido | corre                         | a escolha |
+| Recusar       | escondido | nunca arranca; nada é enviado | a escolha |
+
+Enquanto o visitante não responde **nada é gravado no dispositivo** — que é o
+objetivo de correr sem cookies. Só a própria escolha é guardada, e só depois de
+ele a fazer. O aviso não é modal: não bloqueia nada, porque não há nada
+dependente da resposta.
+
+Detalhes em [`docs/APPLICATION.md`](docs/APPLICATION.md) §2.5.
 
 ## Acessibilidade
 

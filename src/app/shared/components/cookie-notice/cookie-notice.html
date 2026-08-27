@@ -1,0 +1,34 @@
+@if (consent.needsNotice()) {
+  <!--
+    Sits above the mobile tab bar (4rem tall plus the safe-area inset it pads
+    itself with), and drops to the bottom edge once that bar is hidden at `md`.
+    The wrapper spans the viewport so the card can use the page gutter, but it
+    is click-through: only the card itself takes pointer events.
+  -->
+  <div
+    class="pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 md:bottom-0"
+  >
+    <div class="container-page pb-4 md:pb-6">
+      <section
+        role="region"
+        aria-label="Aviso de privacidade"
+        class="pointer-events-auto mx-auto flex max-w-3xl animate-fade-up flex-col gap-4 rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-950/8 sm:p-6 lg:flex-row lg:items-center lg:gap-6 short:gap-3 short:p-4"
+      >
+        <p class="text-meta text-ink-600">
+          <span class="font-semibold text-ink-900">Medimos as visitas de forma anónima.</span>
+          Não utilizamos cookies nem recolhemos nada que o identifique — apenas as páginas mais vistas, para
+          percebermos o que é útil. Pode recusar; a sua escolha fica guardada neste navegador.
+        </p>
+
+        <div class="flex shrink-0 gap-3 max-lg:w-full">
+          <app-button variant="secondary" size="sm" class="flex-1 lg:flex-none" (click)="consent.decline()">
+            Recusar
+          </app-button>
+          <app-button variant="primary" size="sm" class="flex-1 lg:flex-none" (click)="consent.accept()">
+            Aceitar
+          </app-button>
+        </div>
+      </section>
+    </div>
+  </div>
+}

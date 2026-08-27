@@ -144,8 +144,17 @@ try {
         return
     }
 
+    # Two steps on purpose: `ng deploy` has no --define option, so the bundle
+    # is built first (with .env values injected and the right base href) and
+    # then published as-is with --no-build.
+    Write-Step "Building for GitHub Pages"
+    Invoke-Native -FilePath 'node' `
+        -Arguments @('--env-file-if-exists=.env', '--env-file-if-exists=.env.local',
+                     'scripts/ng-env.mjs', 'build', "--base-href=$BaseHref") `
+        -FailureMessage 'Production build failed'
+
     Write-Step "Publishing to GitHub Pages"
-    Invoke-Native -FilePath 'npx' -Arguments @('ng', 'deploy', "--base-href=$BaseHref") `
+    Invoke-Native -FilePath 'npx' -Arguments @('ng', 'deploy', '--no-build') `
         -FailureMessage 'ng deploy failed'
 
     Write-Host "`n[OK] Published with base href $BaseHref" -ForegroundColor Green

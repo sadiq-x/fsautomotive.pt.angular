@@ -17,8 +17,20 @@ export class SeoService {
   private readonly meta = inject(Meta);
   private readonly document = inject(DOCUMENT);
 
+  /**
+   * The exact string that ends up in `<title>`.
+   *
+   * Public because `AnalyticsService` needs the same value for `page_title`,
+   * and it cannot read `document.title`: the title is applied from an `effect`,
+   * which flushes *after* the router event analytics reacts to, so reading the
+   * DOM there would report the previous page.
+   */
+  documentTitle(page: PageMeta): string {
+    return `${page.title} | ${SITE.name}`;
+  }
+
   apply(page: PageMeta): void {
-    const fullTitle = `${page.title} | ${SITE.name}`;
+    const fullTitle = this.documentTitle(page);
     const canonical = this.absoluteUrl(page.path);
     const image = this.absoluteUrl(page.image ?? SITE.squareLogo);
 

@@ -1,4 +1,5 @@
 export * from './action.model';
+export * from './analytics.model';
 export * from './feature.model';
 export * from './gallery.model';
 export * from './icon.model';

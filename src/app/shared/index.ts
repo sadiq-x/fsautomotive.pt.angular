@@ -1,5 +1,6 @@
 export * from './components/accordion/accordion';
 export * from './components/accordion/accordion-item';
+export * from './components/cookie-notice/cookie-notice';
 export * from './components/contact-channels/contact-channels';
 export * from './components/carousel/carousel';
 export * from './components/cta-band/cta-band';

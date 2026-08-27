@@ -10,17 +10,19 @@
   },
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs serve",
+    "build": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build",
+    "watch": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --watch --configuration development",
     "test": "ng test",
-    "deploy": "ng deploy --base-href=/fsautomotive.pt.angular/",
+    "test:scripts": "node --test scripts/lib/env.test.mjs",
+    "deploy": "npm run build:ghpages && ng deploy --no-build",
     "test:watch": "ng test --watch",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run format:check && npm run test && npm run build",
+    "verify": "npm run format:check && npm run test && npm run test:scripts && npm run build",
     "audit:responsive": "node scripts/audit-responsive.mjs",
-    "verify:full": "npm run verify && npm run audit:responsive"
+    "verify:full": "npm run verify && npm run audit:responsive",
+    "build:ghpages": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --base-href=/fsautomotive.pt.angular/"
   },
   "dependencies": {
     "@angular/common": "^21.2.0",

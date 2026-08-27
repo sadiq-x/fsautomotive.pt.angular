@@ -65,6 +65,8 @@ fsautomotive.pt.angular/
 ├── docs/APPLICATION.md          ← this file
 ├── scripts/                     ← tooling (see §5)
 │   ├── audit-responsive.mjs
+│   ├── ng-env.mjs               ← .env → build-time constants
+│   ├── lib/env.mjs              ← allow-list + validation (tested)
 │   └── deploy.ps1
 ├── public/                      ← copied verbatim to the build output
 │   ├── icons/                   favicons + apple-touch + PWA icons (5)
@@ -81,12 +83,13 @@ fsautomotive.pt.angular/
         ├── app.config.ts        providers: router, zoneless CD
         ├── app.routes.ts        routes + per-route SEO metadata
         ├── core/
-        │   ├── models/          10 interfaces + barrel
+        │   ├── models/          11 interfaces + barrel
+        │   ├── config/          analytics.config.ts + gtag.d.ts
         │   ├── data/            7 content files + barrel
-        │   └── services/        SeoService, StructuredDataService
+        │   └── services/        Seo, StructuredData, Analytics, Consent
         ├── layout/              header, footer, mobile-tab-bar
         ├── shared/
-        │   ├── components/      16 reusable components
+        │   ├── components/      17 reusable components
         │   ├── directives/      reveal.directive.ts
         │   └── index.ts         public barrel for features to import from
         └── features/            home, about, services, contact, not-found
@@ -240,6 +243,160 @@ single most visible responsive failure:
 
 ---
 
+### 2.5 Analytics (GA4, cookieless)
+
+Enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` (template: `.env.example`).
+With it unset, analytics is completely inert — no script, no request, no
+listener.
+
+| Variable                   | Effect                                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `GOOGLE_ANALYTICS_ID`      | The GA4 Measurement ID. Empty or absent disables everything.                                                                             |
+| `GOOGLE_ANALYTICS_ENABLED` | Optional kill switch. `false` builds with the ID but reports nothing — for a staging deploy that must not pollute the client's property. |
+
+`.env` holds the team value; `.env.local` is read afterwards and overrides it,
+for a personal ID. Both are gitignored. `.env.example` is the committed
+template and never holds a real value.
+
+**How the value gets in.** The site is browser-only, so nothing can read `.env`
+at runtime; the ID is a _build-time_ constant:
+
+```
+.env, .env.local ──(node --env-file-if-exists)──►  process.env
+                                                       │
+                                     scripts/ng-env.mjs │ allow-list + validation
+                                                       ▼
+                    ng build --define NG_APP_GOOGLE_ANALYTICS_ID="G-…"
+                                                       │  esbuild substitution
+                                                       ▼
+                       core/config/analytics.config.ts  →  ANALYTICS_CONFIG
+```
+
+Node loads the files itself, so there is no dotenv dependency. Three details
+make this safe:
+
+- **An explicit allow-list**, not a blanket `process.env` forward. Anything
+  defined here is readable by anyone in the browser, so a secret added to `.env`
+  can never leak into the bundle by accident. (A GA4 Measurement ID is not a
+  secret — it is visible in the page source of every site using Analytics. It
+  lives in `.env` for per-environment configuration, not secrecy.)
+- **A `typeof` guard** in the config file. The injected identifier only exists
+  after esbuild substitutes it; `typeof` on an undeclared identifier is defined
+  behaviour in JavaScript, so unit tests and a bare `ng build` resolve to `''`
+  instead of throwing.
+- **Validation before the build starts.** A malformed ID — a UA property, a GTM
+  container, the `G-` prefix lost in a copy-paste — **fails a production
+  build**. This is the only place the mistake is catchable: in the browser it is
+  perfectly silent, the site works, and nothing is ever reported. Locally it
+  warns and carries on with analytics off, so a typo cannot block someone
+  working on something else.
+
+`ng deploy` has no `--define` option, so `npm run deploy` builds first
+(`build:ghpages`, which injects the env and sets the base href) and then
+publishes the existing output with `ng deploy --no-build`.
+
+**What `AnalyticsService` does when enabled:**
+
+1. **Consent Mode v2 defaults with every storage category denied, pushed before
+   gtag.js loads.** GA4 then measures without cookies. Ordering matters —
+   consent queued after `config` would let GA4 start on permissive defaults, so
+   a test asserts the order.
+2. **Manual page views.** `send_page_view: false`, then one `page_view` per
+   router `NavigationEnd`. Without this an SPA only reports the landing page.
+   Two details are load-bearing:
+   - **The title comes from the route's `data.meta`, not `document.title`.**
+     `SeoService` applies the title from an `effect`, which flushes _after_ the
+     router event — reading the DOM here reported the _previous_ page's title
+     on every navigation but the first. Both now derive it from
+     `SeoService.documentTitle()`, so they cannot drift.
+   - **`page_path` drops the query string and fragment; `page_location` keeps
+     them.** A campaign link arriving with `?fbclid=…` would otherwise split one
+     page across hundreds of rows in the Pages report. GA4 reads `utm_*` tags
+     from `page_location`, so stripping them there would break attribution.
+3. **Contact events via one delegated listener.** `phone_click`, `email_click`
+   and `directions_click` — a workshop site converts when someone calls, writes
+   or asks for directions. GA4's enhanced measurement instruments outbound
+   _http_ links only, so it never sees a `tel:` or `mailto:` click; without
+   these the site would report traffic and no outcomes. The phone number alone
+   is rendered in the header, hero, footer, contact cards, CTA band and 404
+   page, so one document-level listener covers all of them and any future one.
+
+Add an event by extending `GaEventName` and `GaEventParams` in
+`core/models/analytics.model.ts`, then calling
+`analytics.trackEvent('name', { … })`. The name and its parameters are checked
+against each other, because a mistyped event name is invisible in GA4 — it
+simply creates a new, empty event that nobody notices for weeks. Every public
+method is a no-op while disabled, so call sites need no guard.
+
+There is no queue of our own for events fired before gtag.js finishes
+downloading: the `gtag` shim installed at startup pushes onto `dataLayer`, and
+the library replays that queue when it arrives. A second queue would be dead
+code.
+
+**Testing it.** `debug_mode` is sent when `isDevMode()` is true, so `npm start`
+streams events into GA4 → Admin → **DebugView** in real time. Production builds
+never send it (verified at runtime, not by grepping the bundle — the string
+survives minification but the branch does not execute). Point local development
+at a **separate GA4 property**, or dev traffic lands in the client's production
+reports.
+
+**`anonymize_ip` is deliberately not sent.** It was a Universal Analytics
+parameter; GA4 ignores it and truncates IP addresses for every event
+regardless. Sending it would only imply a control that does not exist.
+
+**Why cookieless.** No cookies means no cookie-consent banner is legally
+required. Verified: loading the site and clicking through sets zero cookies, and
+the Google Maps embed adds none either. That addresses the ePrivacy cookie
+rules; sending a visitor's IP to Google remains a separate GDPR processing
+question for the client. Granting `ad_storage` or `analytics_storage` later
+would reintroduce cookies and _would_ require prior consent —
+`AnalyticsService.setConsent(true)` is the hook such a banner would call, and it
+is deliberately **not** wired to the notice below.
+
+### 2.6 The privacy notice
+
+`shared/components/cookie-notice/` — what everyone calls the cookie banner,
+although the honest version of that sentence is that this site sets no cookies.
+Because measurement is cookieless it needs no prior consent, so the notice
+**informs** and offers an opt-out, rather than gating the page on a decision.
+
+| Decision   | Notice | Measurement                   | Stored      |
+| ---------- | ------ | ----------------------------- | ----------- |
+| `unknown`  | shown  | runs — cookieless, lawful     | **nothing** |
+| `accepted` | hidden | runs                          | the choice  |
+| `declined` | hidden | never starts; nothing is sent | the choice  |
+
+Four decisions are worth recording:
+
+- **It runs while the notice is showing.** Waiting for a click would lose the
+  landing page view for the great majority of visitors who never interact, in
+  exchange for no privacy gain — nothing is stored or read on their device
+  either way. This is the opt-out posture, not a consent gate.
+- **Nothing is written until the visitor chooses.** Eagerly persisting a default
+  would put a key on the device of someone who ignored the notice, which is
+  precisely what running cookieless avoids. The one thing stored, once they
+  choose, is the choice — the storage every privacy regime exempts as strictly
+  necessary, because there is no way to honour "do not measure me" on the next
+  visit without remembering it.
+- **It is not a modal.** No focus trap, no backdrop, no `role="dialog"`. Nothing
+  is gated on the answer, so dimming the site to announce that nobody is being
+  tracked would cost every visitor more than the message is worth. A test
+  asserts this, because "make the banner blocking" is the kind of change that
+  gets made by reflex.
+- **Refusing mid-visit stops sending immediately**, checked on every call rather
+  than cached at startup. gtag.js cannot be unloaded once fetched, so that — not
+  unloading — is the guarantee; it has stored nothing either way. A visitor who
+  refused on an earlier visit gets no script and no listeners at all.
+
+`ConsentService` guards every `localStorage` access with `try`/`catch`: access
+_throws_ rather than returning null when a browser blocks site data or is in
+Safari's private mode. A privacy notice that crashes the page for the most
+privacy-conscious visitors would be a poor joke. The key is namespaced
+(`fsautomotive:analytics-consent`) because GitHub Pages serves every project of
+an account from one origin.
+
+---
+
 ## 3. Configure and run — step by step
 
 ### 3.1 Prerequisites
@@ -272,7 +429,8 @@ npm start       # http://localhost:4200, hot reload
 ### 3.4 Test
 
 ```bash
-npm test           # single run  — currently 7 files, 39 tests
+npm test           # single run  — currently 10 files, 86 tests
+npm run test:scripts  # build tooling — 13 tests, Node's own runner
 npm run test:watch # re-runs on change
 ```
 
@@ -282,15 +440,15 @@ npm run test:watch # re-runs on change
 npm run build      # → dist/fsautomotive/browser
 ```
 
-Current output — initial payload **91.16 kB gzipped**:
+Current output — initial payload **92.98 kB gzipped**:
 
 | Bundle        | Raw               | Gzip         |
 | ------------- | ----------------- | ------------ |
-| Initial total | 352.11 kB         | 91.16 kB     |
-| ├ framework   | 279.87 kB         | 77.73 kB     |
-| ├ styles      | 56.94 kB          | 8.48 kB      |
-| └ main        | 15.31 kB          | 4.95 kB      |
-| Lazy routes   | 1.89–7.68 kB each | 0.95–2.75 kB |
+| Initial total | 359.32 kB         | 92.98 kB     |
+| ├ framework   | 282.42 kB         | 78.33 kB     |
+| ├ styles      | 58.02 kB          | 8.58 kB      |
+| └ main        | 18.88 kB          | 6.07 kB      |
+| Lazy routes   | 1.90–7.68 kB each | 0.95–2.75 kB |
 
 ### 3.6 Verify before pushing
 
@@ -339,6 +497,8 @@ The fastest way to navigate this codebase.
 | Workshop photos and captions                  | `core/data/gallery.data.ts` + `public/images/workshop/`                             |
 | Menu items and their icons                    | `core/data/navigation.data.ts`                                                      |
 | Page titles / meta descriptions               | `app.routes.ts` (`data.meta`)                                                       |
+| Enable analytics                              | `.env` → `GOOGLE_ANALYTICS_ID`                                                      |
+| Add a tracked event                           | `core/models/analytics.model.ts` (name + params) then `analytics.trackEvent(…)`     |
 | Brand colours, type scale, spacing, shadows   | `src/styles.css` (`@theme`)                                                         |
 | Button appearance or states                   | `shared/components/ui-button/ui-button.ts`                                          |
 | Add a new icon                                | `core/models/icon.model.ts` (name) + `shared/components/icon/icon-paths.ts` (shape) |
@@ -362,17 +522,22 @@ The fastest way to navigate this codebase.
 
 ### 4.3 Test coverage
 
-7 spec files, 39 tests. They target logic that is easy to break silently:
+10 spec files, 86 tests, plus 13 for the build tooling. They target logic that
+is easy to break silently:
 
-| Spec                       | Guards                                                                                                                              |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `content.spec.ts`          | Unique ids, icons that exist in the registry, nav links that match real routes, paired opening/closing times, a dialable phone href |
-| `seo.service.spec.ts`      | Title, meta and canonical tags per route                                                                                            |
-| `accordion-state.spec.ts`  | Single vs multiple open, toggle, close-all                                                                                          |
-| `lightbox.service.spec.ts` | Open/close, next/previous wrap-around                                                                                               |
-| `lightbox.spec.ts`         | Scroll lock pins and restores the exact offset                                                                                      |
-| `responsive-image.spec.ts` | `srcset` derivation, intrinsic size, lazy vs priority                                                                               |
-| `ui-button.spec.ts`        | Element polymorphism, host-class contract, `link` has no pill padding                                                               |
+| Spec                        | Guards                                                                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content.spec.ts`           | Unique ids, icons that exist in the registry, nav links that match real routes, paired opening/closing times, a dialable phone href                                                                  |
+| `seo.service.spec.ts`       | Title, meta and canonical tags per route                                                                                                                                                             |
+| `accordion-state.spec.ts`   | Single vs multiple open, toggle, close-all                                                                                                                                                           |
+| `lightbox.service.spec.ts`  | Open/close, next/previous wrap-around                                                                                                                                                                |
+| `lightbox.spec.ts`          | Scroll lock pins and restores the exact offset                                                                                                                                                       |
+| `responsive-image.spec.ts`  | `srcset` derivation, intrinsic size, lazy vs priority                                                                                                                                                |
+| `ui-button.spec.ts`         | Element polymorphism, host-class contract, `link` has no pill padding                                                                                                                                |
+| `analytics.service.spec.ts` | Inert while disabled; consent denied before config; script added once; page view per navigation with the right title and no query string; contact-link detection; opt-out blocks loading and sending |
+| `consent.service.spec.ts`   | Undecided by default, nothing stored until a choice, decision survives a reload, unrecognised values read as undecided, blocked storage does not throw                                               |
+| `cookie-notice.spec.ts`     | Shown only while undecided, both buttons wired, accurate copy, never a modal                                                                                                                         |
+| `scripts/lib/env.test.mjs`  | Measurement ID validation, the allow-list, and which builds count as production                                                                                                                      |
 
 ---
 
@@ -445,7 +610,27 @@ referenced relatively, so they resolve against that `<base href>`.
 `angular-cli-ghpages` additionally writes `404.html` (a copy of `index.html`,
 which is what makes deep links work on GitHub Pages) and `.nojekyll`.
 
-### 5.3 Adding a script
+### 5.3 `ng-env.mjs` — `.env` → build-time constants
+
+Not run directly; it backs `npm start`, `npm run build`, `watch` and
+`build:ghpages`. It reads `process.env` (populated by Node's
+`--env-file-if-exists`, `.env` then `.env.local`) and forwards allow-listed
+variables to the Angular CLI as `--define` flags.
+
+The decisions worth testing — the allow-list, Measurement ID validation, and
+which invocations count as a production build — live in `scripts/lib/env.mjs`,
+which is pure and has no side effects. `scripts/lib/env.test.mjs` covers it,
+run by `npm run test:scripts` with **Node's own test runner**: this is build
+tooling, it never enters the browser bundle, and Angular's test builder only
+looks at `src/**/*.spec.ts`. No extra dependency, consistent with the rest of
+`scripts/`.
+
+To expose a new variable, add its name to `EXPOSED_ENV_VARS`, then read it in
+TypeScript through a `declare const NG_APP_<NAME>` plus a `typeof` guard — the
+pattern in `core/config/analytics.config.ts`. Only `build` and `serve` accept
+`--define`, so any other command is passed through untouched.
+
+### 5.4 Adding a script
 
 Put it in `scripts/`, resolve the repo root from the script's own location, exit
 non-zero on failure, and add an npm alias in `package.json`. If it is a gate that
@@ -548,7 +733,12 @@ Honest list of what is _not_ done:
   breaks; only the typeface changes. Self-hosting would remove the dependency.
 - **Images are JPEG only.** AVIF/WebP would cut payload further.
 - **Portuguese only.** No i18n scaffolding.
-- **No analytics or cookie banner.** Nothing is tracked, so no consent UI is
-  needed — revisit if analytics are added.
+- **Analytics is off unless `.env` provides an ID.** GA4 is wired up and runs
+  cookieless; without `GOOGLE_ANALYTICS_ID` it is completely inert (§2.5). The
+  privacy notice (§2.6) informs and offers an opt-out.
+- **No privacy policy page.** The notice says what is measured in two lines;
+  there is no longer page for it to link to, and no "change your preference"
+  affordance once a visitor has answered (`ConsentService.reset()` exists for
+  when one is added).
 - **No CI pipeline.** `verify` / `verify:full` are run manually; wiring them into
   GitHub Actions is the obvious next step.
