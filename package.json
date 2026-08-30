@@ -1,7 +1,7 @@
 {
   "name": "fsautomotive",
   "version": "1.0.0",
-  "description": "Website institucional da FS Automotive \u2014 oficina autom\u00f3vel multimarca em Vialonga.",
+  "description": "Website institucional da FS Automotive — oficina automóvel multimarca em Vialonga.",
   "private": true,
   "license": "MIT",
   "packageManager": "npm@11.2.0",
@@ -25,7 +25,9 @@
     "verify": "npm run format:check && npm run test && npm run test:scripts && npm run build",
     "audit:responsive": "node scripts/audit-responsive.mjs",
     "verify:full": "npm run verify && npm run audit:responsive",
-    "build:ghpages": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --base-href=/fsautomotive.pt.angular/"
+    "build:ghpages": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --base-href=/fsautomotive.pt.angular/",
+    "build:ghpages:stub": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --configuration development --base-href=/fsautomotive.pt.angular/",
+    "deploy:stub": "npm run build:ghpages:stub && ng deploy --no-build"
   },
   "dependencies": {
     "@angular/common": "^21.2.0",
