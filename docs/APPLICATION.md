@@ -297,10 +297,13 @@ publishes the existing output with `ng deploy --no-build`.
 
 **What `AnalyticsService` does when enabled:**
 
-1. **Consent Mode v2 defaults with every storage category denied, pushed before
-   gtag.js loads.** GA4 then measures without cookies. Ordering matters —
-   consent queued after `config` would let GA4 start on permissive defaults, so
-   a test asserts the order.
+1. **Consent Mode v2 defaults pushed before gtag.js loads.** Advertising is
+   always denied; `analytics_storage` is granted only for a visitor who has
+   already accepted, and denied otherwise. Ordering matters twice over —
+   consent queued after `config` would let GA4 start on permissive defaults,
+   and a returning visitor's grant must ride in the _default_ rather than a
+   later update, or the session's first `page_view` is unreportable. Tests
+   assert both.
 2. **Manual page views.** `send_page_view: false`, then one `page_view` per
    router `NavigationEnd`. Without this an SPA only reports the landing page.
    Two details are load-bearing:
@@ -344,27 +347,47 @@ reports.
 parameter; GA4 ignores it and truncates IP addresses for every event
 regardless. Sending it would only imply a control that does not exist.
 
-**Why cookieless.** No cookies means no cookie-consent banner is legally
-required. Verified: loading the site and clicking through sets zero cookies, and
-the Google Maps embed adds none either. That addresses the ePrivacy cookie
-rules; sending a visitor's IP to Google remains a separate GDPR processing
-question for the client. Granting `ad_storage` or `analytics_storage` later
-would reintroduce cookies and _would_ require prior consent —
-`AnalyticsService.setConsent(true)` is the hook such a banner would call, and it
-is deliberately **not** wired to the notice below.
+**Why acceptance must grant `analytics_storage`.** The site originally ran
+permanently denied, and never granted the category to anyone — accepting the
+notice changed nothing about storage, by design and with a test pinning it
+there. That looked like the maximally private choice. What it actually produced
+was a GA4 property that reported **nothing at all**, indefinitely.
+
+A hit sent with `analytics_storage: denied` is a _cookieless ping_: no client
+id, no session id, no user-scoped dimensions. Google accepts it and keeps it
+solely as input to behavioural modelling. It appears in no Realtime report, no
+DebugView, and no standard report. Modelling only switches on above published
+thresholds — roughly 1,000 denied events/day **and** 1,000 _granted_ users/day —
+and the second is unreachable by construction when nothing is ever granted.
+
+The failure mode is unusually quiet: the requests genuinely leave the browser
+and genuinely reach Google (`/g/collect?v=2&tid=G-…` returns 204), the wiring
+tests all pass, and the property stays empty. It was diagnosed only by reading
+`gcs=G100` out of a captured request.
+
+So the notice is now a real consent banner: accepting grants
+`analytics_storage`, GA4 may set its cookie, and the visit is reported.
+Advertising categories stay denied in every state — the site runs no ads, and
+reporting does not depend on them. `AnalyticsService.setConsent()` remains the
+all-categories hook, still unwired, for an advertising banner that does not
+exist. Sending a visitor's IP to Google remains a separate GDPR processing
+question for the client.
 
 ### 2.6 The privacy notice
 
-`shared/components/cookie-notice/` — what everyone calls the cookie banner,
-although the honest version of that sentence is that this site sets no cookies.
-Because measurement is cookieless it needs no prior consent, so the notice
-**informs** and offers an opt-out, rather than gating the page on a decision.
+`shared/components/cookie-notice/` — a genuine consent banner, though it still
+gates nothing: measurement runs cookielessly while it is on screen, which needs
+no prior consent, and the page stays fully usable behind it.
 
-| Decision   | Notice | Measurement                   | Stored      |
-| ---------- | ------ | ----------------------------- | ----------- |
-| `unknown`  | shown  | runs — cookieless, lawful     | **nothing** |
-| `accepted` | hidden | runs                          | the choice  |
-| `declined` | hidden | never starts; nothing is sent | the choice  |
+| Decision   | Notice | Measurement                      | Cookies | Stored      |
+| ---------- | ------ | -------------------------------- | ------- | ----------- |
+| `unknown`  | shown  | runs — cookieless, unreported    | none    | **nothing** |
+| `accepted` | hidden | runs **and reaches the reports** | GA4's   | the choice  |
+| `declined` | hidden | never starts; nothing is sent    | none    | the choice  |
+
+Note what `unknown` costs: those visits are measured but invisible, for the
+reason above. That is the price of not gating the page on a click, and it is
+paid knowingly.
 
 Four decisions are worth recording:
 

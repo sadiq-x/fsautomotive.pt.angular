@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { DOCUMENT, DestroyRef, Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { DOCUMENT, DestroyRef, Injectable, PLATFORM_ID, effect, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, type ActivatedRouteSnapshot } from '@angular/router';
 import { filter } from 'rxjs';
@@ -37,16 +37,35 @@ const CONTACT_LINKS: readonly { readonly selector: string; readonly event: GaEve
 ];
 
 /**
- * Google Analytics 4, running cookieless.
+ * Google Analytics 4, cookieless until the visitor says otherwise.
  *
- * Consent Mode v2 defaults are pushed **before** gtag.js loads, with every
- * storage category denied. GA4 then measures without writing cookies or any
- * other client identifier, which is why measurement can begin without prior
- * consent. `CookieNotice` informs the visitor of that and offers an opt-out,
- * held by `ConsentService`; refusing stops measurement without ever having
- * involved a cookie. If personalised advertising or returning-visitor identity
- * is ever wanted, those categories must be granted through {@link setConsent} —
- * and *that* would require consent gathered up front.
+ * Consent Mode v2 defaults are pushed **before** gtag.js loads. Which defaults
+ * depends on what the visitor has already decided, and the three states are
+ * genuinely different:
+ *
+ *  - **Undecided** — every category denied. GA4 measures without cookies while
+ *    the notice is on screen, which needs no prior consent.
+ *  - **Accepted** — `analytics_storage` granted, advertising still denied.
+ *  - **Refused** — nothing at all: no script, no request, no listener.
+ *
+ * WHY ACCEPTANCE HAS TO GRANT `analytics_storage`
+ * -----------------------------------------------
+ * Running permanently denied looks like the more private choice, and it is —
+ * but GA4 then reports nothing whatsoever. A denied hit is a *cookieless ping*:
+ * it carries no client id and no session id, so it appears in no Realtime
+ * report, no DebugView, and no standard report. Google keeps such pings only as
+ * input to behavioural modelling, which switches on at roughly 1,000 denied
+ * events/day **and** 1,000 granted users/day — thresholds a local workshop site
+ * never reaches, and the second of which is unreachable by definition if
+ * consent is never granted to anyone.
+ *
+ * So a permanently-denied GA4 is not a private analytics setup, it is an absent
+ * one: the requests leave the browser, reach Google, and are discarded for
+ * reporting. Granting `analytics_storage` on acceptance is what makes the
+ * measurement real for visitors who agreed to it.
+ *
+ * The advertising categories stay denied in every state — the site runs no ads,
+ * and reporting does not depend on them.
  *
  * Nothing happens at all while no Measurement ID is configured: no script, no
  * request, no listener. See `core/config/analytics.config.ts`.
@@ -67,10 +86,32 @@ export class AnalyticsService {
   private started = false;
 
   /**
+   * Whether gtag has been told `analytics_storage` is granted.
+   *
+   * Tracked so the grant is sent exactly once: {@link loadGtag} may already
+   * have carried it in the consent *default* for a returning visitor, and
+   * re-sending it as an update would be noise.
+   */
+  private analyticsStorageGranted = false;
+
+  /**
    * `false` unless a well-formed Measurement ID was configured, the kill switch
    * allows it, and the app is running in a browser.
    */
   readonly enabled: boolean = this.config.enabled && this.isBrowser;
+
+  constructor() {
+    // Acceptance has to reach gtag *during this visit*, not on the next load:
+    // the visitor clicked the button and expects to be measured from then on,
+    // and until the update is sent every hit is still an unreportable
+    // cookieless ping. `started` is already true here — `initialize()` runs
+    // from the app shell's constructor, long before the notice can be clicked.
+    effect(() => {
+      if (this.consent.value() === 'accepted' && this.started) {
+        this.grantAnalyticsStorage();
+      }
+    });
+  }
 
   /**
    * Loads gtag.js and starts tracking. Called once by the app shell — the same
@@ -118,13 +159,28 @@ export class AnalyticsService {
   }
 
   /**
-   * Grants or revokes the storage categories GA4 uses for identity.
+   * Grants `analytics_storage`, the one category GA4 needs to attach a client
+   * id to a visit — and therefore the one that decides whether the visit is
+   * reported at all. See the class comment for why denied traffic is invisible.
+   *
+   * Idempotent, and never called for a visitor who has not accepted.
+   */
+  private grantAnalyticsStorage(): void {
+    if (this.analyticsStorageGranted) {
+      return;
+    }
+
+    this.analyticsStorageGranted = true;
+    this.send('consent', 'update', { analytics_storage: 'granted' });
+  }
+
+  /**
+   * Grants or revokes *every* storage category, advertising included.
    *
    * Not called anywhere today, and deliberately not wired to the privacy
-   * notice: that notice offers an opt-out, not a storage grant, so accepting it
-   * changes nothing about cookies. This is the hook a *consent* banner would
-   * use — granting turns GA4's cookies back on, which is a different decision
-   * needing consent gathered before any measurement happens.
+   * notice: accepting that notice grants analytics measurement only. This is
+   * the hook an advertising consent banner would use, and granting here turns
+   * on personalisation the site has never asked anyone about.
    */
   setConsent(granted: boolean): void {
     const value = granted ? 'granted' : 'denied';
@@ -200,14 +256,22 @@ export class AnalyticsService {
       view.dataLayer?.push(arguments);
     };
 
-    // Cookieless posture. This has to be pushed before the library loads —
-    // consent queued after `config` would let GA4 start on its permissive
-    // defaults and set a cookie before the denial is seen.
+    // A visitor who accepted on an earlier visit is measured from the very
+    // first hit. Carrying that in the *default* rather than a later update
+    // matters: the initial `page_view` fires as soon as the router settles, and
+    // an update racing behind it would leave the session's first — and for a
+    // one-page visit, only — hit unreportable.
+    const analyticsStorage = this.consent.value() === 'accepted' ? 'granted' : 'denied';
+    this.analyticsStorageGranted = analyticsStorage === 'granted';
+
+    // This has to be pushed before the library loads — consent queued after
+    // `config` would let GA4 start on its permissive defaults and set a cookie
+    // before the denial is seen.
     view.gtag('consent', 'default', {
       ad_storage: 'denied',
       ad_user_data: 'denied',
       ad_personalization: 'denied',
-      analytics_storage: 'denied',
+      analytics_storage: analyticsStorage,
       functionality_storage: 'denied',
       personalization_storage: 'denied',
       security_storage: 'granted',

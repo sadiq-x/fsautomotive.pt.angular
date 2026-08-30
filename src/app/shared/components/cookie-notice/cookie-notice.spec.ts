@@ -43,11 +43,17 @@ describe('CookieNotice', () => {
     expect(buttonLabelled(fixture, 'Aceitar')).toBeTruthy();
   });
 
-  it('says what actually happens — no cookies, nothing identifying', () => {
+  // The notice must describe all three outcomes, because they genuinely
+  // differ: undecided is measured without cookies, accepting allows one,
+  // refusing measures nothing. Saying "no cookies" flatly — as this did while
+  // acceptance granted no storage — stops being true the moment it does.
+  it('says what actually happens in each of the three outcomes', () => {
     const text = render().nativeElement.textContent as string;
 
-    expect(text).toContain('anónima');
-    expect(text).toContain('Não utilizamos cookies');
+    expect(text).toContain('anónima e sem cookies');
+    expect(text).toContain('Se aceitar');
+    expect(text).toContain('cookie');
+    expect(text).toContain('se recusar, não medimos nada');
   });
 
   it('disappears once accepted, and stays gone on the next visit', () => {

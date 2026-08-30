@@ -13,16 +13,17 @@ export const CONSENT_STORAGE_KEY = 'fsautomotive:analytics-consent';
 const DECISIONS: readonly ConsentDecision[] = ['unknown', 'accepted', 'declined'];
 
 /**
- * Remembers whether the visitor has opted out of anonymous measurement.
+ * Remembers what the visitor decided about measurement.
  *
- * The site sets **no cookies**: GA4 runs with every Consent Mode storage
- * category denied, so measurement needs no prior consent and happens while the
- * notice is still showing. The notice informs, and the opt-out is a genuine
- * choice rather than a formality.
+ * Until they answer, GA4 runs with every Consent Mode storage category denied:
+ * no cookies, no identifier, and so no prior consent required. Accepting grants
+ * `analytics_storage` and GA4 may then set its cookie — see `AnalyticsService`
+ * for why measurement that never grants it is reported nowhere at all.
+ * Declining stops measurement outright.
  *
  * Nothing is written until the visitor actually chooses. Someone who ignores
- * the notice leaves no trace on their device at all — which is the whole point
- * of running cookieless, and would be undone by eagerly storing a default.
+ * the notice leaves no trace on their device — which would be undone by eagerly
+ * storing a default.
  *
  * The one thing that *is* stored, once they choose, is the choice itself. That
  * is the storage every privacy regime exempts as strictly necessary: there is

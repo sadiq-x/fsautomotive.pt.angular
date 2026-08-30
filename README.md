@@ -329,27 +329,34 @@ qualquer sinal no browser — o site continua a funcionar e não regista nada �
 por isso é validado antes de compilar. Em desenvolvimento apenas avisa e
 desliga o Analytics.
 
-Sem `GOOGLE_ANALYTICS_ID` definido nada é carregado nem pedido. Com ele:
-funciona **sem cookies** (Consent Mode v2 com todas as categorias negadas),
+Sem `GOOGLE_ANALYTICS_ID` definido nada é carregado nem pedido. Com ele,
 regista visualizações em cada navegação e um evento por cada contacto —
-`phone_click`, `email_click` e `directions_click`.
+`phone_click`, `email_click` e `directions_click` — sob Consent Mode v2.
 
 ### Aviso de privacidade
 
-Como não há cookies, não é legalmente preciso um banner de consentimento. Ainda
-assim o site mostra um **aviso informativo** (`app-cookie-notice`) que explica a
-medição anónima e oferece uma recusa a sério:
+O site mostra um banner de consentimento (`app-cookie-notice`) com três
+resultados genuinamente diferentes:
 
-| Escolha       | Aviso     | Medição                       | Guardado  |
-| ------------- | --------- | ----------------------------- | --------- |
-| _por decidir_ | visível   | corre — sem cookies           | **nada**  |
-| Aceitar       | escondido | corre                         | a escolha |
-| Recusar       | escondido | nunca arranca; nada é enviado | a escolha |
+| Escolha       | Aviso     | Medição                            | Cookies | Guardado  |
+| ------------- | --------- | ---------------------------------- | ------- | --------- |
+| _por decidir_ | visível   | corre, anónima                     | nenhum  | **nada**  |
+| Aceitar       | escondido | corre e **aparece nos relatórios** | GA4     | a escolha |
+| Recusar       | escondido | nunca arranca; nada é enviado      | nenhum  | a escolha |
 
-Enquanto o visitante não responde **nada é gravado no dispositivo** — que é o
-objetivo de correr sem cookies. Só a própria escolha é guardada, e só depois de
-ele a fazer. O aviso não é modal: não bloqueia nada, porque não há nada
-dependente da resposta.
+Enquanto o visitante não responde **nada é gravado no dispositivo**. Só a
+própria escolha é guardada, e só depois de ele a fazer. As categorias de
+publicidade ficam sempre negadas, em qualquer dos três estados.
+
+> **Porque é que aceitar tem de conceder `analytics_storage`.** Correr sempre
+> negado parece a opção mais privada — e é — mas deixa o GA4 sem reportar
+> absolutamente nada. Um hit negado é um _cookieless ping_: sem client id nem
+> session id, não aparece no Tempo real, no DebugView nem nos relatórios
+> padrão. A Google só o usa para modelação estatística, que exige limiares
+> (~1.000 eventos negados/dia **e** ~1.000 utilizadores concedidos/dia) que
+> este site nunca atinge — e o segundo é inatingível por definição se o
+> consentimento nunca for concedido a ninguém. O site esteve assim, com os
+> pedidos a chegarem à Google e a propriedade permanentemente vazia.
 
 Detalhes em [`docs/APPLICATION.md`](docs/APPLICATION.md) §2.5.
 

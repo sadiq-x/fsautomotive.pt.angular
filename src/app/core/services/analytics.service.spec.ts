@@ -374,15 +374,89 @@ describe('AnalyticsService', () => {
       expect(eventsNamed('page_view').length).toBe(1);
     });
 
-    // The notice is an opt-out, not a storage grant: accepting must not turn
-    // GA4's cookies on behind the visitor's back.
-    it('never grants a storage category just because the notice was accepted', () => {
+    // Everything below guards the same defect: GA4 reports nothing it cannot
+    // attach a client id to. A hit sent with `analytics_storage: denied` is a
+    // cookieless ping — accepted by Google, shown in no report, Realtime and
+    // DebugView included. Measuring every visitor as denied therefore produces
+    // a property that is permanently empty while looking perfectly wired up,
+    // which is exactly how this shipped and went unnoticed.
+    it('grants analytics storage for a visitor who accepted on an earlier visit', () => {
       const analytics = setup();
       TestBed.inject(ConsentService).accept();
       analytics.initialize();
 
-      const granted = commandsNamed('consent').filter((args) => args[1] === 'update');
-      expect(granted.length).toBe(0);
+      expect(pushed().find((args) => args[0] === 'consent')?.[2]).toMatchObject({
+        analytics_storage: 'granted',
+      });
+    });
+
+    // The grant has to ride in the consent *default*, ahead of gtag.js. An
+    // update arriving after the first page_view would leave the opening hit of
+    // the session — the only hit of a one-page visit — unreportable.
+    it('carries the returning visitor grant in the default, before gtag loads', () => {
+      const analytics = setup();
+      TestBed.inject(ConsentService).accept();
+      analytics.initialize();
+
+      const consentIndex = pushed().findIndex((args) => args[0] === 'consent');
+      const configIndex = pushed().findIndex((args) => args[0] === 'config');
+      expect(consentIndex).toBeLessThan(configIndex);
+      expect(commandsNamed('consent').filter((args) => args[1] === 'update').length).toBe(0);
+    });
+
+    it('grants analytics storage the moment the notice is accepted mid-visit', () => {
+      const analytics = setup();
+      analytics.initialize();
+
+      expect(pushed().find((args) => args[0] === 'consent')?.[2]).toMatchObject({
+        analytics_storage: 'denied',
+      });
+
+      TestBed.inject(ConsentService).accept();
+      TestBed.tick();
+
+      const updates = commandsNamed('consent').filter((args) => args[1] === 'update');
+      expect(updates.length).toBe(1);
+      expect(updates[0][2]).toMatchObject({ analytics_storage: 'granted' });
+    });
+
+    // The site runs no advertising and has asked nobody about it. Accepting
+    // anonymous measurement must not quietly turn personalisation on.
+    it('leaves every advertising category denied after acceptance', () => {
+      const analytics = setup();
+      analytics.initialize();
+      TestBed.inject(ConsentService).accept();
+      TestBed.tick();
+
+      const updates = commandsNamed('consent').filter((args) => args[1] === 'update');
+      expect(updates[0][2]).not.toHaveProperty('ad_storage');
+      expect(updates[0][2]).not.toHaveProperty('ad_user_data');
+      expect(updates[0][2]).not.toHaveProperty('ad_personalization');
+      expect(pushed().find((args) => args[0] === 'consent')?.[2]).toMatchObject({
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+      });
+    });
+
+    it('sends the grant once, however often consent is re-affirmed', () => {
+      const analytics = setup();
+      analytics.initialize();
+      const consent = TestBed.inject(ConsentService);
+
+      consent.accept();
+      TestBed.tick();
+      consent.accept();
+      TestBed.tick();
+
+      expect(commandsNamed('consent').filter((args) => args[1] === 'update').length).toBe(1);
+    });
+
+    it('grants nothing while the visitor has not answered the notice', () => {
+      setup().initialize();
+      TestBed.tick();
+
+      expect(commandsNamed('consent').filter((args) => args[1] === 'update').length).toBe(0);
       expect(pushed().find((args) => args[0] === 'consent')?.[2]).toMatchObject({
         analytics_storage: 'denied',
       });
