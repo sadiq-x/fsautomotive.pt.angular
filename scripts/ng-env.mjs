@@ -40,6 +40,7 @@ import { createRequire } from 'node:module';
 import {
   COMMANDS_ACCEPTING_DEFINE,
   buildDefineArgs,
+  checkDevAuthStub,
   checkMeasurementId,
   isProductionBuild,
 } from './lib/env.mjs';
@@ -53,14 +54,23 @@ const defines = COMMANDS_ACCEPTING_DEFINE.has(command) ? buildDefineArgs(process
 // rather than shipping a site that reports nothing: the failure is silent in
 // the browser, so this is the only place it can be caught.
 if (COMMANDS_ACCEPTING_DEFINE.has(command)) {
-  const check = checkMeasurementId(process.env['GOOGLE_ANALYTICS_ID'], isProductionBuild(argv));
+  const isProduction = isProductionBuild(argv);
 
-  if (check.level === 'error') {
-    console.error(`\n[ng-env] ${check.message}\n`);
-    process.exit(1);
-  }
-  if (check.level === 'warn') {
-    console.warn(`\n[ng-env] ${check.message}\n`);
+  const checks = [
+    checkMeasurementId(process.env['GOOGLE_ANALYTICS_ID'], isProduction),
+    // The authentication stub accepts any password; a production build that
+    // included it would leave /gestao open to anyone.
+    checkDevAuthStub(process.env['DEV_AUTH_STUB'], isProduction),
+  ];
+
+  for (const check of checks) {
+    if (check.level === 'error') {
+      console.error(`\n[ng-env] ${check.message}\n`);
+      process.exit(1);
+    }
+    if (check.level === 'warn') {
+      console.warn(`\n[ng-env] ${check.message}\n`);
+    }
   }
 }
 

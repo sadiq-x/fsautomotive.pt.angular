@@ -1,0 +1,54 @@
+<a
+  class="inline-flex items-center gap-1.5 rounded-sm text-meta font-semibold text-ink-500 transition-colors hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+  [routerLink]="backLink()"
+>
+  <app-icon name="chevron-left" [size]="16" />
+  {{ backLabel() }}
+</a>
+
+@switch (status()) {
+  @case ('loading') {
+    <div class="mt-4" role="status" aria-busy="true">
+      <span class="sr-only">A carregar…</span>
+      <div class="h-8 w-64 animate-pulse rounded-lg bg-ink-100"></div>
+      <div class="mt-6 rounded-xl bg-white p-6 shadow-card ring-1 ring-ink-950/6">
+        <div class="grid gap-6 sm:grid-cols-2">
+          @for (row of [0, 1, 2, 3, 4, 5]; track row) {
+            <div>
+              <div class="h-2.5 w-20 animate-pulse rounded-full bg-ink-100"></div>
+              <div class="mt-2 h-3.5 w-40 animate-pulse rounded-full bg-ink-100"></div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+  @case ('missing') {
+    <app-state-panel
+      class="mt-6 block"
+      state="empty"
+      title="Registo não encontrado"
+      [message]="missingMessage()"
+    />
+  }
+  @case ('error') {
+    <app-state-panel
+      class="mt-6 block"
+      state="error"
+      title="Não foi possível carregar o registo"
+      [message]="errorMessage()"
+    />
+  }
+  @default {
+    <header class="mt-4">
+      <h1 class="text-h2 break-words text-ink-950">{{ title() }}</h1>
+      @if (subtitle()) {
+        <p class="mt-1 text-body text-ink-500">{{ subtitle() }}</p>
+      }
+    </header>
+
+    <div class="mt-6 space-y-6">
+      <ng-content />
+    </div>
+  }
+}

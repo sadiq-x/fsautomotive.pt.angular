@@ -1,0 +1,154 @@
+<!-- Desktop: a real table, because the data is genuinely tabular and screen
+     readers, sorting and column headers all depend on the semantics. -->
+<div class="hidden lg:block">
+  <div [class]="refreshing() ? 'opacity-60 transition-opacity duration-200' : ''">
+    <table class="w-full border-collapse text-left">
+      <caption class="sr-only">
+        {{
+          caption()
+        }}
+      </caption>
+      <thead>
+        <tr class="border-b border-ink-950/10">
+          @for (column of visibleColumns(); track column.key) {
+            <th
+              scope="col"
+              [attr.aria-sort]="ariaSortOf(column)"
+              [class]="
+                'px-4 py-3 text-meta font-semibold tracking-wide text-ink-500 uppercase ' +
+                (column.align === 'end' ? 'text-right' : 'text-left')
+              "
+            >
+              @if (column.sortValue) {
+                <button
+                  type="button"
+                  class="group/sort inline-flex items-center gap-1.5 rounded-sm transition-colors hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                  (click)="toggleSort(column)"
+                >
+                  {{ column.header }}
+                  @if (sortDirectionOf(column); as direction) {
+                    <!-- One glyph, rotated: two icons would drift apart in
+                         weight and optical size for no gain. -->
+                    <app-icon
+                      name="chevron-down"
+                      [size]="14"
+                      [class]="direction === 'asc' ? 'rotate-180' : ''"
+                    />
+                  } @else {
+                    <app-icon
+                      name="chevron-down"
+                      [size]="14"
+                      class="opacity-0 transition-opacity group-hover/sort:opacity-40"
+                    />
+                  }
+                </button>
+              } @else {
+                {{ column.header }}
+              }
+            </th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of sortedRows(); track rowKey()(row)) {
+          <!-- No `role` or `tabindex` here on purpose: overriding a row's
+               implicit role would remove it from the table's accessibility
+               tree. The link in the first cell carries the keyboard and
+               screen-reader path; this handler is only a mouse convenience. -->
+          <tr
+            [class]="
+              'border-b border-ink-950/6 transition-colors last:border-0 ' +
+              (linkFor(row) ? 'cursor-pointer hover:bg-bone-100/70' : '')
+            "
+            (click)="onRowClick(row, $event)"
+          >
+            @for (column of visibleColumns(); track column.key) {
+              <td
+                [class]="
+                  'px-4 py-3.5 text-body ' +
+                  (column.align === 'end' ? 'text-right ' : '') +
+                  (column.numeric ? 'tabular-nums ' : '') +
+                  (column.priority === 'primary' ? 'font-semibold text-ink-900' : 'text-ink-600')
+                "
+              >
+                @if (column.badge && hasValue(column, row)) {
+                  <app-status-badge [label]="cellText(column, row)" />
+                } @else if (column.priority === 'primary' && linkFor(row); as link) {
+                  <a
+                    class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    [routerLink]="link"
+                    [attr.aria-label]="labelFor(row)"
+                    >{{ cellText(column, row) }}</a
+                  >
+                } @else {
+                  {{ cellText(column, row) }}
+                }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Below `lg`: cards. A table narrower than its content would either scroll
+     sideways or crush every column; neither is usable on a phone.
+     The whole card is one anchor, so it is a single tab stop with a real
+     destination rather than a div pretending to be a link. -->
+<ul
+  role="list"
+  [class]="'space-y-3 lg:hidden ' + (refreshing() ? 'opacity-60 transition-opacity duration-200' : '')"
+>
+  @for (row of sortedRows(); track rowKey()(row)) {
+    <li class="rounded-xl bg-white shadow-card ring-1 ring-ink-950/6">
+      @if (linkFor(row); as link) {
+        <a
+          class="block rounded-xl p-4 transition-shadow hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          [routerLink]="link"
+          [attr.aria-label]="labelFor(row)"
+        >
+          <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: row }" />
+        </a>
+      } @else {
+        <div class="p-4">
+          <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: row }" />
+        </div>
+      }
+    </li>
+  }
+</ul>
+
+<!-- One definition of the card, used whether or not the row is a link. -->
+<ng-template #cardBody let-row>
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      @if (primaryColumn(); as primary) {
+        <p class="truncate font-semibold text-ink-900">{{ cellText(primary, row) }}</p>
+      }
+      @if (secondaryColumn(); as secondary) {
+        <p class="mt-0.5 truncate text-meta text-ink-500">{{ cellText(secondary, row) }}</p>
+      }
+    </div>
+    @if (linkFor(row)) {
+      <app-icon name="chevron-right" [size]="18" class="mt-0.5 shrink-0 text-ink-300" />
+    }
+  </div>
+
+  @if (detailColumns().length) {
+    <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-ink-950/6 pt-3">
+      @for (column of detailColumns(); track column.key) {
+        <div class="min-w-0">
+          <dt class="text-meta text-ink-400">{{ column.header }}</dt>
+          <dd class="mt-0.5 truncate text-body text-ink-700">
+            @if (column.badge && hasValue(column, row)) {
+              <app-status-badge [label]="cellText(column, row)" />
+            } @else {
+              {{ cellText(column, row) }}
+            }
+          </dd>
+        </div>
+      }
+    </dl>
+  }
+</ng-template>

@@ -64,6 +64,18 @@ export const routes: Routes = [
     },
   },
 
+  /**
+   * The private management area.
+   *
+   * Lazily loaded as a whole: a visitor to the public site never downloads the
+   * shell, the OfficeGest service or any of its pages. Its own guards and
+   * routes live in `features/private/private.routes.ts`.
+   */
+  {
+    path: 'gestao',
+    loadChildren: () => import('./features/private/private.routes').then((m) => m.privateRoutes),
+  },
+
   /* Legacy paths from the previous static site, kept so old links survive. */
   { path: 'home', redirectTo: '', pathMatch: 'full' },
   { path: 'sobrenos', redirectTo: 'sobre-nos', pathMatch: 'full' },

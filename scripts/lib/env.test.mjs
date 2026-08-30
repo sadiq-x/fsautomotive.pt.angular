@@ -11,7 +11,9 @@ import { describe, it } from 'node:test';
 import {
   EXPOSED_ENV_VARS,
   buildDefineArgs,
+  checkDevAuthStub,
   checkMeasurementId,
+  isDevAuthStubRequested,
   isProductionBuild,
 } from './env.mjs';
 
@@ -97,5 +99,53 @@ describe('isProductionBuild', () => {
 
   it('is never production for serve, which is what npm start uses', () => {
     assert.equal(isProductionBuild(['serve']), false);
+  });
+});
+
+describe('checkDevAuthStub', () => {
+  it('is silent when the stub is not requested', () => {
+    for (const value of [undefined, '', 'false', 'no', '0']) {
+      assert.equal(checkDevAuthStub(value, true).level, 'ok');
+    }
+  });
+
+  it('fails a production build outright — the stub accepts any password', () => {
+    const check = checkDevAuthStub('true', true);
+
+    assert.equal(check.level, 'error');
+    assert.match(check.message, /production build/);
+  });
+
+  it('only warns outside production, where the stub is the point', () => {
+    assert.equal(checkDevAuthStub('true', false).level, 'warn');
+  });
+
+  it('accepts the same spellings as the Angular side', () => {
+    for (const value of ['true', 'TRUE', '1', 'on', 'yes', ' true ']) {
+      assert.equal(isDevAuthStubRequested(value), true, value);
+    }
+
+    for (const value of ['false', 'off', 'no', '2', '']) {
+      assert.equal(isDevAuthStubRequested(value), false, value);
+    }
+  });
+});
+
+describe('EXPOSED_ENV_VARS', () => {
+  // The allow-list is the only thing standing between `.env` and the browser
+  // bundle. A secret added here would be published to every visitor.
+  it('exposes only values that are safe to publish', () => {
+    assert.deepEqual(EXPOSED_ENV_VARS, [
+      'GOOGLE_ANALYTICS_ID',
+      'GOOGLE_ANALYTICS_ENABLED',
+      'API_BASE_URL',
+      'DEV_AUTH_STUB',
+    ]);
+  });
+
+  it('never exposes an OfficeGest credential', () => {
+    for (const name of EXPOSED_ENV_VARS) {
+      assert.ok(!/OFFICEGEST/i.test(name), `${name} must not reach the browser bundle`);
+    }
   });
 });

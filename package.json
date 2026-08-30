@@ -1,7 +1,7 @@
 {
   "name": "fsautomotive",
   "version": "1.0.0",
-  "description": "Website institucional da FS Automotive — oficina automóvel multimarca em Vialonga.",
+  "description": "Website institucional da FS Automotive \u2014 oficina autom\u00f3vel multimarca em Vialonga.",
   "private": true,
   "license": "MIT",
   "packageManager": "npm@11.2.0",
@@ -10,7 +10,10 @@
   },
   "scripts": {
     "ng": "ng",
-    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs serve",
+    "install:all": "npm install && npm --prefix server install",
+    "start": "node scripts/dev.mjs",
+    "start:web": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs serve",
+    "start:api": "npm --prefix server run dev",
     "build": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build",
     "watch": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --watch --configuration development",
     "test": "ng test",

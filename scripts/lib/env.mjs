@@ -14,7 +14,12 @@
  * This is an allow-list, not a filter on `process.env`, so a secret added to
  * `.env` can never leak into the bundle by accident.
  */
-export const EXPOSED_ENV_VARS = ['GOOGLE_ANALYTICS_ID', 'GOOGLE_ANALYTICS_ENABLED'];
+export const EXPOSED_ENV_VARS = [
+  'GOOGLE_ANALYTICS_ID',
+  'GOOGLE_ANALYTICS_ENABLED',
+  'API_BASE_URL',
+  'DEV_AUTH_STUB',
+];
 
 /** Only these Angular commands accept the `define` build option. */
 export const COMMANDS_ACCEPTING_DEFINE = new Set(['build', 'serve']);
@@ -65,6 +70,55 @@ export function checkMeasurementId(id, isProduction) {
   }
 
   return { level: 'ok' };
+}
+
+/**
+ * Whether the development authentication stub has been asked for.
+ *
+ * Kept in step with `isStubFlagEnabled` in
+ * `src/app/core/config/auth.config.ts` — if one changes, change both.
+ *
+ * @param {string | undefined} flag Raw `DEV_AUTH_STUB` value.
+ */
+export function isDevAuthStubRequested(flag) {
+  return ['true', '1', 'on', 'yes'].includes((flag ?? '').trim().toLowerCase());
+}
+
+/**
+ * Refuses to build a shipping bundle with the authentication stub enabled.
+ *
+ * This is the outer of the two locks on the stub (the inner one is
+ * `isDevMode()` at runtime). It matters more than the usual "don't ship debug
+ * code" rule, because the stub accepts *any* password: a bundle built with it
+ * is a complete authentication bypass. Failing the build means such a bundle
+ * cannot be produced, so it cannot be deployed by accident.
+ *
+ * @param {string | undefined} flag Raw `DEV_AUTH_STUB` value.
+ * @param {boolean} isProduction Whether this build ships.
+ * @returns {{ level: 'ok' | 'warn' | 'error', message?: string }}
+ */
+export function checkDevAuthStub(flag, isProduction) {
+  if (!isDevAuthStubRequested(flag)) {
+    return { level: 'ok' };
+  }
+
+  if (isProduction) {
+    return {
+      level: 'error',
+      message:
+        'DEV_AUTH_STUB is enabled and this is a production build.\n' +
+        'The stub accepts ANY password — shipping it would leave the management ' +
+        'area completely unprotected.\n' +
+        'Unset DEV_AUTH_STUB in .env (or .env.local) before building for production.',
+    };
+  }
+
+  return {
+    level: 'warn',
+    message:
+      'DEV_AUTH_STUB is enabled: any password will be accepted at /gestao/entrar.\n' +
+      'This build must never be deployed.',
+  };
 }
 
 /**

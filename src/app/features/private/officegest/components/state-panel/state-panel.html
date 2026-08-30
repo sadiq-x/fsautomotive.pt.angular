@@ -1,0 +1,48 @@
+@switch (state()) {
+  @case ('loading') {
+    <!-- Skeletons reserve the row height so nothing jumps when data lands. -->
+    <div class="space-y-2" role="status" aria-busy="true">
+      <span class="sr-only">A carregar…</span>
+      @for (row of skeletons(); track row) {
+        <div class="flex items-center gap-4 rounded-lg bg-white px-4 py-4 ring-1 ring-ink-950/6">
+          <div class="h-3 w-1/4 animate-pulse rounded-full bg-ink-100"></div>
+          <div class="h-3 w-1/3 animate-pulse rounded-full bg-ink-100"></div>
+          <div class="ml-auto h-3 w-16 animate-pulse rounded-full bg-ink-100"></div>
+        </div>
+      }
+    </div>
+  }
+  @default {
+    <div
+      role="status"
+      class="flex flex-col items-center rounded-xl bg-white px-6 py-14 text-center ring-1 ring-ink-950/6"
+    >
+      <span
+        [class]="
+          'flex size-12 items-center justify-center rounded-full ' +
+          (state() === 'error' ? 'bg-brand-50 text-brand-700' : 'bg-ink-50 text-ink-400')
+        "
+      >
+        <app-icon [name]="icon()" [size]="24" />
+      </span>
+
+      <p class="mt-4 text-h3 text-ink-900">{{ title() }}</p>
+
+      @if (message()) {
+        <p class="mt-2 max-w-md text-body text-ink-500">{{ message() }}</p>
+      }
+
+      @if (actionLabel(); as label) {
+        <app-button
+          class="mt-6"
+          variant="secondary"
+          icon="refresh"
+          iconPosition="left"
+          (click)="action.emit()"
+        >
+          {{ label }}
+        </app-button>
+      }
+    </div>
+  }
+}

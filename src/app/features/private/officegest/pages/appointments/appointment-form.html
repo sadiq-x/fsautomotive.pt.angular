@@ -1,0 +1,141 @@
+<a
+  class="inline-flex items-center gap-1.5 rounded-sm text-meta font-semibold text-ink-500 transition-colors hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+  [routerLink]="routes.appointments"
+>
+  <app-icon name="chevron-left" [size]="16" />
+  Marcações
+</a>
+
+<header class="mt-4">
+  <h1 class="text-h2 text-ink-950">Nova marcação</h1>
+  <p class="mt-1 text-body text-ink-500">A marcação é criada diretamente no OfficeGest.</p>
+</header>
+
+<form class="mt-6 max-w-2xl" (ngSubmit)="submit()" novalidate>
+  <div class="rounded-xl bg-white p-6 shadow-card ring-1 ring-ink-950/6">
+    <div class="grid gap-5 sm:grid-cols-2">
+      <div class="sm:col-span-2">
+        <label class="block text-meta font-semibold text-ink-700" for="title">
+          Assunto <span class="text-brand-600" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="title"
+          name="title"
+          type="text"
+          required
+          maxlength="160"
+          class="mt-1.5 w-full rounded-lg border-0 bg-bone-50 px-3.5 py-2.5 text-body text-ink-900 ring-1 ring-ink-950/10 ring-inset focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          placeholder="Revisão dos 60.000 km"
+          [ngModel]="title()"
+          (ngModelChange)="title.set($event)"
+          [attr.aria-invalid]="fieldErrors()['title'] ? 'true' : null"
+          [attr.aria-describedby]="fieldErrors()['title'] ? 'erro-title' : null"
+        />
+        @if (fieldErrors()['title']; as message) {
+          <p id="erro-title" class="mt-1.5 text-meta text-brand-700">{{ message }}</p>
+        }
+      </div>
+
+      <div>
+        <label class="block text-meta font-semibold text-ink-700" for="startsAt">
+          Início <span class="text-brand-600" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="startsAt"
+          name="startsAt"
+          type="datetime-local"
+          required
+          [min]="minDateTime()"
+          class="mt-1.5 w-full rounded-lg border-0 bg-bone-50 px-3.5 py-2.5 text-body text-ink-900 ring-1 ring-ink-950/10 ring-inset focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          [ngModel]="startsAt()"
+          (ngModelChange)="startsAt.set($event)"
+          [attr.aria-invalid]="fieldErrors()['startsAt'] ? 'true' : null"
+          [attr.aria-describedby]="fieldErrors()['startsAt'] ? 'erro-startsAt' : null"
+        />
+        @if (fieldErrors()['startsAt']; as message) {
+          <p id="erro-startsAt" class="mt-1.5 text-meta text-brand-700">{{ message }}</p>
+        }
+      </div>
+
+      <div>
+        <label class="block text-meta font-semibold text-ink-700" for="endsAt">Fim</label>
+        <input
+          id="endsAt"
+          name="endsAt"
+          type="datetime-local"
+          [min]="startsAt() || minDateTime()"
+          class="mt-1.5 w-full rounded-lg border-0 bg-bone-50 px-3.5 py-2.5 text-body text-ink-900 ring-1 ring-ink-950/10 ring-inset focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          [ngModel]="endsAt()"
+          (ngModelChange)="endsAt.set($event)"
+          [attr.aria-invalid]="fieldErrors()['endsAt'] ? 'true' : null"
+          [attr.aria-describedby]="fieldErrors()['endsAt'] ? 'erro-endsAt' : null"
+        />
+        @if (fieldErrors()['endsAt']; as message) {
+          <p id="erro-endsAt" class="mt-1.5 text-meta text-brand-700">{{ message }}</p>
+        }
+      </div>
+
+      <div>
+        <label class="block text-meta font-semibold text-ink-700" for="plate">Matrícula</label>
+        <input
+          id="plate"
+          name="plate"
+          type="text"
+          maxlength="16"
+          class="mt-1.5 w-full rounded-lg border-0 bg-bone-50 px-3.5 py-2.5 text-body text-ink-900 uppercase ring-1 ring-ink-950/10 ring-inset placeholder:normal-case focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          placeholder="AA-00-BB"
+          [ngModel]="plate()"
+          (ngModelChange)="plate.set($event)"
+          [attr.aria-invalid]="fieldErrors()['plate'] ? 'true' : null"
+          [attr.aria-describedby]="fieldErrors()['plate'] ? 'erro-plate' : null"
+        />
+        @if (fieldErrors()['plate']; as message) {
+          <p id="erro-plate" class="mt-1.5 text-meta text-brand-700">{{ message }}</p>
+        }
+      </div>
+
+      <div>
+        <label class="block text-meta font-semibold text-ink-700" for="customerId"> Código do cliente </label>
+        <input
+          id="customerId"
+          name="customerId"
+          type="text"
+          maxlength="64"
+          class="mt-1.5 w-full rounded-lg border-0 bg-bone-50 px-3.5 py-2.5 text-body text-ink-900 ring-1 ring-ink-950/10 ring-inset focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          [ngModel]="customerId()"
+          (ngModelChange)="customerId.set($event)"
+        />
+      </div>
+
+      <div class="sm:col-span-2">
+        <label class="block text-meta font-semibold text-ink-700" for="notes">Notas</label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows="4"
+          maxlength="2000"
+          class="mt-1.5 w-full rounded-lg border-0 bg-bone-50 px-3.5 py-2.5 text-body text-ink-900 ring-1 ring-ink-950/10 ring-inset focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          [ngModel]="notes()"
+          (ngModelChange)="notes.set($event)"
+        ></textarea>
+      </div>
+    </div>
+
+    @if (formError(); as message) {
+      <p
+        role="alert"
+        class="mt-5 flex items-start gap-2 rounded-lg bg-brand-50 px-4 py-3 text-meta text-brand-800 ring-1 ring-brand-600/15"
+      >
+        <app-icon name="alert-triangle" [size]="16" class="mt-0.5 shrink-0" />
+        {{ message }}
+      </p>
+    }
+  </div>
+
+  <div class="mt-5 flex flex-wrap items-center gap-3">
+    <app-button type="submit" variant="primary" [disabled]="!canSubmit()">
+      {{ submitting() ? 'A criar…' : 'Criar marcação' }}
+    </app-button>
+    <app-button variant="secondary" [routerLink]="routes.appointments">Cancelar</app-button>
+  </div>
+</form>

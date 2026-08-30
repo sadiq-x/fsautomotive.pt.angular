@@ -1,0 +1,35 @@
+@for (item of notifications(); track item.id) {
+  <div
+    [attr.role]="item.tone === 'error' ? 'alert' : 'status'"
+    [attr.aria-live]="item.tone === 'error' ? 'assertive' : 'polite'"
+    aria-relevant="additions"
+    [class]="
+      'pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl px-4 py-3 shadow-card ring-1 ' +
+      toneStyles[item.tone]
+    "
+  >
+    <span
+      [class]="
+        'mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ' + toneIconStyles[item.tone]
+      "
+    >
+      <app-icon [name]="toneIcons[item.tone]" [size]="16" />
+    </span>
+
+    <div class="min-w-0 flex-1">
+      <p class="text-body font-medium">{{ item.message }}</p>
+      @if (item.detail) {
+        <p class="mt-0.5 text-meta break-words text-ink-500">{{ item.detail }}</p>
+      }
+    </div>
+
+    <button
+      type="button"
+      class="-mr-1 shrink-0 rounded-full p-1 text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+      (click)="dismiss(item.id)"
+    >
+      <span class="sr-only">Dispensar notificação</span>
+      <app-icon name="close" [size]="16" />
+    </button>
+  </div>
+}

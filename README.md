@@ -31,7 +31,10 @@ executar o Angular CLI 21.
 
 ```bash
 npm install         # instalar dependências
-npm start           # servidor de desenvolvimento em http://localhost:4200
+npm run install:all # instala dependências da raiz e de server/
+npm start           # frontend (4200) + backend (3000)
+npm run start:web   # apenas o frontend
+npm run start:api   # apenas o backend
 npm run build       # build de produção para dist/fsautomotive
 npm test            # correr os testes uma vez
 npm run test:watch  # testes em modo watch
@@ -425,6 +428,72 @@ desconhecidos para o `index.html`:
 
 Se o site passar a ter domínio próprio, o `--base-href` volta a ser `/` e deve
 ser gerado um `CNAME` (`ng deploy --cname=fsautomotive.pt`).
+
+## Área de gestão (privada)
+
+Área reservada em `/gestao`, dentro da mesma aplicação Angular — carregada em
+_lazy loading_, por isso um visitante do site público nunca descarrega este
+código.
+
+```
+/gestao/entrar          início de sessão
+/gestao/painel          resumo
+/gestao/clientes        lista + detalhe
+/gestao/veiculos        lista + detalhe (por matrícula)
+/gestao/folhas-de-obra  lista + detalhe
+/gestao/marcacoes       lista + detalhe + criação
+```
+
+O Angular fala **apenas** com o backend em `server/`; a chave do OfficeGest
+nunca sai desse processo.
+
+```
+Angular  ──▶  server/  ──▶  api.officegest.com
+```
+
+**Autenticação.** O backend ainda não tem endpoints de sessão. O contrato que a
+aplicação espera está declarado — e assinalado — em
+[`src/app/core/auth/auth.contract.ts`](src/app/core/auth/auth.contract.ts).
+Para desenvolver entretanto, ative o stub:
+
+```bash
+# .env
+DEV_AUTH_STUB=true
+```
+
+Qualquer palavra-passe é então aceite em `/gestao/entrar` (use `wrong` para ver
+o estado de erro). O `npm run build` de produção **falha** enquanto esta
+variável estiver ativa — ver `checkDevAuthStub` em
+[`scripts/lib/env.mjs`](scripts/lib/env.mjs).
+
+Documentação completa da arquitetura da área privada:
+[`docs/PRIVATE-AREA.md`](docs/PRIVATE-AREA.md).
+
+## Backend (OfficeGest)
+
+O site é estático e não pode guardar segredos: tudo o que é compilado para o
+`bundle` é legível por qualquer visitante. A chave da API do OfficeGest dá acesso
+ao ERP do cliente, por isso vive num serviço Node separado, em [`server/`](server/).
+
+```
+Browser ──▶ server/ ──▶ api.officegest.com
+             (guarda a credencial)
+```
+
+```bash
+cd server
+npm install
+cp .env.example .env      # preencher OFFICEGEST_BASE_URL e OFFICEGEST_API_KEY
+npm run dev               # http://localhost:3000
+```
+
+Endpoints em `/api/officegest/…` para clientes, veículos, folhas de obra e
+marcações. A documentação completa — arquitetura, autenticação, variáveis de
+ambiente, tratamento de erros e testes — está em
+[`server/README.md`](server/README.md).
+
+> A credencial deve ficar em `server/.env`, **não** no `.env` da raiz: esse é
+> lido pelo `scripts/ng-env.mjs` e alimenta o `bundle` do browser.
 
 ## Assets
 

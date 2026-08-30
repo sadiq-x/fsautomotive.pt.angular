@@ -184,6 +184,19 @@ describe('AnalyticsService', () => {
       expect(consentIndex).toBeLessThan(configIndex);
     });
 
+    // Regression guard. Every other assertion here reads the queue through
+    // `pushed()`, which normalises with `Array.from` and so cannot tell an
+    // `arguments` object from an array — the whole suite passed while gtag.js
+    // silently discarded every command and the site reported nothing.
+    it('queues commands as `arguments`, the only shape gtag.js executes', () => {
+      setup().initialize();
+
+      for (const entry of window.dataLayer ?? []) {
+        expect(Object.prototype.toString.call(entry)).toBe('[object Arguments]');
+        expect(Array.isArray(entry)).toBe(false);
+      }
+    });
+
     it('disables the automatic page view so SPA navigations are not missed', () => {
       setup().initialize();
 

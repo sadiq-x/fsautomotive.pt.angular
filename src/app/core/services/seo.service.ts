@@ -37,6 +37,7 @@ export class SeoService {
     this.title.setTitle(fullTitle);
 
     this.upsertName('description', page.description);
+    this.applyRobots(page.noIndex === true);
     this.upsertName('twitter:card', 'summary_large_image');
     this.upsertName('twitter:title', fullTitle);
     this.upsertName('twitter:description', page.description);
@@ -51,6 +52,23 @@ export class SeoService {
     this.upsertProperty('og:image', image);
 
     this.setCanonical(canonical);
+  }
+
+  /**
+   * Adds or removes the `robots` directive.
+   *
+   * Removing it matters as much as adding it: the tag is set on one shared
+   * document, so navigating from a private page back to a public one has to
+   * take the `noindex` with it — otherwise the whole site becomes unindexable
+   * after any visit to `/gestao`.
+   */
+  private applyRobots(noIndex: boolean): void {
+    if (noIndex) {
+      this.upsertName('robots', 'noindex, nofollow');
+      return;
+    }
+
+    this.meta.removeTag('name="robots"');
   }
 
   private upsertName(name: string, content: string): void {

@@ -1,0 +1,29 @@
+<label class="relative block">
+  <span class="sr-only">{{ label() }}</span>
+
+  <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-ink-400">
+    <app-icon name="search" [size]="18" />
+  </span>
+
+  <input
+    type="search"
+    autocomplete="off"
+    class="w-full rounded-full border-0 bg-white py-2.5 pr-10 pl-11 text-body text-ink-900 shadow-btn ring-1 ring-ink-950/8 transition-shadow ring-inset placeholder:text-ink-400 focus:ring-2 focus:ring-brand-600 focus:outline-none"
+    [placeholder]="placeholder()"
+    [value]="draft()"
+    (input)="onInput($event)"
+    (keydown.enter)="onEnter()"
+    (keydown.escape)="clear()"
+  />
+
+  @if (draft()) {
+    <button
+      type="button"
+      class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+      (click)="clear()"
+    >
+      <span class="sr-only">Limpar pesquisa</span>
+      <app-icon name="close" [size]="16" />
+    </button>
+  }
+</label>

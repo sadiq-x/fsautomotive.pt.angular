@@ -1,0 +1,86 @@
+<div class="flex flex-1 items-center justify-center px-5 py-12">
+  <div class="w-full max-w-sm">
+    <div class="text-center">
+      <span class="inline-flex size-12 items-center justify-center rounded-2xl bg-brand-600 text-white">
+        <app-icon name="lock" [size]="22" />
+      </span>
+      <h1 class="mt-5 text-h2 text-white">Área de gestão</h1>
+      <p class="mt-2 text-body text-bone-400">Inicie sessão para consultar os dados do OfficeGest.</p>
+    </div>
+
+    @if (stubActive) {
+      <p
+        class="mt-6 rounded-xl bg-amber-400/10 px-4 py-3 text-meta text-amber-200 ring-1 ring-amber-400/25"
+        role="status"
+      >
+        <strong class="font-bold">Modo de desenvolvimento.</strong>
+        Qualquer palavra-passe é aceite — use
+        <code class="font-mono">{{ stubRejectedPassword }}</code> para testar o estado de erro.
+      </p>
+    }
+
+    <form class="mt-8 space-y-4" (ngSubmit)="submit()">
+      <div>
+        <label class="block text-meta font-semibold text-bone-300" for="email">E-mail</label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="username"
+          required
+          class="placeholder:text-bone-500 mt-1.5 w-full rounded-xl border-0 bg-white/8 px-4 py-3 text-body text-white ring-1 ring-white/15 transition-shadow ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          placeholder="nome@fsautomotive.pt"
+          [ngModel]="email()"
+          (ngModelChange)="email.set($event)"
+          [attr.aria-invalid]="errorMessage() ? 'true' : null"
+          [attr.aria-describedby]="errorMessage() ? 'login-erro' : null"
+        />
+      </div>
+
+      <div>
+        <label class="block text-meta font-semibold text-bone-300" for="password"> Palavra-passe </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          class="placeholder:text-bone-500 mt-1.5 w-full rounded-xl border-0 bg-white/8 px-4 py-3 text-body text-white ring-1 ring-white/15 transition-shadow ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+          [attr.aria-invalid]="errorMessage() ? 'true' : null"
+          [attr.aria-describedby]="errorMessage() ? 'login-erro' : null"
+        />
+      </div>
+
+      @if (errorMessage(); as message) {
+        <p
+          id="login-erro"
+          role="alert"
+          class="flex items-start gap-2 rounded-xl bg-brand-500/10 px-4 py-3 text-meta text-brand-200 ring-1 ring-brand-500/25"
+        >
+          <app-icon name="alert-triangle" [size]="16" class="mt-0.5 shrink-0" />
+          {{ message }}
+        </p>
+      }
+
+      <app-button
+        class="pt-2"
+        type="submit"
+        variant="primary"
+        [block]="true"
+        [disabled]="submitting() || !email() || !password()"
+      >
+        {{ submitting() ? 'A entrar…' : 'Entrar' }}
+      </app-button>
+    </form>
+
+    <p class="text-bone-500 mt-8 text-center text-meta">
+      <a
+        class="underline decoration-white/25 underline-offset-4 transition-colors hover:text-bone-300"
+        href="/"
+        >Voltar ao site</a
+      >
+    </p>
+  </div>
+</div>

@@ -1,0 +1,22 @@
+<dl class="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+  @for (field of fields(); track field.label) {
+    <div [class]="field.wide ? 'sm:col-span-2' : ''">
+      <dt class="text-meta font-semibold tracking-wide text-ink-400 uppercase">{{ field.label }}</dt>
+      <dd class="mt-1 text-body text-ink-900">
+        @if (field.value === null) {
+          <span class="text-ink-400">—</span>
+        } @else if (field.badge) {
+          <app-status-badge [label]="field.value" />
+        } @else if (field.href) {
+          <a
+            class="text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 hover:decoration-brand-700/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            [href]="field.href"
+            >{{ field.value }}</a
+          >
+        } @else {
+          {{ field.value }}
+        }
+      </dd>
+    </div>
+  }
+</dl>

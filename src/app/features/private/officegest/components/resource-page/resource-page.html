@@ -1,0 +1,77 @@
+<header class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-h2 text-ink-950">{{ title() }}</h1>
+    @if (subtitle()) {
+      <p class="mt-1 text-body text-ink-500">{{ subtitle() }}</p>
+    }
+  </div>
+
+  <!-- Page-specific primary action, e.g. "Nova marcação". -->
+  <ng-content select="[slot=actions]" />
+</header>
+
+<div class="mt-6 flex flex-wrap items-center gap-3">
+  @if (searchLabel(); as label) {
+    <app-search-field
+      class="w-full sm:max-w-sm"
+      [label]="label"
+      [placeholder]="searchPlaceholder()"
+      [value]="searchValue()"
+      (search)="search.emit($event)"
+    />
+  }
+
+  <!-- Page-specific filters, e.g. a status select or a date range. -->
+  <ng-content select="[slot=filters]" />
+
+  <!-- Announced politely so a screen-reader user learns the list is updating
+       without being interrupted mid-sentence. -->
+  @if (store().isRefreshing()) {
+    <p class="text-meta text-ink-400" role="status">A atualizar…</p>
+  }
+</div>
+
+<div class="mt-6">
+  @if (showSkeleton()) {
+    <app-state-panel state="loading" [skeletonRows]="8" />
+  } @else if (showError()) {
+    <app-state-panel
+      state="error"
+      title="Não foi possível carregar os dados"
+      [message]="store().error()?.message ?? null"
+      actionLabel="Tentar novamente"
+      (action)="store().reload()"
+    />
+  } @else if (showEmpty()) {
+    <app-state-panel
+      state="empty"
+      [title]="emptyTitle()"
+      [message]="emptyMessage()"
+      [actionLabel]="store().isFiltered() ? null : 'Atualizar'"
+      (action)="store().reload()"
+    />
+  } @else {
+    <div class="overflow-hidden rounded-xl bg-white shadow-card ring-1 ring-ink-950/6 lg:p-1">
+      <app-data-table
+        [columns]="columns()"
+        [rows]="store().items()"
+        [rowKey]="rowKey()"
+        [caption]="caption()"
+        [refreshing]="store().isRefreshing()"
+        [rowLink]="rowLink()"
+        [rowLabel]="rowLabel()"
+      />
+    </div>
+  }
+
+  @if (showTable() || showEmpty()) {
+    <app-pagination-bar
+      class="mt-4"
+      [pagination]="store().pagination()"
+      [loadedCount]="store().items().length"
+      [disabled]="store().isRefreshing()"
+      (pageChange)="store().setPage($event)"
+      (perPageChange)="store().setPerPage($event)"
+    />
+  }
+</div>

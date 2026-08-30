@@ -1,0 +1,159 @@
+<a
+  class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-60 focus:rounded-full focus:bg-ink-950 focus:px-4 focus:py-2 focus:text-white"
+  href="#gestao-conteudo"
+  >Saltar para o conteúdo</a
+>
+
+<div class="lg:grid lg:grid-cols-[16rem_1fr]">
+  <!--
+    Sidebar. Permanent from `lg`; a drawer below it.
+
+    Closed state is `invisible`, not just `-translate-x-full`: a transform moves
+    the panel off screen but leaves its links in the tab order, so a keyboard
+    user would tab into a menu nobody can see. `visibility` removes them, and
+    `lg:visible` brings the permanent sidebar back on desktop.
+  -->
+  <aside
+    id="gestao-navegacao"
+    [class]="
+      'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-ink-950 transition-[transform,visibility] duration-300 ease-out lg:visible lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:w-auto lg:max-w-none lg:translate-x-0 ' +
+      (drawerOpen() ? 'visible translate-x-0' : 'invisible -translate-x-full')
+    "
+  >
+    <div class="flex h-16 items-center justify-between px-5">
+      <a
+        class="flex items-center gap-2.5 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        [routerLink]="routes.dashboard"
+        (click)="closeDrawer()"
+      >
+        <span class="flex size-8 items-center justify-center rounded-lg bg-brand-600 text-white">
+          <app-icon name="wrench" [size]="18" />
+        </span>
+        <span class="text-body font-extrabold tracking-tight text-white">Gestão</span>
+      </a>
+
+      <button
+        type="button"
+        class="rounded-full p-2 text-bone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white lg:hidden"
+        (click)="closeDrawer()"
+      >
+        <span class="sr-only">Fechar menu</span>
+        <app-icon name="close" [size]="20" />
+      </button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 py-4" aria-label="Navegação da área de gestão">
+      <ul role="list" class="space-y-1">
+        @for (item of navItems(); track item.path) {
+          <li>
+            <a
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-bone-300 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              [routerLink]="item.path"
+              routerLinkActive="bg-brand-600! text-white! shadow-brand"
+              [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+              #active="routerLinkActive"
+              [attr.aria-current]="active.isActive ? 'page' : null"
+              (click)="closeDrawer()"
+            >
+              <app-icon [name]="item.icon" [size]="18" />
+              {{ item.label }}
+            </a>
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <div class="border-t border-white/8 p-3">
+      <a
+        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-meta text-bone-400 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        routerLink="/"
+        (click)="closeDrawer()"
+      >
+        <app-icon name="external-link" [size]="16" />
+        Ver o site público
+      </a>
+    </div>
+  </aside>
+
+  <!-- Backdrop: a real button, so it is reachable and dismissible without a mouse. -->
+  @if (drawerOpen()) {
+    <button
+      type="button"
+      class="fixed inset-0 z-40 bg-ink-950/50 backdrop-blur-sm lg:hidden"
+      (click)="closeDrawer()"
+    >
+      <span class="sr-only">Fechar menu</span>
+    </button>
+  }
+
+  <div class="flex min-w-0 flex-col">
+    <header
+      class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-ink-950/8 bg-bone-100/95 px-4 backdrop-blur-md sm:px-6"
+    >
+      <button
+        type="button"
+        class="-ml-1 rounded-full p-2 text-ink-700 transition-colors hover:bg-ink-950/6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 lg:hidden"
+        [attr.aria-expanded]="drawerOpen()"
+        aria-controls="gestao-navegacao"
+        (click)="openDrawer()"
+      >
+        <span class="sr-only">Abrir menu</span>
+        <app-icon name="menu" [size]="20" />
+      </button>
+
+      <p class="truncate text-body font-semibold text-ink-900 lg:hidden">{{ currentTitle() }}</p>
+
+      <div class="relative ml-auto">
+        <button
+          type="button"
+          class="flex items-center gap-2.5 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-ink-950/6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          [attr.aria-expanded]="accountMenuOpen()"
+          aria-haspopup="menu"
+          (click)="toggleAccountMenu($event)"
+        >
+          <span
+            class="flex size-8 items-center justify-center rounded-full bg-ink-900 text-meta font-bold text-white"
+            aria-hidden="true"
+            >{{ initials() }}</span
+          >
+          <span class="hidden text-meta font-semibold text-ink-800 sm:block">
+            {{ user()?.name }}
+          </span>
+          <app-icon name="chevron-down" [size]="16" class="text-ink-400" />
+        </button>
+
+        @if (accountMenuOpen()) {
+          <div
+            role="menu"
+            class="absolute right-0 z-40 mt-2 w-60 rounded-xl bg-white p-1.5 shadow-card ring-1 ring-ink-950/8"
+            (click)="$event.stopPropagation()"
+          >
+            <div class="border-b border-ink-950/6 px-3 py-2.5">
+              <p class="truncate text-body font-semibold text-ink-900">{{ user()?.name }}</p>
+              @if (user()?.email; as email) {
+                <p class="truncate text-meta text-ink-500">{{ email }}</p>
+              }
+              <p class="mt-1.5 text-meta text-ink-400">{{ user()?.role }}</p>
+            </div>
+
+            <button
+              type="button"
+              role="menuitem"
+              class="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-body text-ink-700 transition-colors hover:bg-bone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              (click)="signOut()"
+            >
+              <app-icon name="log-out" [size]="16" />
+              Terminar sessão
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <main id="gestao-conteudo" class="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <router-outlet />
+    </main>
+  </div>
+</div>
+
+<app-toast-host />

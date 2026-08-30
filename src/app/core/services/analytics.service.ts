@@ -188,8 +188,16 @@ export class AnalyticsService {
     view.dataLayer ??= [];
     // The real gtag shim: it queues onto dataLayer, so calls made before
     // gtag.js finishes downloading are replayed once it arrives.
-    view.gtag ??= function gtag(...args: unknown[]) {
-      view.dataLayer?.push(args);
+    //
+    // `arguments` and not a rest parameter, deliberately. gtag.js treats a
+    // dataLayer entry as a command only when it is an `arguments` object; a
+    // plain array is skipped without a warning. A rest parameter produces a
+    // real array, so every command — `consent`, `config`, every event — was
+    // queued and then silently dropped, and nothing was ever sent.
+    // This is also why the snippet Google documents uses `function` rather
+    // than an arrow: an arrow has no `arguments` of its own.
+    view.gtag ??= function gtag() {
+      view.dataLayer?.push(arguments);
     };
 
     // Cookieless posture. This has to be pushed before the library loads —
