@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
+# The management area is behind authentication and carries `noindex` on every
+# page. Disallowing it here stops the crawl before it starts — belt and braces,
+# and it keeps /gestao out of crawl logs and link reports.
+Disallow: /gestao
+
 Sitemap: https://fsautomotive.pt/sitemap.xml
