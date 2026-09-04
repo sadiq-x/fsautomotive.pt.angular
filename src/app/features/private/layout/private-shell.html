@@ -64,13 +64,24 @@
     </nav>
 
     <div class="border-t border-white/8 p-3">
+      <!--
+        Opens in a new tab: the management area is a working context, and
+        following a link out of it would discard whatever list or filter the
+        user had open. `RouterLink` honours `target`, handing the click to the
+        browser instead of navigating in place.
+
+        The drawer is deliberately not closed — this tab does not move, so
+        closing it would be a change the user did not ask for.
+      -->
       <a
         class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-meta text-bone-400 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         routerLink="/"
-        (click)="closeDrawer()"
+        target="_blank"
+        rel="noopener"
       >
         <app-icon name="external-link" [size]="16" />
         Ver o site público
+        <span class="sr-only">(abre numa nova janela)</span>
       </a>
     </div>
   </aside>

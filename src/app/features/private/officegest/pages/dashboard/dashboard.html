@@ -32,6 +32,42 @@
   </div>
 </section>
 
+@if (canSeeCalendar()) {
+  <section class="mt-8" aria-labelledby="agenda">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="agenda" class="text-h3 text-ink-900">Agenda</h2>
+
+      <a
+        class="text-meta font-semibold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        [routerLink]="routes.appointments"
+        >Ver todas as marcações</a
+      >
+    </div>
+
+    @if (calendarFailed()) {
+      <p
+        class="mt-4 flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-meta text-amber-900 ring-1 ring-amber-700/20"
+        role="status"
+      >
+        <app-icon name="alert-triangle" [size]="16" class="mt-0.5 shrink-0" />
+        <span>
+          Não foi possível carregar as marcações deste mês. O calendário continua navegável — os dias aparecem
+          vazios até o backend responder.
+        </span>
+      </p>
+    }
+
+    <app-calendar
+      class="mt-4"
+      [month]="visibleMonth()"
+      [events]="calendarEvents()"
+      [loading]="calendarLoading()"
+      (monthChange)="onMonthChange($event)"
+      (selectEvent)="onSelectEvent($event)"
+    />
+  </section>
+}
+
 <section class="mt-8" aria-labelledby="atalhos">
   <h2 id="atalhos" class="text-h3 text-ink-900">Aceder</h2>
 

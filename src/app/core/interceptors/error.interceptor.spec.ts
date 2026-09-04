@@ -16,7 +16,7 @@ import { AuthService } from '../auth/auth.service';
 import type { SessionUser } from '../auth/auth.models';
 import { ApiError } from '../models/api.model';
 import { NotificationService } from '../services/notification.service';
-import { EXPECTS_UNAUTHORIZED, apiInterceptor } from './api.interceptor';
+import { EXPECTS_UNAUTHORIZED, REPORTS_OWN_ERRORS, apiInterceptor } from './api.interceptor';
 import { errorInterceptor } from './error.interceptor';
 
 const USER: SessionUser = { id: '1', name: 'Ana', role: 'ADMIN', permissions: ['officegest.read'] };
@@ -109,6 +109,38 @@ describe('errorInterceptor', () => {
     await fail(404, null).catch(() => undefined);
 
     expect(notifications.notifications()).toHaveLength(0);
+  });
+
+  // The diagnostics page reports an outage in place; a toast repeating it would
+  // fire again on every re-check.
+  it('stays quiet when the caller reports its own failure', async () => {
+    const pending = firstValueFrom(
+      http.get('/api/officegest/customers', {
+        context: new HttpContext().set(REPORTS_OWN_ERRORS, true),
+      }),
+    );
+
+    backend
+      .expectOne((request) => request.url.endsWith('/api/officegest/customers'))
+      .flush(null, { status: 500, statusText: 'Error' });
+
+    await pending.catch(() => undefined);
+
+    expect(notifications.notifications()).toHaveLength(0);
+  });
+
+  it('still rejects with an ApiError when the caller reports its own failure', async () => {
+    const pending = firstValueFrom(
+      http.get('/api/officegest/customers', {
+        context: new HttpContext().set(REPORTS_OWN_ERRORS, true),
+      }),
+    );
+
+    backend
+      .expectOne((request) => request.url.endsWith('/api/officegest/customers'))
+      .flush(null, { status: 500, statusText: 'Error' });
+
+    await expect(pending).rejects.toBeInstanceOf(ApiError);
   });
 
   describe('401 handling', () => {

@@ -1,10 +1,27 @@
-<app-header />
+<!--
+  The public chrome is rendered only on public routes.
 
-<main id="conteudo">
+  The private area brings its own frame (`PrivateShell`: sidebar, its own header
+  and its own `<main>`), so rendering these here as well would stack a marketing
+  header, a management sidebar, a second `<main>` and a bottom tab bar linking
+  back out to the brochure site on every page behind the login.
+
+  `Lightbox` and `CookieNotice` stay unconditional: neither is chrome. The
+  lightbox is a single host for a service anything may call, and the consent
+  notice is a site-wide legal obligation that does not stop at the login.
+-->
+@if (showPublicChrome()) {
+  <app-header />
+
+  <main id="conteudo">
+    <router-outlet />
+  </main>
+
+  <app-footer />
+  <app-mobile-tab-bar />
+} @else {
   <router-outlet />
-</main>
+}
 
-<app-footer />
-<app-mobile-tab-bar />
 <app-lightbox />
 <app-cookie-notice />

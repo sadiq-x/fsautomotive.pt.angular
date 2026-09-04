@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -26,10 +26,15 @@ import { UiButton } from '../../../shared/components/ui-button/ui-button';
  *
  * WHERE IT SENDS THE USER
  * -----------------------
- * Back to `redirect`, when the guard supplied one — a bookmark to a customer
- * page should survive signing in. The value is checked to be a path within the
- * private area before it is used: an unvalidated redirect parameter is an open
- * redirect, and this is exactly the form attackers phish with.
+ * Always the dashboard.
+ *
+ * There is deliberately no `?redirect=` handling. Nothing generates the
+ * parameter — a refused request lands on a plain `/gestao` — and the input is
+ * not declared, so `withComponentInputBinding()` cannot bind a crafted one
+ * either. That second half matters: keeping the input while dropping the
+ * validation would turn `/gestao?redirect=https://evil.example` into an open
+ * redirect, which is exactly the shape used for phishing. Not accepting the
+ * parameter at all is the version with no surface to get wrong.
  */
 @Component({
   selector: 'app-login',
@@ -41,16 +46,6 @@ import { UiButton } from '../../../shared/components/ui-button/ui-button';
 export class Login {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-
-  /**
-   * Bound from `?redirect=` by `withComponentInputBinding()`.
-   *
-   * It must be an `input()`, not a plain signal: the router writes to component
-   * *inputs*, so a signal field would silently stay `undefined` and every
-   * sign-in would land on the dashboard, discarding the page the user asked
-   * for.
-   */
-  readonly redirect = input<string | undefined>(undefined);
 
   protected readonly email = signal('');
   protected readonly password = signal('');
@@ -64,7 +59,7 @@ export class Login {
 
     try {
       await this.auth.login({ email: this.email().trim(), password: this.password() });
-      await this.router.navigateByUrl(this.safeRedirect());
+      await this.router.navigateByUrl(PRIVATE_ROUTES.dashboard);
     } catch (error) {
       this.errorMessage.set(
         error instanceof ApiError && error.status === 401
@@ -72,26 +67,5 @@ export class Login {
           : 'Não foi possível iniciar sessão. Tente novamente dentro de momentos.',
       );
     }
-  }
-
-  /**
-   * Only a path inside the private area is accepted.
-   *
-   * `//evil.example` and `https://evil.example` are both rejected: the first is
-   * a protocol-relative URL that most naive checks miss.
-   */
-  private safeRedirect(): string {
-    const target = this.redirect();
-
-    if (
-      target &&
-      target.startsWith(`${PRIVATE_ROUTES.base}/`) &&
-      !target.startsWith('//') &&
-      target !== PRIVATE_ROUTES.login
-    ) {
-      return target;
-    }
-
-    return PRIVATE_ROUTES.dashboard;
   }
 }

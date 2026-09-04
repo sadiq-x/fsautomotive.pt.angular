@@ -1,3 +1,5 @@
+export * from './calendar/calendar';
+export * from './calendar/calendar.model';
 export * from './data-table/data-table';
 export * from './data-table/data-table.model';
 export * from './detail-list/detail-list';

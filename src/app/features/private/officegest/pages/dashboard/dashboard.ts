@@ -1,12 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
-import { catchError, map, of, startWith, type Observable } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { Router, RouterLink } from '@angular/router';
+import { catchError, map, of, startWith, switchMap, type Observable } from 'rxjs';
 
 import { AuthService } from '../../../../../core/auth';
+import { PRIVATE_ROUTES } from '../../../../../core/config/private-routes.config';
 import type { IconName, Paged } from '../../../../../core/models';
 import { Icon } from '../../../../../shared/components/icon/icon';
 import { PRIVATE_NAV, type PrivateNavItem } from '../../../layout/private-nav.data';
+import { Calendar } from '../../components/calendar/calendar';
+import type { CalendarEvent } from '../../components/calendar/calendar.model';
+import type { Appointment } from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
 
 /** A headline number, or the reason there isn't one. */
@@ -39,13 +43,15 @@ const PENDING: Metric = { value: null, loading: true, failed: false };
 @Component({
   selector: 'app-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Icon, RouterLink],
+  imports: [Calendar, Icon, RouterLink],
   templateUrl: './dashboard.html',
 })
 export class Dashboard {
   private readonly officegest = inject(OfficeGestService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
+  protected readonly routes = PRIVATE_ROUTES;
   protected readonly user = this.auth.user;
 
   /** Everything except the dashboard itself, filtered by permission. */
@@ -83,6 +89,63 @@ export class Dashboard {
     ],
   );
 
+  /* ------------------------------------------------------------------ */
+  /* Calendar                                                            */
+  /* ------------------------------------------------------------------ */
+
+  /** The month on screen. Owned here so the fetch can follow it. */
+  protected readonly visibleMonth = signal(startOfMonth(new Date()));
+
+  protected readonly canSeeCalendar = computed(() => {
+    this.auth.user();
+    return this.auth.hasPermission('officegest.appointments.read');
+  });
+
+  /**
+   * The appointments of the visible month.
+   *
+   * Refetched on every page because the alternative — loading a year up front —
+   * spends the caller's rate limit on months nobody opens. `switchMap` drops the
+   * response for a month the user has already paged past, which matters when
+   * clicking through quickly on a slow link.
+   *
+   * `perPage` is the backend's maximum. A month with more than 100 bookings
+   * would silently show only the first 100; the count beside the calendar is
+   * what would make that visible, and it is drawn from the same response.
+   */
+  private readonly monthEvents = toSignal(
+    toObservable(this.visibleMonth).pipe(
+      switchMap((month) =>
+        this.officegest
+          .listAppointments({
+            page: 1,
+            perPage: 100,
+            from: month.toISOString(),
+            to: endOfMonth(month).toISOString(),
+          })
+          .pipe(
+            map((page): CalendarState => ({ status: 'ready', events: page.items.map(toEvent) })),
+            catchError(() => of<CalendarState>({ status: 'error', events: [] })),
+            startWith<CalendarState>({ status: 'loading', events: [] }),
+          ),
+      ),
+    ),
+    { initialValue: { status: 'loading', events: [] } as CalendarState },
+  );
+
+  protected readonly calendarEvents = computed(() => this.monthEvents().events);
+  protected readonly calendarLoading = computed(() => this.monthEvents().status === 'loading');
+  protected readonly calendarFailed = computed(() => this.monthEvents().status === 'error');
+
+  protected onMonthChange(month: Date): void {
+    this.visibleMonth.set(month);
+  }
+
+  /** A booking on the grid is a link to its record; the calendar is a way in. */
+  protected async onSelectEvent(event: CalendarEvent): Promise<void> {
+    await this.router.navigateByUrl(PRIVATE_ROUTES.appointment(event.id));
+  }
+
   protected readonly greeting = computed(() => {
     const hour = new Date().getHours();
     const name = this.user()?.name.split(' ')[0] ?? '';
@@ -106,4 +169,36 @@ export class Dashboard {
       { initialValue: PENDING },
     );
   }
+}
+
+/** What the calendar section is doing, in one value. */
+interface CalendarState {
+  readonly status: 'loading' | 'ready' | 'error';
+  readonly events: readonly CalendarEvent[];
+}
+
+/**
+ * An appointment as the calendar wants it.
+ *
+ * A booking with no `startsAt` cannot be placed on a day; it keeps the empty
+ * string and the calendar drops it while grouping, so it never lands in a
+ * wrong cell. It remains visible on the list page, which does not need a date.
+ */
+function toEvent(appointment: Appointment): CalendarEvent {
+  return {
+    id: appointment.id,
+    startsAt: appointment.startsAt ?? '',
+    endsAt: appointment.endsAt,
+    title: appointment.title?.trim() || 'Marcação',
+    status: appointment.status,
+  };
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/** The last instant of the month, so a booking late on the 31st is included. */
+function endOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }

@@ -1,0 +1,129 @@
+<div class="overflow-hidden rounded-xl bg-white shadow-card ring-1 ring-ink-950/6">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-ink-950/6 px-5 py-4">
+    <div class="flex items-center gap-3">
+      <h3 class="text-h3 text-ink-900">{{ monthLabel() }}</h3>
+
+      @if (loading()) {
+        <span class="size-2 animate-pulse rounded-full bg-ink-300" role="status">
+          <span class="sr-only">A carregar marcações</span>
+        </span>
+      }
+    </div>
+
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        class="rounded-full p-2 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        (click)="previous()"
+      >
+        <span class="sr-only">Mês anterior</span>
+        <app-icon name="chevron-left" [size]="18" />
+      </button>
+
+      <button
+        type="button"
+        class="rounded-full px-3 py-1.5 text-meta font-semibold text-ink-700 transition-colors hover:bg-ink-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-40"
+        [disabled]="isCurrentMonth()"
+        (click)="today()"
+      >
+        Hoje
+      </button>
+
+      <button
+        type="button"
+        class="rounded-full p-2 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        (click)="next()"
+      >
+        <span class="sr-only">Mês seguinte</span>
+        <app-icon name="chevron-right" [size]="18" />
+      </button>
+    </div>
+  </div>
+
+  <!--
+    A month grid is genuinely tabular data — a weekday column, a week row — so a
+    real table gives the header/cell relationship for free. `table-fixed` keeps
+    all seven columns equal regardless of how much text a day holds.
+  -->
+  <div class="overflow-x-auto">
+    <table class="w-full table-fixed border-collapse" [class.opacity-60]="loading()">
+      <caption class="sr-only">
+        Marcações de
+        {{
+          monthLabel()
+        }}.
+        {{
+          total()
+        }}
+        no total.
+      </caption>
+
+      <thead>
+        <tr>
+          @for (weekday of weekdays; track weekday) {
+            <th
+              scope="col"
+              class="border-b border-ink-950/6 px-2 py-2.5 text-meta font-semibold tracking-wide text-ink-400 uppercase"
+            >
+              {{ weekday }}
+            </th>
+          }
+        </tr>
+      </thead>
+
+      <tbody>
+        @for (week of weeks(); track week[0].key) {
+          <tr>
+            @for (day of week; track day.key) {
+              <td
+                class="h-28 min-w-32 border-b border-ink-950/6 align-top sm:h-32 [&:not(:last-child)]:border-r"
+                [class]="day.inMonth ? (day.isWeekend ? 'bg-bone-100/60' : 'bg-white') : 'bg-ink-50/60'"
+              >
+                <div class="flex h-full flex-col gap-1 p-1.5">
+                  <div class="flex items-center justify-between px-1">
+                    @if (day.isToday) {
+                      <span
+                        class="flex size-6 items-center justify-center rounded-full bg-brand-600 text-meta font-bold text-white"
+                        [attr.aria-label]="label(day) + ' (hoje)'"
+                      >
+                        {{ day.dayOfMonth }}
+                      </span>
+                    } @else {
+                      <span
+                        class="px-1 text-meta font-semibold"
+                        [class]="day.inMonth ? 'text-ink-700' : 'text-ink-300'"
+                        [attr.aria-label]="label(day)"
+                      >
+                        {{ day.dayOfMonth }}
+                      </span>
+                    }
+                  </div>
+
+                  <ul role="list" class="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+                    @for (event of visible(day); track event.id) {
+                      <li>
+                        <button
+                          type="button"
+                          class="block w-full truncate rounded-md bg-brand-50 px-1.5 py-1 text-left text-meta text-brand-900 ring-1 ring-brand-700/12 transition-colors ring-inset hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600"
+                          [title]="time(event) + ' ' + event.title"
+                          (click)="selectEvent.emit(event)"
+                        >
+                          <span class="font-semibold tabular-nums">{{ time(event) }}</span>
+                          {{ event.title }}
+                        </button>
+                      </li>
+                    }
+
+                    @if (hidden(day); as extra) {
+                      <li class="px-1.5 text-meta font-semibold text-ink-400">+{{ extra }} mais</li>
+                    }
+                  </ul>
+                </div>
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

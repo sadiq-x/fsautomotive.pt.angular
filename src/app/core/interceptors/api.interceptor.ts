@@ -24,6 +24,17 @@ import { API_BASE_URL } from '../config/api.config';
  */
 export const EXPECTS_UNAUTHORIZED = new HttpContextToken<boolean>(() => false);
 
+/**
+ * Marks a request whose caller renders its own failure state, so the shared
+ * toast queue should stay quiet.
+ *
+ * The diagnostics page is the case this exists for: its whole job is to report
+ * whether the backend answers, in place and in detail. A toast saying the
+ * server is unreachable, on the page already saying exactly that, is noise —
+ * and it would fire again on every re-check.
+ */
+export const REPORTS_OWN_ERRORS = new HttpContextToken<boolean>(() => false);
+
 /** Requests to our own backend start with this; anything else is left alone. */
 const APP_API_PREFIX = '/api/';
 

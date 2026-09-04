@@ -164,6 +164,29 @@ describe('AuthService', () => {
       expect(auth.hasPermission('officegest.appointments.write')).toBe(false);
     });
 
+    // The umbrella is named after OfficeGest, so it grants OfficeGest reads and
+    // nothing else. `settings.read` guards an admin screen and `workers.read` a
+    // list the ERP knows nothing about; a data grant must not open either.
+    it('does not let the umbrella read grant reach outside its own namespace', async () => {
+      const auth = configure({
+        session: () => of({ ...USER, permissions: ['officegest.read'] as const }),
+      });
+      await auth.restore();
+
+      expect(auth.hasPermission('settings.read')).toBe(false);
+      expect(auth.hasPermission('workers.read')).toBe(false);
+    });
+
+    it('grants a non-OfficeGest permission that was issued explicitly', async () => {
+      const auth = configure({
+        session: () => of({ ...USER, permissions: ['settings.read'] as const }),
+      });
+      await auth.restore();
+
+      expect(auth.hasPermission('settings.read')).toBe(true);
+      expect(auth.hasPermission('workers.read')).toBe(false);
+    });
+
     it('denies everything while anonymous', () => {
       const auth = configure({});
 

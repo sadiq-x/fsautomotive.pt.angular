@@ -37,6 +37,7 @@ export type IconName =
   | 'user'
   | 'car'
   | 'clipboard-list'
+  | 'settings'
   // Services
   | 'gauge'
   | 'palette'

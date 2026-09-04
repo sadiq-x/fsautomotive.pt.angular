@@ -16,12 +16,7 @@
  * classic bug: every refresh would bounce a signed-in user to the login page.
  */
 import { inject } from '@angular/core';
-import {
-  Router,
-  type ActivatedRouteSnapshot,
-  type CanActivateFn,
-  type RouterStateSnapshot,
-} from '@angular/router';
+import { Router, type CanActivateFn } from '@angular/router';
 
 import { AuthService } from '../auth/auth.service';
 import type { Permission } from '../auth/auth.models';
@@ -31,14 +26,15 @@ import { PRIVATE_ROUTES } from '../config/private-routes.config';
 /**
  * Requires a signed-in user.
  *
- * An anonymous visitor is sent to the login page with the URL they wanted in
- * `redirect`, so signing in returns them there rather than to a generic
- * landing page.
+ * An anonymous visitor is sent to `/gestao`, plain — no `?redirect=`. The URL
+ * they wanted is deliberately not carried: one clean address is what a person
+ * turned away should see, and after signing in they land on the dashboard.
+ *
+ * Dropping it also removes the open-redirect surface entirely. A `?redirect=`
+ * parameter is exactly the shape attackers phish with, and the safest version
+ * of a parameter you must validate is the one you never accept.
  */
-export const authGuard: CanActivateFn = async (
-  _route: ActivatedRouteSnapshot,
-  state: RouterStateSnapshot,
-) => {
+export const authGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
@@ -48,9 +44,7 @@ export const authGuard: CanActivateFn = async (
     return true;
   }
 
-  return router.createUrlTree([PRIVATE_ROUTES.login], {
-    queryParams: { redirect: state.url },
-  });
+  return router.createUrlTree([PRIVATE_ROUTES.login]);
 };
 
 /**
@@ -96,6 +90,9 @@ export function permissionGuard(...permissions: readonly Permission[]): CanActiv
     // anything: the user already knows which page they tried to open.
     notifications.warning('Não tem permissão para aceder a essa área.');
 
-    return router.createUrlTree([PRIVATE_ROUTES.dashboard]);
+    // The same door as every other refusal. For a signed-in user `/gestao`
+    // resolves on to the dashboard, so this costs one hop and buys a single
+    // answer to "where does the private area send someone it turned away".
+    return router.createUrlTree([PRIVATE_ROUTES.base]);
   };
 }

@@ -34,18 +34,35 @@ function privateMeta(title: string, path: string): PageMeta {
 }
 
 export const privateRoutes: Routes = [
+  /**
+   * `/gestao` is the front door, and the only place a refused request lands.
+   *
+   * `guestGuard` decides what it shows: the sign-in form for an anonymous
+   * visitor, or a redirect to the dashboard for someone already signed in.
+   * Because the guard resolves it both ways, every guard, the 401 handler and
+   * sign-out can point at this one URL without risking a redirect loop —
+   * whereas a static `redirectTo: 'painel'` here would bounce an anonymous
+   * visitor into a protected route just to be turned away again.
+   *
+   * `pathMatch: 'full'` is what keeps this to `/gestao` exactly and leaves
+   * `/gestao/<anything>` to the shell route below.
+   */
   {
-    path: 'entrar',
+    path: '',
+    pathMatch: 'full',
     canActivate: [guestGuard],
     loadComponent: () => import('./login/login').then((m) => m.Login),
-    data: { meta: privateMeta('Entrar', '/gestao/entrar') },
+    data: { meta: privateMeta('Entrar', '/gestao') },
   },
+
+  /* The login used to live here; keep old links and bookmarks working. */
+  { path: 'entrar', pathMatch: 'full', redirectTo: '' },
+
   {
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./layout/private-shell').then((m) => m.PrivateShell),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'painel' },
       {
         path: 'painel',
         loadComponent: () =>
@@ -125,6 +142,21 @@ export const privateRoutes: Routes = [
         data: { meta: privateMeta('Marcação', '/gestao/marcacoes') },
       },
 
+      {
+        path: 'trabalhadores',
+        canActivate: [permissionGuard('workers.read')],
+        loadComponent: () => import('./officegest/pages/workers/workers').then((m) => m.Workers),
+        data: { meta: privateMeta('Trabalhadores', '/gestao/trabalhadores') },
+      },
+
+      {
+        path: 'configuracoes',
+        canActivate: [permissionGuard('settings.read')],
+        loadComponent: () => import('./officegest/pages/settings/settings').then((m) => m.Settings),
+        data: { meta: privateMeta('Configurações', '/gestao/configuracoes') },
+      },
+
+      /* Also catches an empty child path, which the front door above owns. */
       { path: '**', redirectTo: 'painel' },
     ],
   },

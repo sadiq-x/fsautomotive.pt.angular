@@ -118,11 +118,17 @@ export class AuthService {
 
   hasPermission(permission: Permission): boolean {
     const granted = this.permissions();
-    // `officegest.read` is the umbrella grant for every read-only view, so a
-    // simple deployment can issue one permission instead of five.
+    // `officegest.read` is the umbrella grant for every read-only OfficeGest
+    // view, so a simple deployment can issue one permission instead of five.
+    //
+    // It is scoped to its own namespace on purpose. Permissions outside it
+    // (`settings.read`, `workers.read`) guard screens that are not OfficeGest
+    // data, and a grant named after one system must not silently open another.
     return (
       granted.includes(permission) ||
-      (permission.endsWith('.read') && granted.includes('officegest.read'))
+      (permission.startsWith('officegest.') &&
+        permission.endsWith('.read') &&
+        granted.includes('officegest.read'))
     );
   }
 

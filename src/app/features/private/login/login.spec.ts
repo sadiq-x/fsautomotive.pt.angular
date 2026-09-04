@@ -1,13 +1,11 @@
 /**
- * Sign-in, and the two things about it that are easy to get wrong.
+ * Sign-in.
  *
- * 1. `redirect` must be an `input()`. `withComponentInputBinding()` writes to
- *    component inputs; a plain signal field stays `undefined` for ever and the
- *    user silently lands on the dashboard instead of the page they asked for.
- *    That failure is invisible in manual testing unless you specifically
- *    arrive from a deep link.
- * 2. The redirect must be validated. An unchecked `?redirect=` is an open
- *    redirect, and a login page is exactly what attackers phish with.
+ * The destination is fixed: the dashboard, always. There is no `?redirect=`
+ * handling, and that is the property worth pinning — the component must not
+ * declare a `redirect` input, because `withComponentInputBinding()` would then
+ * bind whatever a crafted URL carried. An unchecked `?redirect=` is an open
+ * redirect, and a login page is exactly what attackers phish with.
  */
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -58,53 +56,39 @@ async function signIn(fixture: ReturnType<typeof setup>['fixture']): Promise<voi
 }
 
 describe('Login', () => {
-  it('accepts `redirect` as a routed input', () => {
+  it('always sends the user to the dashboard', async () => {
+    const { fixture, navigate } = setup();
+    fixture.detectChanges();
+
+    await signIn(fixture);
+
+    expect(navigate).toHaveBeenCalledWith(PRIVATE_ROUTES.dashboard);
+  });
+
+  /**
+   * The open-redirect guarantee, stated as the absence of the input.
+   *
+   * `withComponentInputBinding()` binds query parameters to component *inputs*.
+   * No input, nothing to bind — so `/gestao?redirect=https://evil.example`
+   * cannot steer the navigation however it is crafted. Re-adding the input
+   * without re-adding validation would fail here.
+   */
+  it('declares no redirect input for a crafted query parameter to bind to', () => {
     const { fixture } = setup();
 
-    // Would throw if `redirect` were a plain signal rather than an input.
-    fixture.componentRef.setInput('redirect', '/gestao/clientes/42');
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.redirect()).toBe('/gestao/clientes/42');
+    expect('redirect' in fixture.componentInstance).toBe(false);
+    expect(() => fixture.componentRef.setInput('redirect', 'https://evil.example')).toThrow();
   });
 
-  it('returns the user to the page the guard interrupted', async () => {
+  it('ignores a redirect parameter present on the URL', async () => {
     const { fixture, navigate } = setup();
-
-    fixture.componentRef.setInput('redirect', '/gestao/clientes/42');
+    await TestBed.inject(Router).navigateByUrl('/?redirect=https://evil.example');
+    navigate.mockClear();
     fixture.detectChanges();
 
     await signIn(fixture);
 
-    expect(navigate).toHaveBeenCalledWith('/gestao/clientes/42');
-  });
-
-  it('falls back to the dashboard when there is no redirect', async () => {
-    const { fixture, navigate } = setup();
-    fixture.detectChanges();
-
-    await signIn(fixture);
-
-    expect(navigate).toHaveBeenCalledWith(PRIVATE_ROUTES.dashboard);
-  });
-
-  // An unvalidated redirect parameter is an open redirect. `//evil.example` is
-  // the one naive checks miss: it is protocol-relative, so a browser treats it
-  // as an absolute URL to another host.
-  it.each([
-    ['https://evil.example', 'an absolute URL'],
-    ['//evil.example', 'a protocol-relative URL'],
-    ['/servicos', 'a path outside the private area'],
-    [PRIVATE_ROUTES.login, 'the login page itself'],
-  ])('refuses %s (%s) and uses the dashboard instead', async (target) => {
-    const { fixture, navigate } = setup();
-
-    fixture.componentRef.setInput('redirect', target);
-    fixture.detectChanges();
-
-    await signIn(fixture);
-
-    expect(navigate).toHaveBeenCalledWith(PRIVATE_ROUTES.dashboard);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(PRIVATE_ROUTES.dashboard);
   });
 
   it('shows a message that does not reveal whether the e-mail exists', async () => {

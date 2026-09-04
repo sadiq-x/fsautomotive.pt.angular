@@ -107,8 +107,22 @@ Every route is lazily loaded and carries its own SEO metadata in `data.meta`.
 | `/contactos` | `Contact`  | 1.35 kB      | anchor `#onde-estamos` |
 | `**`         | `NotFound` | 0.95 kB      | catch-all              |
 
+Plus the lazily loaded private area at `/gestao` — its own routes, guards and
+shell live in [`PRIVATE-AREA.md`](./PRIVATE-AREA.md). A visitor to the public
+site never downloads any of it.
+
 Legacy redirects preserve inbound links from the previous static site:
 `/home → /`, `/sobrenos → /sobre-nos`, `/contacts → /contactos`.
+
+**The public chrome is conditional.** `app.html` renders `Header`, `Footer`,
+`MobileTabBar` and `<main id="conteudo">` only on public routes. `/gestao`
+supplies its own frame — sidebar, header and `<main>` — so rendering both would
+stack two navigations, two `<main>` landmarks and a tab bar linking back out of
+the management area on every screen behind the login. The decision is read from
+`Location.path()` rather than route data so it is correct on the _first_ paint
+of a hard load; a flag resolved after the initial navigation would flash the
+public header first. `Lightbox` and `CookieNotice` stay unconditional — neither
+is chrome.
 
 Router features enabled in `app.config.ts`:
 
@@ -545,22 +559,28 @@ The fastest way to navigate this codebase.
 
 ### 4.3 Test coverage
 
-10 spec files, 86 tests, plus 13 for the build tooling. They target logic that
+21 spec files, 204 tests, plus 19 for the build tooling. They target logic that
 is easy to break silently:
 
-| Spec                        | Guards                                                                                                                                                                                               |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `content.spec.ts`           | Unique ids, icons that exist in the registry, nav links that match real routes, paired opening/closing times, a dialable phone href                                                                  |
-| `seo.service.spec.ts`       | Title, meta and canonical tags per route                                                                                                                                                             |
-| `accordion-state.spec.ts`   | Single vs multiple open, toggle, close-all                                                                                                                                                           |
-| `lightbox.service.spec.ts`  | Open/close, next/previous wrap-around                                                                                                                                                                |
-| `lightbox.spec.ts`          | Scroll lock pins and restores the exact offset                                                                                                                                                       |
-| `responsive-image.spec.ts`  | `srcset` derivation, intrinsic size, lazy vs priority                                                                                                                                                |
-| `ui-button.spec.ts`         | Element polymorphism, host-class contract, `link` has no pill padding                                                                                                                                |
-| `analytics.service.spec.ts` | Inert while disabled; consent denied before config; script added once; page view per navigation with the right title and no query string; contact-link detection; opt-out blocks loading and sending |
-| `consent.service.spec.ts`   | Undecided by default, nothing stored until a choice, decision survives a reload, unrecognised values read as undecided, blocked storage does not throw                                               |
-| `cookie-notice.spec.ts`     | Shown only while undecided, both buttons wired, accurate copy, never a modal                                                                                                                         |
-| `scripts/lib/env.test.mjs`  | Measurement ID validation, the allow-list, and which builds count as production                                                                                                                      |
+| Spec                           | Guards                                                                                                                                                                                               |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content.spec.ts`              | Unique ids, icons that exist in the registry, nav links that match real routes, paired opening/closing times, a dialable phone href                                                                  |
+| `seo.service.spec.ts`          | Title, meta and canonical tags per route                                                                                                                                                             |
+| `accordion-state.spec.ts`      | Single vs multiple open, toggle, close-all                                                                                                                                                           |
+| `lightbox.service.spec.ts`     | Open/close, next/previous wrap-around                                                                                                                                                                |
+| `lightbox.spec.ts`             | Scroll lock pins and restores the exact offset                                                                                                                                                       |
+| `responsive-image.spec.ts`     | `srcset` derivation, intrinsic size, lazy vs priority                                                                                                                                                |
+| `ui-button.spec.ts`            | Element polymorphism, host-class contract, `link` has no pill padding                                                                                                                                |
+| `analytics.service.spec.ts`    | Inert while disabled; consent denied before config; script added once; page view per navigation with the right title and no query string; contact-link detection; opt-out blocks loading and sending |
+| `consent.service.spec.ts`      | Undecided by default, nothing stored until a choice, decision survives a reload, unrecognised values read as undecided, blocked storage does not throw                                               |
+| `cookie-notice.spec.ts`        | Shown only while undecided, both buttons wired, accurate copy, never a modal                                                                                                                         |
+| `scripts/lib/env.test.mjs`     | Measurement ID validation, the allow-list, and which builds count as production                                                                                                                      |
+| `app.spec.ts`                  | Which URLs count as private, and therefore whether the public header and footer render                                                                                                               |
+| `notification.service.spec.ts` | Identical messages collapse rather than stack, the cap drops the oldest timer with it, errors never auto-dismiss                                                                                     |
+
+The private area adds ten more suites — auth, guards, routing, the OfficeGest
+service, the list/detail shells, the table and the calendar. They are listed in
+[`PRIVATE-AREA.md` §11](./PRIVATE-AREA.md#11-testing).
 
 ---
 

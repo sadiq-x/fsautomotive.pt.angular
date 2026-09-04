@@ -13,7 +13,9 @@
  * - A 401 ends the session once and redirects once, rather than each of four
  *   concurrent list requests starting its own redirect.
  * - Faults the user cannot act on (502, 504, network) are announced through the
- *   shared toast queue, so a page only has to render its own empty state.
+ *   shared toast queue, so a page only has to render its own empty state —
+ *   unless the caller set `REPORTS_OWN_ERRORS`, which the diagnostics page does
+ *   because announcing an outage it is already describing is just noise.
  *
  * Messages are Portuguese: they are read by the same people as the rest of the
  * site.
@@ -27,7 +29,7 @@ import { AuthService } from '../auth/auth.service';
 import { PRIVATE_ROUTES } from '../config/private-routes.config';
 import { ApiError, type ApiFailure } from '../models/api.model';
 import { NotificationService } from '../services/notification.service';
-import { EXPECTS_UNAUTHORIZED } from './api.interceptor';
+import { EXPECTS_UNAUTHORIZED, REPORTS_OWN_ERRORS } from './api.interceptor';
 
 /** Status → what to tell the user. Never the backend's own wording for 5xx. */
 const MESSAGES: Readonly<Record<number, string>> = {
@@ -106,12 +108,11 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
         }
 
         auth.clear();
-        void router.navigate([PRIVATE_ROUTES.login], {
-          queryParams: { redirect: router.url },
-        });
+        // Plain `/gestao`, like every other refusal — no `?redirect=`.
+        void router.navigate([PRIVATE_ROUTES.login]);
       }
 
-      if (ANNOUNCED_STATUSES.has(error.status)) {
+      if (ANNOUNCED_STATUSES.has(error.status) && !request.context.get(REPORTS_OWN_ERRORS)) {
         notifications.error(
           error.message,
           error.requestId ? `Referência: ${error.requestId}` : undefined,

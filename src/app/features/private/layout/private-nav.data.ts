@@ -60,4 +60,18 @@ export const PRIVATE_NAV: readonly PrivateNavItem[] = [
     permission: 'officegest.appointments.read',
     description: 'Ver e criar marcações de oficina.',
   },
+  {
+    label: 'Trabalhadores',
+    path: PRIVATE_ROUTES.workers,
+    icon: 'wrench',
+    permission: 'workers.read',
+    description: 'A equipa da oficina e as suas especialidades.',
+  },
+  {
+    label: 'Configurações',
+    path: PRIVATE_ROUTES.settings,
+    icon: 'settings',
+    permission: 'settings.read',
+    description: 'Estado da sessão, da aplicação e do backend.',
+  },
 ];

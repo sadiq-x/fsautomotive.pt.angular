@@ -102,7 +102,10 @@ src/app/
         │   ├── resource-list.store.ts   list behaviour, once
         │   └── resource-detail.store.ts single-record behaviour, once
         ├── components/             table, states, search, pagination, shells
-        ├── pages/                  dashboard + 4 resources
+        │   └── calendar/           month grid, domain-agnostic
+        ├── pages/                  dashboard + 4 resources + workers + settings
+        │   ├── workers/            team roster (local data — see below)
+        │   └── settings/           read-only diagnostics
         └── utils/format.ts         dates, money, plates
 ```
 
@@ -121,7 +124,8 @@ no template contains a hand-typed path.
 
 | Path                                     | Guard                              | Page            |
 | ---------------------------------------- | ---------------------------------- | --------------- |
-| `/gestao/entrar`                         | `guestGuard`                       | Login           |
+| `/gestao`                                | `guestGuard`                       | Login           |
+| `/gestao/entrar`                         | — (redirects to `/gestao`)         | legacy link     |
 | `/gestao/painel`                         | `authGuard`                        | Dashboard       |
 | `/gestao/clientes`                       | `+ officegest.customers.read`      | Customer list   |
 | `/gestao/clientes/:customerId`           | `+ officegest.customers.read`      | Customer        |
@@ -132,10 +136,44 @@ no template contains a hand-typed path.
 | `/gestao/marcacoes`                      | `+ officegest.appointments.read`   | Appointments    |
 | `/gestao/marcacoes/nova`                 | `+ officegest.appointments.write`  | New appointment |
 | `/gestao/marcacoes/:appointmentId`       | `+ officegest.appointments.read`   | Appointment     |
+| `/gestao/trabalhadores`                  | `+ workers.read`                   | Worker list     |
+| `/gestao/configuracoes`                  | `+ settings.read`                  | Settings        |
 
 `authGuard` sits on the parent route, so a page added later is protected by
 default rather than by remembering. `marcacoes/nova` is declared **before**
 `marcacoes/:appointmentId`, or the router would treat `nova` as an id.
+
+### `/gestao` is the front door, and the only place a refusal lands
+
+`/gestao` is a `pathMatch: 'full'` route carrying `guestGuard`, which resolves it
+both ways: the sign-in form for an anonymous visitor, the dashboard for someone
+already signed in. Because it resolves in both directions it can be the entry
+point _and_ the redirect target without looping, so every refusal in the area
+points at one URL:
+
+| Situation                     | Lands on              |
+| ----------------------------- | --------------------- |
+| Anonymous → any private page  | `/gestao`             |
+| Signed in, missing permission | `/gestao` → dashboard |
+| Session expires (401)         | `/gestao`             |
+| Sign out                      | `/gestao`             |
+| Unknown `/gestao/*` page      | dashboard             |
+
+A static `redirectTo: 'painel'` here — which is what it used to be — could not
+be a redirect target: it would bounce an anonymous visitor into a protected
+route just to be turned away again.
+
+**No `?redirect=`, anywhere.** A refused request produces a bare `/gestao`, and
+after signing in the user lands on the dashboard. The URL they originally wanted
+is deliberately dropped.
+
+That costs deep-link restoration and buys the removal of an entire class of bug:
+a `?redirect=` parameter is precisely the shape used for phishing, and the
+safest version of a parameter you would otherwise have to validate on every path
+is the one nothing produces and nothing reads. `Login` declares no `redirect`
+input, so `withComponentInputBinding()` has nothing to bind a crafted parameter
+to — which is the property `login.spec.ts` pins, because re-adding the input
+without re-adding validation would silently reopen the hole.
 
 Every route carries `meta` with `noIndex: true`; `SeoService` now emits
 `<meta name="robots" content="noindex, nofollow">` and — just as importantly —
@@ -195,7 +233,7 @@ Visitor → authGuard → AuthService.restore() → AuthGateway → backend
                             ↓
                  unknown → authenticated → PrivateShell → pages
                             ↓
-                        anonymous → /gestao/entrar?redirect=…
+                        anonymous → /gestao
 ```
 
 `status` starts at `unknown`, and the guard **awaits** `restore()` before
@@ -203,9 +241,9 @@ deciding. Treating `unknown` as "not signed in" is the classic bug: every hard
 refresh would bounce a signed-in user to the login page. Concurrent guards share
 one in-flight promise, so several resolving at once make one request.
 
-The `redirect` parameter is validated before use — only a path inside `/gestao/`
-is accepted. An unvalidated redirect is an open redirect, and a login page is
-exactly what attackers phish with.
+There is no `redirect` parameter to validate: the guard sends an anonymous
+visitor to a bare `/gestao`, and sign-in always continues to the dashboard. See
+§3 for why that trade is deliberate.
 
 ---
 
@@ -219,13 +257,19 @@ type Permission =
   | 'officegest.vehicles.read'
   | 'officegest.service-orders.read'
   | 'officegest.appointments.read'
-  | 'officegest.appointments.write';
+  | 'officegest.appointments.write'
+  // Not OfficeGest-backed, so deliberately outside that namespace.
+  | 'workers.read'
+  | 'settings.read';
 ```
 
 A closed union, so a typo in a guard or a template is a compile error rather
 than a silently hidden button. `officegest.read` covers every `.read`
-permission, so a simple deployment can issue one grant instead of five — but it
-never implies a write.
+permission **within its own namespace**, so a simple deployment can issue one
+grant instead of five — but it never implies a write, and it never reaches
+`workers.read` or `settings.read`. A grant named after one system must not
+silently open another: without that scoping, any user with read access to
+customer data would also hold the admin settings screen.
 
 They control three things: which routes open (`permissionGuard`), which sidebar
 items appear, and which actions render (the "Nova marcação" button).
@@ -276,6 +320,7 @@ These are what keep each page around twenty lines.
 | `SearchField`          | debouncing (350 ms), Enter to commit, Escape to clear                                      |
 | `PaginationBar`        | range label, page size, prev/next without needing a total                                  |
 | `DetailList`           | the `<dl>` every detail page is built from                                                 |
+| `Calendar`             | month grid, Monday-first, six fixed rows, local-day bucketing, paging                      |
 
 Three decisions inside them are worth knowing:
 
@@ -373,17 +418,21 @@ npm start             # frontend (4200) + backend (3000)
 
 ## 11. Testing
 
-`npm test` — 159 tests, no network.
+`npm test` — 204 tests across 21 spec files, no network.
 
-| Suite                        | Covers                                                                                                                                                                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auth.service.spec.ts`       | the `unknown` state, concurrent restore de-duplication, a failed backend still resolving to anonymous, umbrella permissions, logout clearing state even when the request fails |
-| `auth.guard.spec.ts`         | signed-in, anonymous, redirect preservation, **waiting for restore rather than deciding on `unknown`**, permission allow/deny                                                  |
-| `officegest.service.spec.ts` | envelope unwrapping, parameters sent, empty parameters omitted, path encoding, POST, failure propagation                                                                       |
-| `error.interceptor.spec.ts`  | envelope → `ApiError`, 5xx rewording, 401 signing out and redirecting, the session probe exempted, which statuses toast                                                        |
-| `resource-page.spec.ts`      | skeleton, rows, both empty states, error + retry, **rows kept during refresh**, page reset on filter change                                                                    |
-| `data-table.spec.ts`         | sort cycle, nulls last in both directions, `aria-sort`, no mutation of the input, real anchors instead of `role="link"` rows, mobile cards                                     |
-| `login.spec.ts`              | `redirect` bound as a routed input, open-redirect rejection (absolute, protocol-relative, outside `/gestao`), non-enumerating error message, `aria-describedby` wiring         |
+| Suite                          | Covers                                                                                                                                                                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.service.spec.ts`         | the `unknown` state, concurrent restore de-duplication, a failed backend still resolving to anonymous, umbrella permissions, logout clearing state even when the request fails                                              |
+| `auth.guard.spec.ts`           | signed-in, anonymous, a refusal carrying no query string, **waiting for restore rather than deciding on `unknown`**, permission allow/deny                                                                                  |
+| `officegest.service.spec.ts`   | envelope unwrapping, parameters sent, empty parameters omitted, path encoding, POST, failure propagation                                                                                                                    |
+| `error.interceptor.spec.ts`    | envelope → `ApiError`, 5xx rewording, 401 signing out and redirecting, the session probe exempted, which statuses toast                                                                                                     |
+| `resource-page.spec.ts`        | skeleton, rows, both empty states, error + retry, **rows kept during refresh**, page reset on filter change                                                                                                                 |
+| `data-table.spec.ts`           | sort cycle, nulls last in both directions, `aria-sort`, no mutation of the input, real anchors instead of `role="link"` rows, mobile cards                                                                                  |
+| `login.spec.ts`                | always continues to the dashboard, **no `redirect` input for a crafted query parameter to bind to**, a `?redirect=` on the URL ignored, non-enumerating error message, `aria-describedby` wiring                            |
+| `private.routes.spec.ts`       | the front-door contract, navigating for real: every private URL turns an anonymous visitor away to `/gestao`, the deep link survives, `/gestao` resolves both ways, a permission refusal routes through it to the dashboard |
+| `calendar.spec.ts`             | six fixed week rows, Monday-first alignment, **local-day rather than UTC-day placement**, time ordering, overflow count, unparseable instants dropped, month paging off a 31-day month                                      |
+| `notification.service.spec.ts` | identical messages collapse instead of stacking, tone and detail keep messages distinct, the stack cap drops the oldest timer with it, errors never auto-dismiss, a repeat gets its full time again                         |
+| `app.spec.ts`                  | which URLs count as private, and therefore whether the public header and footer render at all                                                                                                                               |
 
 The backend is mocked with `HttpTestingController`; the real OfficeGest API is
 never called.

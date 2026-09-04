@@ -1,0 +1,115 @@
+<header>
+  <h1 class="text-h2 text-ink-950">Configurações</h1>
+  <p class="mt-1 text-body text-ink-500">
+    Estado da sessão, da aplicação e do backend. Esta página é de consulta — as definições do OfficeGest
+    alteram-se no próprio OfficeGest.
+  </p>
+</header>
+
+@if (stubActive) {
+  <p
+    class="mt-6 flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-body text-amber-900 ring-1 ring-amber-700/20"
+    role="alert"
+  >
+    <app-icon name="alert-triangle" [size]="18" class="mt-0.5 shrink-0" />
+    <span>
+      <strong class="font-bold">O stub de autenticação está ativo.</strong>
+      Qualquer palavra-passe é aceite em <code class="font-mono">/gestao/entrar</code>. Esta compilação nunca
+      deve ser publicada.
+    </span>
+  </p>
+}
+
+<section class="mt-8" aria-labelledby="sessao">
+  <h2 id="sessao" class="text-h3 text-ink-900">Sessão</h2>
+
+  <div class="mt-4 rounded-xl bg-white p-5 shadow-card ring-1 ring-ink-950/6">
+    <app-detail-list [fields]="session()" />
+
+    <div class="mt-6 border-t border-ink-950/6 pt-5">
+      <p class="text-meta font-semibold tracking-wide text-ink-400 uppercase">
+        Permissões ({{ permissions().length }})
+      </p>
+
+      @if (permissions().length) {
+        <ul role="list" class="mt-2 flex flex-wrap gap-2">
+          @for (permission of permissions(); track permission) {
+            <li
+              class="rounded-full bg-ink-100 px-2.5 py-0.5 font-mono text-meta text-ink-700 ring-1 ring-ink-950/8 ring-inset"
+            >
+              {{ permission }}
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="mt-2 text-body text-ink-400">Nenhuma permissão atribuída.</p>
+      }
+    </div>
+  </div>
+</section>
+
+<section class="mt-8" aria-labelledby="aplicacao">
+  <h2 id="aplicacao" class="text-h3 text-ink-900">Aplicação</h2>
+  <p class="mt-1 text-meta text-ink-500">
+    Valores compilados no bundle. Alterá-los significa editar o <code class="font-mono">.env</code>
+    e voltar a compilar.
+  </p>
+
+  <div class="mt-4 rounded-xl bg-white p-5 shadow-card ring-1 ring-ink-950/6">
+    <app-detail-list [fields]="application()" />
+  </div>
+</section>
+
+<section class="mt-8" aria-labelledby="backend">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 id="backend" class="text-h3 text-ink-900">Backend</h2>
+
+    <app-button variant="ghost" size="sm" icon="refresh" (click)="recheck()">
+      Verificar novamente
+    </app-button>
+  </div>
+
+  <div class="mt-4 rounded-xl bg-white p-5 shadow-card ring-1 ring-ink-950/6">
+    @switch (probe().kind) {
+      @case ('checking') {
+        <div class="flex items-center gap-3 text-ink-500" role="status">
+          <span class="size-2.5 animate-pulse rounded-full bg-ink-300"></span>
+          <p class="text-body">A contactar o backend…</p>
+        </div>
+      }
+
+      @case ('up') {
+        <app-detail-list [fields]="backend()" />
+      }
+
+      @case ('down') {
+        <div class="flex items-start gap-3" role="status">
+          <span class="mt-1.5 size-2.5 shrink-0 rounded-full bg-brand-600"></span>
+          <div>
+            <p class="text-body font-semibold text-ink-900">O backend não está a responder.</p>
+            <p class="mt-1 text-meta text-ink-500">
+              As páginas de dados do OfficeGest não vão conseguir carregar. Confirme que
+              <code class="font-mono">npm run start:api</code> está em execução e que
+              <code class="font-mono">API_BASE_URL</code> aponta para o endereço certo.
+            </p>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</section>
+
+<section class="mt-8" aria-labelledby="privacidade">
+  <h2 id="privacidade" class="text-h3 text-ink-900">Privacidade</h2>
+
+  <div
+    class="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-card ring-1 ring-ink-950/6"
+  >
+    <div>
+      <p class="text-meta font-semibold tracking-wide text-ink-400 uppercase">Consentimento de analytics</p>
+      <p class="mt-1 text-body text-ink-900">{{ consentLabel() }}</p>
+    </div>
+
+    <app-button variant="secondary" size="sm" (click)="resetConsent()"> Repor consentimento </app-button>
+  </div>
+</section>

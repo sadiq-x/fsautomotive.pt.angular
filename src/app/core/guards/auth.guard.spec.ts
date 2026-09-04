@@ -56,20 +56,29 @@ describe('authGuard', () => {
     configure(null);
 
     const result = await run(authGuard);
+    const url = TestBed.inject(Router).serializeUrl(result as UrlTree);
 
     expect(result).toBeInstanceOf(UrlTree);
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toContain(PRIVATE_ROUTES.login);
+    // The path exactly, not merely "contains": `/gestao` is a prefix of every
+    // private URL, so a containment check here would pass on any of them.
+    expect(url.split('?')[0]).toBe(PRIVATE_ROUTES.login);
   });
 
-  // Losing the requested URL means a bookmarked customer page dumps the user on
-  // the dashboard after signing in.
-  it('remembers where the visitor was going', async () => {
+  /**
+   * A refusal produces a bare `/gestao` — no `?redirect=`.
+   *
+   * The requested URL is deliberately not carried: one clean address is what a
+   * person turned away should see, and not accepting the parameter anywhere
+   * removes the open-redirect surface rather than validating it.
+   */
+  it('sends them to a clean /gestao, carrying nothing', async () => {
     configure(null);
 
     const result = await run(authGuard, '/gestao/clientes/42');
     const url = TestBed.inject(Router).serializeUrl(result as UrlTree);
 
-    expect(url).toContain('redirect=%2Fgestao%2Fclientes%2F42');
+    expect(url).toBe(PRIVATE_ROUTES.login);
+    expect(url).not.toContain('?');
   });
 
   it('waits for the session restore rather than deciding on `unknown`', async () => {
@@ -118,14 +127,14 @@ describe('permissionGuard', () => {
     await expect(run(permissionGuard('officegest.customers.read'))).resolves.toBe(true);
   });
 
-  it('sends a user without the permission back to the dashboard', async () => {
+  // Every refusal lands on the same URL. `/gestao` then resolves on to the
+  // dashboard for a signed-in user, so they still end up somewhere useful.
+  it('sends a user without the permission to the front door', async () => {
     configure(USER);
 
     const result = await run(permissionGuard('officegest.appointments.write'));
 
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toContain(
-      PRIVATE_ROUTES.dashboard,
-    );
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(PRIVATE_ROUTES.base);
   });
 
   it('sends an anonymous visitor to the login page, not the dashboard', async () => {
@@ -133,6 +142,6 @@ describe('permissionGuard', () => {
 
     const result = await run(permissionGuard('officegest.read'));
 
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toContain(PRIVATE_ROUTES.login);
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(PRIVATE_ROUTES.login);
   });
 });
