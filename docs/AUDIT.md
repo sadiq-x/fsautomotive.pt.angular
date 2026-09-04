@@ -69,28 +69,43 @@ codebase.
 
 ## 4. Security
 
-### 4.1 🔴 OfficeGest credentials are in public git history
+### 4.1 🔴 OfficeGest API key is in public git history
 
-`server/.env.example` contains what appear to be **live** OfficeGest values —
-`OFFICEGEST_BASE_URL`, `OFFICEGEST_USERNAME`, `OFFICEGEST_API_KEY` (begins
-`81…`) and `OFFICEGEST_PASSWORD` — not placeholders.
+`server/.env.example` carried **two live values**, not placeholders:
 
-Committed in **`d2ab20e`**, **`1644163`**, **`68216dd`**. The file is gitignored
-today, which stops further exposure but does not remove what history already
-holds. Anyone who has ever cloned the repository has the credentials.
+| Variable              | Leaked                                   |
+| --------------------- | ---------------------------------------- |
+| `OFFICEGEST_API_KEY`  | ✅ yes — 42 characters, begins `8…`      |
+| `OFFICEGEST_BASE_URL` | ✅ yes — the client's real tenant URL    |
+| `OFFICEGEST_USERNAME` | ❌ no — empty in every committed version |
+| `OFFICEGEST_PASSWORD` | ❌ no — empty in every committed version |
 
-Compounding it: `.gitignore` lists `.env.example` and `/server/.env.example`.
-That is backwards — the example file is the one artefact that _should_ be
-committed, carrying placeholders. As configured, the file meant to be the public
-template is both ignored and full of real secrets.
+> **Correction.** An earlier revision of this document listed all four as
+> leaked. Verified against `68216dd`: username and password were always empty.
+> The severity is unchanged — `env.ts` accepts `OFFICEGEST_API_KEY` **in place
+> of** the password for both `bearer-login` and `basic`, so the leaked key alone
+> authenticates.
+
+Committed in **`d2ab20e`**, **`1644163`** and **`68216dd`**, and **the repository
+is public** (verified via the GitHub API). The key is readable by anyone right
+now, and history retains it even though the file is gitignored today.
+
+Compounding it: `.gitignore` listed `.env.example` and `/server/.env.example`.
+That is backwards — the template is the one artefact that _should_ be committed,
+carrying placeholders. Both templates say so in their own headers ("this
+template is committed, so it must never contain a real value"). Ignoring them is
+precisely what let a live key sit there unnoticed.
 
 **Fix**
 
-1. **Rotate the OfficeGest credentials now.** Assume they are compromised.
-2. Replace `server/.env.example` with placeholders and _commit_ it; remove both
-   `.env.example` entries from `.gitignore`.
-3. Purge history (`git filter-repo`) if the repository is or will be public.
-   Rotation matters more than purging — do it first.
+1. **Rotate the OfficeGest API key now.** Assume it is compromised. Nothing else
+   on this list matters until this is done — the repository is public.
+2. ✅ _Done in this pass:_ both templates reduced to placeholders, and
+   `.gitignore` corrected so the templates are tracked while the real `.env`
+   files stay ignored.
+3. Purge history with `git filter-repo`, then force-push. This rewrites public
+   history. **Rotation matters more than purging:** a purge cannot reach forks,
+   existing clones, or GitHub's cached views of old commits.
 
 ### 4.2 🔴 The OfficeGest broker has no effective access control
 

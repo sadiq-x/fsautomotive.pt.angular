@@ -47,16 +47,19 @@ __screenshots__/
 Thumbs.db
 
 # Environment variables
+#
+# The real values are ignored; the templates are NOT. A committed `.env.example`
+# is the only record of which variables exist, and both templates say in their
+# own headers that they are committed and must never hold a real value. Ignoring
+# them is what let a live credential sit in `server/.env.example` unnoticed.
 
 .env
-
 .env.local
 
-.env.example
-
 /server/.env
-
 /server/.env.local
 
-/server/.env.example
+# Deliberately tracked (placeholders only):
+#   .env.example
+#   /server/.env.example
 
