@@ -337,6 +337,29 @@ publishes the existing output with `ng deploy --no-build`.
    these the site would report traffic and no outcomes. The phone number alone
    is rendered in the header, hero, footer, contact cards, CTA band and 404
    page, so one document-level listener covers all of them and any future one.
+4. **The private area is not measured at all.** Neither page views nor contact
+   clicks, gated on `PRIVATE_BASE` in both places.
+
+**Why `/gestao` is excluded — a data-protection boundary, not tidiness.** The
+private routes are parameterised by real records: `/gestao/veiculos/:plate`,
+`/gestao/clientes/:customerId`, `/gestao/folhas-de-obra/:serviceOrderId`,
+`/gestao/marcacoes/:appointmentId`. A registration plate identifies a vehicle
+and therefore its owner, so a page view from there sends the workshop's
+_customers'_ personal data to Google — data neither they nor the workshop
+agreed to share. Stripping the query string does not help, because the
+identifier sits in the path. The codebase had already reached this conclusion
+once, setting `noIndex: true` on every private route to stay out of search
+results, and simply never carried it across to analytics. Nothing is lost:
+the audience inside `/gestao` is three members of staff.
+
+**Withdrawal revokes storage and clears the cookie.** Refusing after having
+accepted sends `consent update` with `analytics_storage: denied` **and** expires
+every `_ga*` cookie — gtag does not clean up after itself, so a visitor who
+accepted and then refused would otherwise keep the identifier for two years.
+The revocation deliberately bypasses the consent gate in `send()`, which by
+that point is dropping everything; routing it through `send` would mean the one
+command that must always get through is the one that never does. Resetting the
+decision from the settings page revokes the same way.
 
 Add an event by extending `GaEventName` and `GaEventParams` in
 `core/models/analytics.model.ts`, then calling

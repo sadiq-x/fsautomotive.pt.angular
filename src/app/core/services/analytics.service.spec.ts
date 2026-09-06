@@ -29,6 +29,24 @@ const TEST_ROUTES: Routes = [
     data: { meta: { title: 'Serviços', description: '', path: '/servicos' } satisfies PageMeta },
   },
   { path: 'legado', redirectTo: 'servicos', pathMatch: 'full' },
+
+  // Mirrors the real private area: a route parameterised by a record
+  // identifier. `gestaopublico` guards the prefix check against a bare
+  // `startsWith`, which would sweep in an unrelated public route.
+  {
+    path: 'gestao/veiculos/:plate',
+    component: Home,
+    data: {
+      meta: { title: 'Veículo', description: '', path: '/gestao/veiculos' } satisfies PageMeta,
+    },
+  },
+  {
+    path: 'gestaopublico',
+    component: Home,
+    data: {
+      meta: { title: 'Público', description: '', path: '/gestaopublico' } satisfies PageMeta,
+    },
+  },
 ];
 
 function setup(config: Partial<AnalyticsConfig> = {}): AnalyticsService {
@@ -267,6 +285,34 @@ describe('AnalyticsService', () => {
       expect(eventsNamed('page_view')[0]['page_path']).toBe('/servicos');
     });
 
+    // Regression: this used to issue a second `gtag('config', …)`. A repeated
+    // config without `send_page_view` inherits GA4's default of `true`, so
+    // identifying a user silently emitted a page view — the exact thing
+    // `sendPageView: false` exists to prevent.
+    it('identifies a user without emitting a page view', () => {
+      const analytics = setup();
+      analytics.initialize();
+      const before = eventsNamed('page_view').length;
+
+      analytics.setUserId('customer-42');
+
+      expect(eventsNamed('page_view').length).toBe(before);
+      expect(commandsNamed('config').length).toBe(1);
+      expect(pushed().find((args) => args[0] === 'set' && args.length === 2)?.[1]).toMatchObject({
+        user_id: 'customer-42',
+      });
+    });
+
+    // `undefined` is dropped by gtag, so the old code could never clear an id.
+    it('clears the User-ID with null rather than undefined', () => {
+      const analytics = setup();
+      analytics.initialize();
+      analytics.setUserId(null);
+
+      const set = pushed().filter((args) => args[0] === 'set' && args.length === 2);
+      expect(set.at(-1)?.[1]).toEqual({ user_id: null });
+    });
+
     it('grants and revokes consent through the banner hook', () => {
       const analytics = setup();
       analytics.initialize();
@@ -277,6 +323,47 @@ describe('AnalyticsService', () => {
       const updates = commandsNamed('consent').filter((args) => args[1] === 'update');
       expect(updates[0]?.[2]).toMatchObject({ analytics_storage: 'granted' });
       expect(updates[1]?.[2]).toMatchObject({ analytics_storage: 'denied' });
+    });
+  });
+
+  // The private area is parameterised by real records — plates, customer ids,
+  // service-order ids. A plate identifies a vehicle and so its owner, which
+  // makes a page view from `/gestao` the workshop's customers' personal data
+  // leaving for Google. Nothing here is a reporting nicety; it is the boundary.
+  describe('the private management area', () => {
+    it('reports no page view for a route carrying a registration plate', async () => {
+      setup().initialize();
+      await TestBed.inject(Router).navigateByUrl('/gestao/veiculos/AA-00-BB');
+
+      expect(eventsNamed('page_view').length).toBe(0);
+      expect(JSON.stringify(pushed())).not.toContain('AA-00-BB');
+    });
+
+    it('keeps measuring the public site around it', async () => {
+      setup().initialize();
+      const router = TestBed.inject(Router);
+
+      await router.navigateByUrl('/servicos');
+      await router.navigateByUrl('/gestao/veiculos/AA-00-BB');
+      await router.navigateByUrl('/');
+
+      expect(eventsNamed('page_view').map((view) => view['page_path'])).toEqual(['/servicos', '/']);
+    });
+
+    it('reports no contact click made inside the private area', async () => {
+      setup().initialize();
+      await TestBed.inject(Router).navigateByUrl('/gestao/veiculos/AA-00-BB');
+      clickLink('tel:+351933678865', 'header');
+
+      expect(eventsNamed('phone_click').length).toBe(0);
+    });
+
+    // A bare `startsWith('/gestao')` would silently stop measuring this.
+    it('does not mistake a public route that merely shares the prefix', async () => {
+      setup().initialize();
+      await TestBed.inject(Router).navigateByUrl('/gestaopublico');
+
+      expect(eventsNamed('page_view')[0]?.['page_path']).toBe('/gestaopublico');
     });
   });
 
@@ -450,6 +537,68 @@ describe('AnalyticsService', () => {
       TestBed.tick();
 
       expect(commandsNamed('consent').filter((args) => args[1] === 'update').length).toBe(1);
+    });
+
+    // Dropping our own events is not enough once storage has been granted: the
+    // identifier is already on the visitor's device, and gtag does not clean up
+    // after a revocation. Withdrawal that leaves the cookie behind is not
+    // withdrawal.
+    it('revokes analytics storage when consent is withdrawn after acceptance', () => {
+      const analytics = setup();
+      analytics.initialize();
+      const consent = TestBed.inject(ConsentService);
+
+      consent.accept();
+      TestBed.tick();
+      consent.decline();
+      TestBed.tick();
+
+      const updates = commandsNamed('consent').filter((args) => args[1] === 'update');
+      expect(updates.at(-1)?.[2]).toMatchObject({ analytics_storage: 'denied' });
+    });
+
+    it('deletes the GA cookies on withdrawal', () => {
+      document.cookie = '_ga=GA1.1.1096976600.1788115522; path=/';
+      document.cookie = '_ga_034WR9J2NH=GS1.1.1788115522; path=/';
+      expect(document.cookie).toContain('_ga=');
+
+      const analytics = setup();
+      analytics.initialize();
+      const consent = TestBed.inject(ConsentService);
+
+      consent.accept();
+      TestBed.tick();
+      consent.decline();
+      TestBed.tick();
+
+      expect(document.cookie).not.toContain('_ga=');
+      expect(document.cookie).not.toContain('_ga_034WR9J2NH');
+    });
+
+    // Resetting from the settings page returns the visitor to "undecided",
+    // which is a cookieless state — so the cookie must go with it.
+    it('revokes when the decision is reset, not only when refused', () => {
+      const analytics = setup();
+      analytics.initialize();
+      const consent = TestBed.inject(ConsentService);
+
+      consent.accept();
+      TestBed.tick();
+      consent.reset();
+      TestBed.tick();
+
+      const updates = commandsNamed('consent').filter((args) => args[1] === 'update');
+      expect(updates.at(-1)?.[2]).toMatchObject({ analytics_storage: 'denied' });
+    });
+
+    it('stays silent when refusing without ever having granted', () => {
+      const analytics = setup();
+      analytics.initialize();
+
+      TestBed.inject(ConsentService).decline();
+      TestBed.tick();
+
+      expect(commandsNamed('consent').filter((args) => args[1] === 'update').length).toBe(0);
     });
 
     it('grants nothing while the visitor has not answered the notice', () => {

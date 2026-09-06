@@ -236,11 +236,17 @@ function Get-PagesFailureReason {
 function Wait-PagesDeployment {
     param(
         [Parameter(Mandatory)][string]$Slug,
+        # Deployment id observed before publishing. Anything with this id is the
+        # PREVIOUS deployment: judging it would report the last run's outcome as
+        # if it were this one — and if that outcome was a failure, the script
+        # would declare failure before GitHub had even started.
+        [long]$PreviousId = 0,
         [int]$TimeoutSeconds = 300
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $lastState = ''
+    $announced = $false
 
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 10
@@ -249,6 +255,14 @@ function Wait-PagesDeployment {
         catch { continue }
 
         if ($null -eq $deployment) { continue }
+
+        if ($deployment.Id -eq $PreviousId) {
+            if (-not $announced) {
+                Write-Note 'waiting for GitHub to register the new deployment...'
+                $announced = $true
+            }
+            continue
+        }
 
         if ($deployment.State -ne $lastState) {
             Write-Note "$($deployment.Sha): $($deployment.State)"
@@ -327,6 +341,7 @@ try {
     }
 
     # --- Publish -----------------------------------------------------------
+    $previousDeploymentId = 0
     $slug = Get-RepoSlug
     if ($null -eq $slug) {
         Write-Note 'could not determine the GitHub repository; skipping the Pages checks'
@@ -337,6 +352,7 @@ try {
     else {
         Write-Step "Checking GitHub Pages ($slug)"
         Assert-PagesReady -Slug $slug
+        try { $previousDeploymentId = (Get-PagesDeployment -Slug $slug).Id } catch { }
     }
 
     $target = "GitHub Pages (base href $BaseHref)"
@@ -369,7 +385,7 @@ try {
     # is what turns "[OK] Published" from a guess into a fact.
     if ($null -ne $slug -and -not $SkipPagesCheck) {
         Write-Step "Waiting for GitHub Pages to publish"
-        $published = Wait-PagesDeployment -Slug $slug
+        $published = Wait-PagesDeployment -Slug $slug -PreviousId $previousDeploymentId
 
         if ($published -eq $false) {
             $reason = Get-PagesFailureReason -Slug $slug

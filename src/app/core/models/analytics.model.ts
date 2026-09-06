@@ -34,16 +34,40 @@ export interface AnalyticsConfig {
  */
 export type GaEventName = 'page_view' | 'phone_click' | 'email_click' | 'directions_click';
 
-/** Parameters for a router-driven page view. */
+/**
+ * Parameters for a router-driven page view.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  ▶ `page_path` IS NOT A BUILT-IN GA4 DIMENSION.
+ *
+ *    It is Universal Analytics vocabulary. gtag forwards it as `dp`, but GA4
+ *    builds "Page path and screen class" from `page_location` instead, and
+ *    keeps `page_path` only as a custom parameter — **collected and then
+ *    discarded unless registered** under Admin → Custom definitions.
+ *
+ *    Registration is not retroactive. Anything sent before it exists is lost.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * It is still sent, because it is the one field that is guaranteed free of the
+ * query string, and because the reports read better with it once registered.
+ */
 export interface PageViewParams {
-  /** Path only — never the query string. See `AnalyticsService`. */
+  /** Path only — never the query string. Custom parameter; see above. */
   readonly page_path: string;
   /** Full URL including query, which is where GA4 reads campaign tags from. */
   readonly page_location?: string;
   readonly page_title?: string;
 }
 
-/** Parameters shared by the three contact-link events. */
+/**
+ * Parameters shared by the three contact-link events.
+ *
+ * **Every field here is a custom parameter** and must be registered as an
+ * event-scoped custom dimension in GA4 (Admin → Custom definitions) before it
+ * appears in any report. Until then the events are counted but arrive without
+ * detail — you see that a phone click happened, never from which page or which
+ * part of the layout. Registration is not retroactive.
+ */
 export interface ContactClickParams {
   /** The `href` that was clicked (`tel:`, `mailto:` or the maps URL). */
   readonly link_url: string;

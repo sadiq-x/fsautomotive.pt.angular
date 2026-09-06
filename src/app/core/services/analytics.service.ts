@@ -1,10 +1,19 @@
 import { isPlatformBrowser } from '@angular/common';
-import { DOCUMENT, DestroyRef, Injectable, PLATFORM_ID, effect, inject } from '@angular/core';
+import {
+  DOCUMENT,
+  DestroyRef,
+  Injectable,
+  PLATFORM_ID,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, type ActivatedRouteSnapshot } from '@angular/router';
 import { filter } from 'rxjs';
 
 import { ANALYTICS_CONFIG } from '../config/analytics.config';
+import { PRIVATE_BASE } from '../config/private-routes.config';
 import type {
   ContactClickParams,
   EventParamsFor,
@@ -20,6 +29,13 @@ const GTAG_SCRIPT_ID = 'ga4-gtag';
 
 /** Visible link text is a label, not a payload — GA4 truncates far above this. */
 const MAX_LINK_TEXT = 100;
+
+/**
+ * Cookies written by Google's tags: `_ga`, the per-stream `_ga_<STREAM_ID>`,
+ * and the `_gid`/`_gat` pair older tags still set. Matched by prefix so a new
+ * one Google adds is cleared too.
+ */
+const GA_COOKIE_PATTERN = /^(_ga|_gid|_gat)/;
 
 /**
  * Which contact event a given `href` belongs to, in match order.
@@ -83,7 +99,17 @@ export class AnalyticsService {
   private readonly config = inject(ANALYTICS_CONFIG);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-  private started = false;
+  /**
+   * A signal, not a plain field, because the consent `effect` reads it.
+   *
+   * `effect` tracks signals and nothing else. As a boolean this was a silent
+   * dependency on construction order: had the consent signal settled before
+   * `initialize()` ran, the effect would have fired once against
+   * `started === false`, done nothing, and never re-run — the consent signal
+   * having already reached its final value. It worked only because the app
+   * shell happens to call `initialize()` first.
+   */
+  private readonly started = signal(false);
 
   /**
    * Whether gtag has been told `analytics_storage` is granted.
@@ -101,14 +127,27 @@ export class AnalyticsService {
   readonly enabled: boolean = this.config.enabled && this.isBrowser;
 
   constructor() {
-    // Acceptance has to reach gtag *during this visit*, not on the next load:
-    // the visitor clicked the button and expects to be measured from then on,
-    // and until the update is sent every hit is still an unreportable
-    // cookieless ping. `started` is already true here — `initialize()` runs
-    // from the app shell's constructor, long before the notice can be clicked.
+    // Consent has to reach gtag *during this visit*, in both directions.
+    //
+    // Granting: the visitor clicked "Aceitar" and expects to be measured from
+    // then on; until the update is sent every hit is an unreportable cookieless
+    // ping.
+    //
+    // Withdrawing: dropping our own events is not enough once storage has been
+    // granted, because the cookie is already on their device. Article 7(3)
+    // requires withdrawal to be as easy as consent, which it is not if refusing
+    // leaves the identifier behind.
     effect(() => {
-      if (this.consent.value() === 'accepted' && this.started) {
+      const decision = this.consent.value();
+
+      if (!this.started()) {
+        return;
+      }
+
+      if (decision === 'accepted') {
         this.grantAnalyticsStorage();
+      } else {
+        this.revokeAnalyticsStorage();
       }
     });
   }
@@ -124,11 +163,11 @@ export class AnalyticsService {
    * takes effect on the next page load.
    */
   initialize(): void {
-    if (!this.enabled || this.started || !this.consent.analyticsAllowed()) {
+    if (!this.enabled || this.started() || !this.consent.analyticsAllowed()) {
       return;
     }
 
-    this.started = true;
+    this.started.set(true);
     this.loadGtag();
     this.trackPageViews();
     this.trackContactClicks();
@@ -175,6 +214,59 @@ export class AnalyticsService {
   }
 
   /**
+   * Withdraws `analytics_storage` and clears the identifier it created.
+   *
+   * Two steps, because neither alone is enough. The consent update stops GA4
+   * writing anything further; deleting the cookies removes what it already
+   * wrote. gtag does **not** clean up after a revocation — a visitor who
+   * accepts and then refuses would otherwise keep the `_ga` identifier for two
+   * years, which is precisely the thing they asked to be rid of.
+   *
+   * A no-op when storage was never granted, so a refusal from the undecided
+   * state stays silent.
+   */
+  private revokeAnalyticsStorage(): void {
+    if (!this.analyticsStorageGranted) {
+      return;
+    }
+
+    this.analyticsStorageGranted = false;
+    this.push('consent', 'update', { analytics_storage: 'denied' });
+    this.deleteAnalyticsCookies();
+  }
+
+  /**
+   * Expires every GA cookie this origin can see.
+   *
+   * A cookie is only removed by an expiry whose domain and path match how it
+   * was written, and gtag never reports which it used — it picks the broadest
+   * writable domain, which differs between `fsautomotive.pt` and the
+   * GitHub Pages host. Clearing the bare host and every ancestor domain is the
+   * only reliable way. Attempts against a public suffix are ignored by the
+   * browser, so the extra writes cost nothing.
+   */
+  private deleteAnalyticsCookies(): void {
+    const view = this.document.defaultView;
+    if (!view) {
+      return;
+    }
+
+    const names = this.document.cookie
+      .split(';')
+      .map((entry) => entry.split('=')[0]?.trim())
+      .filter((name): name is string => !!name && GA_COOKIE_PATTERN.test(name));
+
+    const hostname = view.location.hostname;
+    const domains = ['', hostname, ...ancestorDomains(hostname)];
+
+    for (const name of names) {
+      for (const domain of domains) {
+        this.document.cookie = `${name}=; Max-Age=0; path=/${domain ? `; domain=${domain}` : ''}`;
+      }
+    }
+  }
+
+  /**
    * Grants or revokes *every* storage category, advertising included.
    *
    * Not called anywhere today, and deliberately not wired to the privacy
@@ -203,12 +295,21 @@ export class AnalyticsService {
   /**
    * Sets or clears the GA4 User-ID.
    *
-   * Unused today — the site has no accounts, and with `analytics_storage`
-   * denied there is no identifier to join sessions on anyway. It exists so that
-   * adding a customer area later does not mean reopening this file.
+   * Unused today — the site has no accounts. It exists so that adding a
+   * customer area later does not mean reopening this file.
+   *
+   * `set`, not a second `config`. Two bugs lived in the `config` version:
+   *
+   *  1. A repeated `gtag('config', …)` that omits `send_page_view` gets GA4's
+   *     default of `true`, so merely identifying a user emitted a spurious
+   *     `page_view` — defeating the `sendPageView: false` the initial config
+   *     sets precisely to keep SPA page views under this service's control.
+   *  2. `user_id: undefined` does not clear anything; gtag drops undefined
+   *     keys, so the documented "or clears" half never worked. `null` is what
+   *     GA4 reads as "forget this user".
    */
   setUserId(id: string | null): void {
-    this.send('config', this.config.measurementId, { user_id: id ?? undefined });
+    this.send('set', { user_id: id });
   }
 
   /**
@@ -223,16 +324,35 @@ export class AnalyticsService {
    * Consent is read on every call, not cached at startup: refusing must stop
    * measurement in the same tab, without a reload.
    */
-  private send(command: string, target: string, params?: unknown): void {
-    if (!this.enabled || !this.consent.analyticsAllowed()) {
+  private send(...args: unknown[]): void {
+    if (!this.consent.analyticsAllowed()) {
+      return;
+    }
+
+    this.push(...args);
+  }
+
+  /**
+   * Writes to gtag without consulting consent.
+   *
+   * Exists for exactly one caller: {@link revokeAnalyticsStorage}. Withdrawal
+   * has to reach gtag *after* the visitor has refused, and {@link send} — quite
+   * correctly — drops everything at that moment. Routing the revocation through
+   * `send` would mean the one command that must always get through is the one
+   * command that never does.
+   *
+   * Everything else goes through `send`.
+   */
+  private push(...args: unknown[]): void {
+    if (!this.enabled) {
       return;
     }
 
     if (this.config.debug) {
-      console.debug('[analytics]', command, target, params);
+      console.debug('[analytics]', ...args);
     }
 
-    this.document.defaultView?.gtag?.(command, target, params);
+    this.document.defaultView?.gtag?.(...args);
   }
 
   private loadGtag(): void {
@@ -301,6 +421,7 @@ export class AnalyticsService {
     this.router.events
       .pipe(
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        filter((event) => !isPrivateUrl(event.urlAfterRedirects)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((event) => {
@@ -337,7 +458,7 @@ export class AnalyticsService {
   private trackContactClicks(): void {
     const onClick = (event: Event) => {
       const target = event.target;
-      if (!(target instanceof Element)) {
+      if (!(target instanceof Element) || isPrivateUrl(this.router.url)) {
         return;
       }
 
@@ -351,6 +472,11 @@ export class AnalyticsService {
     };
 
     this.document.addEventListener('click', onClick, { capture: true });
+
+    // Not ceremony, despite this being a root service that a running browser
+    // never destroys. The root injector *is* torn down between TestBed cases
+    // and on an HMR reload, and `document` outlives both — without this the
+    // listeners stack up and one click reports the same event several times.
     this.destroyRef.onDestroy(() =>
       this.document.removeEventListener('click', onClick, { capture: true }),
     );
@@ -367,15 +493,58 @@ export class AnalyticsService {
 }
 
 /**
+ * Whether a router URL belongs to the private management area.
+ *
+ * **This is a data-protection boundary, not a tidiness rule.** The private
+ * routes are parameterised by real records — `/gestao/veiculos/:plate`,
+ * `/gestao/clientes/:customerId`, `/gestao/folhas-de-obra/:serviceOrderId`,
+ * `/gestao/marcacoes/:appointmentId`. A registration plate identifies a vehicle
+ * and so its owner: sending one to Google is processing the workshop's
+ * customers' personal data, and neither they nor the workshop ever agreed to
+ * it. Stripping the query string does not help, because the identifier is in
+ * the *path*.
+ *
+ * The codebase already reached this conclusion once — every private route sets
+ * `noIndex: true` to stay out of search results — and simply never carried it
+ * across to analytics.
+ *
+ * There is no measurement to lose: the audience here is three members of staff.
+ *
+ * The `/` check matters — a future `/gestaoxyz` route must not be swept in by a
+ * bare `startsWith`.
+ */
+/**
+ * Every parent domain of a hostname, dot-prefixed, broadest last.
+ *
+ * `a.example.co.uk` → `.example.co.uk`, `.co.uk`. Public suffixes are included
+ * deliberately: filtering them properly needs the Public Suffix List, and a
+ * cookie write against one is silently ignored by the browser anyway. The
+ * single-label case (`localhost`) yields nothing.
+ */
+function ancestorDomains(hostname: string): string[] {
+  const labels = hostname.split('.');
+
+  return labels.slice(1, -1).map((_, index) => `.${labels.slice(index + 1).join('.')}`);
+}
+
+function isPrivateUrl(url: string): boolean {
+  const path = stripQuery(url);
+  return path === PRIVATE_BASE || path.startsWith(`${PRIVATE_BASE}/`);
+}
+
+/**
  * Drops the query string and fragment from a URL path.
  *
- * `page_path` is what groups the "Pages" report, and an ad or social link
- * arriving with `?fbclid=…` would otherwise split one page across hundreds of
- * rows. It also keeps anything a third party appended out of the report, which
- * is the cheapest defence against a stray identifier in a query parameter.
+ * Used for `page_path` and to normalise a URL before the private-area check.
  *
- * `page_location` keeps the full URL on purpose — GA4 reads `utm_*` campaign
- * tags from it, and stripping them there would break attribution.
+ * A note on what this does **not** do: GA4 builds its "Page path and screen
+ * class" dimension from `page_location`, not from `page_path` — the latter is
+ * Universal Analytics vocabulary that gtag forwards as `dp` and GA4 keeps only
+ * as a custom parameter. So stripping the query here does not stop a campaign
+ * link arriving with `?fbclid=…` from being recorded; GA4 excludes the query
+ * from that dimension itself, and offers "Page path + query string" separately
+ * when you do want it. `page_location` keeps the full URL on purpose, because
+ * GA4 reads `utm_*` campaign tags from it.
  */
 function stripQuery(url: string): string {
   return url.split(/[?#]/)[0] || '/';

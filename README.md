@@ -338,11 +338,21 @@ regista visualizações em cada navegação e um evento por cada contacto —
 O site mostra um banner de consentimento (`app-cookie-notice`) com três
 resultados genuinamente diferentes:
 
-| Escolha       | Aviso     | Medição                            | Cookies | Guardado  |
-| ------------- | --------- | ---------------------------------- | ------- | --------- |
-| _por decidir_ | visível   | corre, anónima                     | nenhum  | **nada**  |
-| Aceitar       | escondido | corre e **aparece nos relatórios** | GA4     | a escolha |
-| Recusar       | escondido | nunca arranca; nada é enviado      | nenhum  | a escolha |
+| Escolha       | Aviso     | Medição                            | Cookies             | Guardado  |
+| ------------- | --------- | ---------------------------------- | ------------------- | --------- |
+| _por decidir_ | visível   | corre, anónima                     | nenhum              | **nada**  |
+| Aceitar       | escondido | corre e **aparece nos relatórios** | GA4                 | a escolha |
+| Recusar       | escondido | pára; nada mais é enviado          | apagados, se haviam | a escolha |
+
+Recusar depois de ter aceite **revoga o consentimento no gtag e apaga os
+cookies `_ga*`** — o gtag não os remove sozinho, e um consentimento que não se
+consegue retirar não é consentimento.
+
+A **área de gestão (`/gestao`) nunca é medida** — nem visualizações nem cliques.
+As suas rotas são parametrizadas por registos reais (matrículas, IDs de
+clientes e de folhas de obra), e uma matrícula identifica um veículo e logo o
+seu dono: enviá-la para a Google seria tratar dados pessoais dos clientes da
+oficina sem que ninguém o tenha autorizado.
 
 Enquanto o visitante não responde **nada é gravado no dispositivo**. Só a
 própria escolha é guardada, e só depois de ele a fazer. As categorias de
