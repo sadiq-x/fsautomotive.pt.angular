@@ -58,7 +58,7 @@ describe('SeoService', () => {
       seo.apply({
         title: 'Painel',
         description: 'Área reservada.',
-        path: '/gestao/painel',
+        path: '/private/dashboard',
         noIndex: true,
       });
 
@@ -66,9 +66,9 @@ describe('SeoService', () => {
     });
 
     // The head is one shared document: leaving the tag behind after a visit to
-    // /gestao would quietly make the whole public site unindexable.
+    // /private would quietly make the whole public site unindexable.
     it('removes the directive again on the next public page', () => {
-      seo.apply({ title: 'Painel', description: 'x', path: '/gestao/painel', noIndex: true });
+      seo.apply({ title: 'Painel', description: 'x', path: '/private/dashboard', noIndex: true });
       seo.apply({ title: 'Serviços', description: 'Os nossos serviços.', path: '/servicos' });
 
       expect(meta.getTag('name="robots"')).toBeNull();

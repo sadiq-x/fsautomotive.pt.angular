@@ -31,20 +31,20 @@ const TEST_ROUTES: Routes = [
   { path: 'legado', redirectTo: 'servicos', pathMatch: 'full' },
 
   // Mirrors the real private area: a route parameterised by a record
-  // identifier. `gestaopublico` guards the prefix check against a bare
+  // identifier. `privateiro` guards the prefix check against a bare
   // `startsWith`, which would sweep in an unrelated public route.
   {
-    path: 'gestao/veiculos/:plate',
+    path: 'private/vehicles/:plate',
     component: Home,
     data: {
-      meta: { title: 'Veículo', description: '', path: '/gestao/veiculos' } satisfies PageMeta,
+      meta: { title: 'Veículo', description: '', path: '/private/vehicles' } satisfies PageMeta,
     },
   },
   {
-    path: 'gestaopublico',
+    path: 'privateiro',
     component: Home,
     data: {
-      meta: { title: 'Público', description: '', path: '/gestaopublico' } satisfies PageMeta,
+      meta: { title: 'Público', description: '', path: '/privateiro' } satisfies PageMeta,
     },
   },
 ];
@@ -328,12 +328,12 @@ describe('AnalyticsService', () => {
 
   // The private area is parameterised by real records — plates, customer ids,
   // service-order ids. A plate identifies a vehicle and so its owner, which
-  // makes a page view from `/gestao` the workshop's customers' personal data
+  // makes a page view from `/private` the workshop's customers' personal data
   // leaving for Google. Nothing here is a reporting nicety; it is the boundary.
   describe('the private management area', () => {
     it('reports no page view for a route carrying a registration plate', async () => {
       setup().initialize();
-      await TestBed.inject(Router).navigateByUrl('/gestao/veiculos/AA-00-BB');
+      await TestBed.inject(Router).navigateByUrl('/private/vehicles/AA-00-BB');
 
       expect(eventsNamed('page_view').length).toBe(0);
       expect(JSON.stringify(pushed())).not.toContain('AA-00-BB');
@@ -344,7 +344,7 @@ describe('AnalyticsService', () => {
       const router = TestBed.inject(Router);
 
       await router.navigateByUrl('/servicos');
-      await router.navigateByUrl('/gestao/veiculos/AA-00-BB');
+      await router.navigateByUrl('/private/vehicles/AA-00-BB');
       await router.navigateByUrl('/');
 
       expect(eventsNamed('page_view').map((view) => view['page_path'])).toEqual(['/servicos', '/']);
@@ -352,18 +352,18 @@ describe('AnalyticsService', () => {
 
     it('reports no contact click made inside the private area', async () => {
       setup().initialize();
-      await TestBed.inject(Router).navigateByUrl('/gestao/veiculos/AA-00-BB');
+      await TestBed.inject(Router).navigateByUrl('/private/vehicles/AA-00-BB');
       clickLink('tel:+351933678865', 'header');
 
       expect(eventsNamed('phone_click').length).toBe(0);
     });
 
-    // A bare `startsWith('/gestao')` would silently stop measuring this.
+    // A bare `startsWith('/private')` would silently stop measuring this.
     it('does not mistake a public route that merely shares the prefix', async () => {
       setup().initialize();
-      await TestBed.inject(Router).navigateByUrl('/gestaopublico');
+      await TestBed.inject(Router).navigateByUrl('/privateiro');
 
-      expect(eventsNamed('page_view')[0]?.['page_path']).toBe('/gestaopublico');
+      expect(eventsNamed('page_view')[0]?.['page_path']).toBe('/privateiro');
     });
   });
 

@@ -19,12 +19,40 @@ import type { CreateAppointmentBody, ListAppointmentsQuery } from './appointment
 import { toAppointment, toAppointments, toCreatePayload } from './appointment.mapper.js';
 import type { Appointment } from './appointment.model.js';
 
-/** ⚠️ INFERRED upstream filter parameter names. Confirm against your tenant. */
+/**
+ * Upstream filter parameter names.
+ *
+ * `start` and `end` are CONFIRMED against the tenant, and they are **required**:
+ * `GET /crm/appointments` answers 422 without them —
+ * "O campo start é obrigatório" — whatever else is sent. The previous names
+ * (`start_date` / `end_date`) were inferred and wrong, so every unfiltered list
+ * request failed validation upstream.
+ *
+ * Any of `YYYY-MM-DD`, `YYYY-MM-DD HH:mm:ss` and full ISO-8601 are accepted, so
+ * the caller's ISO values are forwarded unchanged.
+ *
+ * `customerId` remains ⚠️ INFERRED — it has not been exercised against a tenant
+ * that would accept the request.
+ */
 const UPSTREAM_FILTERS = {
-  from: 'start_date',
-  to: 'end_date',
+  from: 'start',
+  to: 'end',
   customerId: 'customer_id',
 } as const;
+
+/**
+ * The window used when the caller asks for no particular one.
+ *
+ * OfficeGest requires a range, so "no filter" cannot mean "everything" — a
+ * default has to be invented, and this is the only invented value in this file.
+ * Thirty days back and ninety forward is what a workshop's bookings screen is
+ * about: recent history plus the coming quarter. Change it here; nothing else
+ * depends on the numbers.
+ */
+const DEFAULT_WINDOW_DAYS_BACK = 30;
+const DEFAULT_WINDOW_DAYS_AHEAD = 90;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** A booking may not be longer than this. Guards against a typo'd year. */
 const MAX_DURATION_MS = 12 * 60 * 60 * 1000;
@@ -49,13 +77,19 @@ export class AppointmentsService {
       throw new BadRequestError('`from` must not be later than `to`.');
     }
 
+    // Upstream mandates both ends of the range; the caller's values win, and
+    // the default only fills a gap they left.
+    const now = this.now().getTime();
+    const from = query.from ?? new Date(now - DEFAULT_WINDOW_DAYS_BACK * DAY_MS).toISOString();
+    const to = query.to ?? new Date(now + DEFAULT_WINDOW_DAYS_AHEAD * DAY_MS).toISOString();
+
     const result = await this.appointments.list(
       {
         page: query.page,
         perPage: query.perPage,
         filters: {
-          [UPSTREAM_FILTERS.from]: query.from,
-          [UPSTREAM_FILTERS.to]: query.to,
+          [UPSTREAM_FILTERS.from]: from,
+          [UPSTREAM_FILTERS.to]: to,
           [UPSTREAM_FILTERS.customerId]: query.customerId,
         },
       },

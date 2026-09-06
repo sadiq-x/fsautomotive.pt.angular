@@ -9,10 +9,10 @@ import { isPrivatePath } from './app';
 
 describe('isPrivatePath', () => {
   it('claims the private area and everything under it', () => {
-    expect(isPrivatePath('/gestao')).toBe(true);
-    expect(isPrivatePath('/gestao/entrar')).toBe(true);
-    expect(isPrivatePath('/gestao/painel')).toBe(true);
-    expect(isPrivatePath('/gestao/clientes/42')).toBe(true);
+    expect(isPrivatePath('/private')).toBe(true);
+    expect(isPrivatePath('/private/login')).toBe(true);
+    expect(isPrivatePath('/private/dashboard')).toBe(true);
+    expect(isPrivatePath('/private/customers/42')).toBe(true);
   });
 
   it('leaves the public site alone', () => {
@@ -25,12 +25,12 @@ describe('isPrivatePath', () => {
   // The `/` boundary: a public route that merely starts with the same letters
   // must keep its header.
   it('does not match a path that only shares the prefix', () => {
-    expect(isPrivatePath('/gestaoxyz')).toBe(false);
-    expect(isPrivatePath('/gestao-comercial')).toBe(false);
+    expect(isPrivatePath('/privateiro')).toBe(false);
+    expect(isPrivatePath('/private-beta')).toBe(false);
   });
 
   it('ignores the query string and fragment', () => {
-    expect(isPrivatePath('/gestao/entrar?redirect=/gestao/painel')).toBe(true);
+    expect(isPrivatePath('/private/login?redirect=/private/dashboard')).toBe(true);
     expect(isPrivatePath('/contactos#mapa')).toBe(false);
   });
 });

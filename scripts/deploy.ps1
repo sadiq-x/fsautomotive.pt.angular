@@ -38,7 +38,7 @@
 
 .PARAMETER DevAuthStub
     Publish a bundle with the development authentication stub ACTIVE, so
-    /gestao/entrar accepts any password on the live site. Use it only to
+    /private/login accepts any password on the live site. Use it only to
     demonstrate the management area before an auth backend is deployed.
 
     The stub is gated twice on purpose: the build guard in
@@ -283,7 +283,7 @@ try {
     Write-Note "base href  : $BaseHref"
     if ($DevAuthStub) {
         Write-Warning ("Publishing with the development authentication stub ACTIVE: " +
-                       "any password will be accepted at $BaseHref" + "gestao/entrar. " +
+                       "any password will be accepted at $BaseHref" + "private/login. " +
                        "The bundle is unoptimised because the stub only runs in a " +
                        "development build.")
     }
@@ -407,7 +407,7 @@ try {
     if ($DevAuthStub) {
         Write-Host "`n[OK] Published with base href $BaseHref — WITH THE AUTH STUB ACTIVE." -ForegroundColor Yellow
         Write-Host "     Anyone can sign in at $BaseHref" -NoNewline -ForegroundColor Yellow
-        Write-Host "gestao/entrar with any password." -ForegroundColor Yellow
+        Write-Host "private/login with any password." -ForegroundColor Yellow
     }
     else {
         Write-Host "`n[OK] Published with base href $BaseHref" -ForegroundColor Green

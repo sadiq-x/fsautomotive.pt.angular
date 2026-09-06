@@ -7,6 +7,8 @@
  * bind whatever a crafted URL carried. An unchecked `?redirect=` is an open
  * redirect, and a login page is exactly what attackers phish with.
  */
+import { APP_BASE_HREF } from '@angular/common';
+import type { Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -19,7 +21,7 @@ import { Login } from './login';
 
 const USER: SessionUser = { id: '1', name: 'Ana', role: 'ADMIN', permissions: ['officegest.read'] };
 
-function setup(gateway: Partial<AuthGateway> = {}) {
+function setup(gateway: Partial<AuthGateway> = {}, extraProviders: Provider[] = []) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -32,6 +34,7 @@ function setup(gateway: Partial<AuthGateway> = {}) {
           ...gateway,
         },
       },
+      ...extraProviders,
     ],
   });
 
@@ -69,7 +72,7 @@ describe('Login', () => {
    * The open-redirect guarantee, stated as the absence of the input.
    *
    * `withComponentInputBinding()` binds query parameters to component *inputs*.
-   * No input, nothing to bind — so `/gestao?redirect=https://evil.example`
+   * No input, nothing to bind — so `/private/login?redirect=https://evil.example`
    * cannot steer the navigation however it is crafted. Re-adding the input
    * without re-adding validation would fail here.
    */
@@ -121,6 +124,50 @@ describe('Login', () => {
     expect(email.getAttribute('aria-invalid')).toBe('true');
     expect(email.getAttribute('aria-describedby')).toBe('login-erro');
     expect(error.getAttribute('role')).toBe('alert');
+  });
+
+  /**
+   * The way out, pinned against the bug it replaced.
+   *
+   * "Voltar ao site" was `href="/"`, which is the home page only when the
+   * application owns the domain root. GitHub Pages serves it from
+   * `/fsautomotive.pt.angular/`, so the link left the deployment altogether.
+   * A `routerLink` is resolved through the `LocationStrategy`, which is what
+   * this asserts: with a base href set, the anchor must carry it. A literal
+   * `href="/"` would render a bare `/` and fail here.
+   */
+  it('sends "Voltar ao site" to the application root, not the server root', () => {
+    const { fixture } = setup({}, [
+      { provide: APP_BASE_HREF, useValue: '/fsautomotive.pt.angular/' },
+    ]);
+    fixture.detectChanges();
+
+    const links = [...fixture.nativeElement.querySelectorAll('a[href]')] as HTMLAnchorElement[];
+    const back = links.filter((link) => link.textContent?.includes('Voltar ao site'));
+
+    expect(back).toHaveLength(1);
+    expect(back[0].getAttribute('href')).toBe('/fsautomotive.pt.angular/');
+  });
+
+  it('reveals the password on request and hides it again on submission', async () => {
+    const { fixture } = setup();
+    fixture.detectChanges();
+
+    const field = () => fixture.nativeElement.querySelector('#password') as HTMLInputElement;
+    const toggle = fixture.nativeElement.querySelector(
+      'button[aria-label="Mostrar palavra-passe"]',
+    ) as HTMLButtonElement;
+
+    expect(field().type).toBe('password');
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(field().type).toBe('text');
+
+    // A revealed password must not survive into the next attempt.
+    await signIn(fixture);
+    fixture.detectChanges();
+    expect(field().type).toBe('password');
   });
 
   it('reports a server failure differently from a rejected password', async () => {

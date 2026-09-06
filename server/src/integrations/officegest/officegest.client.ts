@@ -81,6 +81,8 @@ interface AttemptContext {
   readonly body?: unknown;
   readonly signal?: AbortSignal;
   readonly skipAuth: boolean;
+  /** Set by the auth strategy for the one request that carries its own credential. */
+  readonly headers?: Readonly<Record<string, string>>;
   readonly log: Logger;
 }
 
@@ -106,7 +108,7 @@ export class OfficeGestClient {
     // The strategy needs to call OfficeGest (to log in) but must not go through
     // the authenticated path, which would recurse. It gets a narrow, unauth'd
     // request function instead of the whole client.
-    this.auth = createAuthStrategy(config.credentials, ({ path, method, body, signal }) =>
+    this.auth = createAuthStrategy(config.credentials, ({ path, method, body, signal, headers }) =>
       this.send({
         method,
         path,
@@ -114,6 +116,7 @@ export class OfficeGestClient {
         body,
         signal,
         skipAuth: true,
+        headers,
         log: this.log,
       }),
     );
@@ -305,7 +308,7 @@ export class OfficeGestClient {
 
   /** Performs a single HTTP attempt and returns the decoded JSON body. */
   private async send(context: AttemptContext): Promise<unknown> {
-    const { method, path, url, body, signal, skipAuth, log } = context;
+    const { method, path, url, body, signal, skipAuth, headers: ownHeaders, log } = context;
     const startedAt = Date.now();
 
     const headers: Record<string, string> = {
@@ -317,7 +320,11 @@ export class OfficeGestClient {
       headers['content-type'] = 'application/json';
     }
 
-    if (!skipAuth) {
+    if (skipAuth) {
+      // Only the auth strategy sets these, and only to present a credential the
+      // shared path cannot supply — see `UnauthenticatedRequest`.
+      Object.assign(headers, ownHeaders ?? {});
+    } else {
       Object.assign(headers, await this.auth.getAuthHeaders(signal));
     }
 

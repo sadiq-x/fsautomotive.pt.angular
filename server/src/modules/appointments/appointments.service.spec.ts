@@ -143,13 +143,54 @@ describe('AppointmentsService', () => {
       const list = vi.fn().mockResolvedValue({ items: [], meta: undefined });
 
       await makeService(makeResource({ list })).list(
-        { page: 1, perPage: 25, from: '2026-08-01T00:00:00.000Z', customerId: '42' },
+        {
+          page: 1,
+          perPage: 25,
+          from: '2026-08-01T00:00:00.000Z',
+          to: '2026-08-31T00:00:00.000Z',
+          customerId: '42',
+        },
         context,
       );
 
       expect(list.mock.calls[0]?.[0]).toMatchObject({
-        filters: { start_date: '2026-08-01T00:00:00.000Z', end_date: undefined, customer_id: '42' },
+        filters: {
+          start: '2026-08-01T00:00:00.000Z',
+          end: '2026-08-31T00:00:00.000Z',
+          customer_id: '42',
+        },
       });
+    });
+
+    /**
+     * `start` and `end` are required by OfficeGest — a list request without
+     * them is answered 422, not with an unfiltered list. So the service has to
+     * supply a window when the caller does not, and the Marcações page does not:
+     * it sends only `page` and `perPage`.
+     */
+    it('supplies a range when the caller gives none, because upstream demands one', async () => {
+      const list = vi.fn().mockResolvedValue({ items: [], meta: undefined });
+
+      await makeService(makeResource({ list })).list({ page: 1, perPage: 25 }, context);
+
+      const filters = list.mock.calls[0]?.[0]?.filters as Record<string, string>;
+
+      expect(filters['start']).toBe('2026-07-29T09:00:00.000Z'); // NOW − 30 days
+      expect(filters['end']).toBe('2026-11-26T09:00:00.000Z'); // NOW + 90 days
+    });
+
+    it('lets the caller override either end of the default window', async () => {
+      const list = vi.fn().mockResolvedValue({ items: [], meta: undefined });
+
+      await makeService(makeResource({ list })).list(
+        { page: 1, perPage: 25, from: '2026-08-01T00:00:00.000Z' },
+        context,
+      );
+
+      const filters = list.mock.calls[0]?.[0]?.filters as Record<string, string>;
+
+      expect(filters['start']).toBe('2026-08-01T00:00:00.000Z');
+      expect(filters['end']).toBe('2026-11-26T09:00:00.000Z');
     });
   });
 });

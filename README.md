@@ -348,7 +348,7 @@ Recusar depois de ter aceite **revoga o consentimento no gtag e apaga os
 cookies `_ga*`** — o gtag não os remove sozinho, e um consentimento que não se
 consegue retirar não é consentimento.
 
-A **área de gestão (`/gestao`) nunca é medida** — nem visualizações nem cliques.
+A **área de gestão (`/private`) nunca é medida** — nem visualizações nem cliques.
 As suas rotas são parametrizadas por registos reais (matrículas, IDs de
 clientes e de folhas de obra), e uma matrícula identifica um veículo e logo o
 seu dono: enviá-la para a Google seria tratar dados pessoais dos clientes da
@@ -448,18 +448,24 @@ ser gerado um `CNAME` (`ng deploy --cname=fsautomotive.pt`).
 
 ## Área de gestão (privada)
 
-Área reservada em `/gestao`, dentro da mesma aplicação Angular — carregada em
+Área reservada em `/private`, dentro da mesma aplicação Angular — carregada em
 _lazy loading_, por isso um visitante do site público nunca descarrega este
 código.
 
 ```
-/gestao/entrar          início de sessão
-/gestao/painel          resumo
-/gestao/clientes        lista + detalhe
-/gestao/veiculos        lista + detalhe (por matrícula)
-/gestao/folhas-de-obra  lista + detalhe
-/gestao/marcacoes       lista + detalhe + criação
+/private/login           início de sessão
+/private/dashboard       resumo
+/private/customers       lista + detalhe
+/private/vehicles        lista + detalhe (por matrícula)
+/private/service-orders  lista + detalhe
+/private/appointments    lista + detalhe + criação
+/private/workers         equipa da oficina
+/private/settings        diagnóstico (só leitura)
 ```
+
+Os endereços antigos (`/gestao/...`) continuam a funcionar: redirecionam para os
+novos, com os parâmetros incluídos — um cliente nos favoritos reabre nesse
+cliente. Ver [`docs/PRIVATE-AREA.md`](docs/PRIVATE-AREA.md).
 
 O Angular fala **apenas** com o backend em `server/`; a chave do OfficeGest
 nunca sai desse processo.
@@ -478,7 +484,7 @@ Para desenvolver entretanto, ative o stub:
 DEV_AUTH_STUB=true
 ```
 
-Qualquer palavra-passe é então aceite em `/gestao/entrar` (use `wrong` para ver
+Qualquer palavra-passe é então aceite em `/private/login` (use `wrong` para ver
 o estado de erro). O `npm run build` de produção **falha** enquanto esta
 variável estiver ativa — ver `checkDevAuthStub` em
 [`scripts/lib/env.mjs`](scripts/lib/env.mjs).

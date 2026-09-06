@@ -118,6 +118,13 @@ export function errorHandler(): ErrorRequestHandler {
         cause:
           error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
       },
+      // The upstream field errors behind a 422. They already reach the caller
+      // in the response body, so logging them discloses nothing new — and
+      // without them "OfficeGest rejected the submitted data" names neither the
+      // field nor the reason, which is a log line that cannot be acted on.
+      // Server faults are excluded: their `details` are ours, and the stack
+      // above already says more.
+      details: isServerFault ? undefined : appError.details,
     };
 
     if (isServerFault) {

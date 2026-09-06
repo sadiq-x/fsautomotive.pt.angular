@@ -38,8 +38,24 @@ export const AUTH_LOGOUT_PATH = '/auth/logout';
 export const AUTH_TOKEN_FIELDS = ['access_token', 'token'] as const;
 
 /* -------------------------------------------------------------------------- */
-/* Resource paths — INVENTORY (`/entities/customers` also VERIFIED)            */
+/* Resource paths — EXISTENCE VERIFIED against the tenant, 2026-09-06          */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Every collection path below was probed against the live tenant and answered
+ * **403**, while wrong paths — `/customers`, `/workshop/jobs`, `/sales/invoices`
+ * and a nonsense control — answered **404**. The API distinguishes the two, so a
+ * 403 is positive evidence that the route exists and that only the API user's
+ * permissions stand between this service and the data.
+ *
+ * What that does **not** establish is the response *shape*: no request has ever
+ * returned 200, so the field names the mappers read are still inferred. See
+ * `officegest.record-readers.ts`, and run `npm run probe -- <path>` once the
+ * permissions are granted.
+ *
+ * Also confirmed to exist, though unused here: `/entities/suppliers`,
+ * `/entities/employees`, `/workshop/interventions`, `/sales/documents`.
+ */
 
 export const OFFICEGEST_PATHS = {
   customers: '/entities/customers',

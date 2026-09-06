@@ -139,7 +139,7 @@ states plainly that they do not exist. Confirmed: `server/` mounts only
 
 Production forces the dev stub off (the build refuses otherwise), so
 `HttpAuthGateway` POSTs to a 404 and every sign-in fails with _"Não foi possível
-iniciar sessão."_ **Nobody can ever enter `/gestao` in production.**
+iniciar sessão."_ **Nobody can ever enter `/private` in production.**
 
 **Fix** — implement the three endpoints with an `HttpOnly; Secure` session
 cookie, per the contract file. This is the keystone: it also closes §4.2.

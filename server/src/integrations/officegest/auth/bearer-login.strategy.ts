@@ -92,8 +92,18 @@ export class BearerLoginStrategy implements OfficeGestAuthStrategy {
 
     // Courtesy only: a tenant that caps concurrent sessions benefits, and a
     // failure here must never hold up shutdown.
+    //
+    // The token goes on the request explicitly. It cannot come from
+    // `getAuthHeaders()` — the cache was just cleared, so that would mint a new
+    // token purely in order to throw it away, and revoke the wrong one. Sending
+    // nothing, which is what this used to do, is what made every shutdown log a
+    // 401 and leave the session live on the tenant until it expired.
     try {
-      await this.request({ path: AUTH_LOGOUT_PATH, method: 'DELETE' });
+      await this.request({
+        path: AUTH_LOGOUT_PATH,
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${token}` },
+      });
     } catch (error) {
       logger.debug('OfficeGest logout failed during shutdown; ignoring', {
         error: error instanceof Error ? error.message : String(error),

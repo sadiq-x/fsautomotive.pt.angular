@@ -1,5 +1,6 @@
 import type { Routes } from '@angular/router';
 
+import { LEGACY_PRIVATE_ROUTES } from './core/config/private-routes.config';
 import type { PageMeta } from './core/models';
 
 /**
@@ -72,7 +73,7 @@ export const routes: Routes = [
    * routes live in `features/private/private.routes.ts`.
    */
   {
-    path: 'gestao',
+    path: 'private',
     loadChildren: () => import('./features/private/private.routes').then((m) => m.privateRoutes),
   },
 
@@ -80,6 +81,13 @@ export const routes: Routes = [
   { path: 'home', redirectTo: '', pathMatch: 'full' },
   { path: 'sobrenos', redirectTo: 'sobre-nos', pathMatch: 'full' },
   { path: 'contacts', redirectTo: 'contactos', pathMatch: 'full' },
+
+  /**
+   * The private area's own legacy paths, from when it lived at `/gestao`.
+   * Declared as data next door so this file stays a readable list of the
+   * public site's four pages; see `private-routes.config.ts` for the mapping.
+   */
+  ...LEGACY_PRIVATE_ROUTES,
 
   {
     path: '**',

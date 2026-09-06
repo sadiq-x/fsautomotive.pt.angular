@@ -19,7 +19,7 @@ import { ToastHost } from './toast-host/toast-host';
  * opening hours. A management area is the opposite — dense, navigation-first,
  * and it should not look like somewhere a customer wandered into. Giving it its
  * own shell also keeps the public bundle unchanged: this component and
- * everything under it ship in the lazily loaded `/gestao` chunk.
+ * everything under it ship in the lazily loaded `/private` chunk.
  *
  * The brand still shows through — same tokens, same button, same icons — so it
  * reads as the same product, not a bolted-on admin panel.
@@ -73,8 +73,8 @@ export class PrivateShell {
       startWith(null),
       map(() => {
         const url = this.router.url.split('?')[0] ?? '';
-        // Longest match wins, so `/gestao/marcacoes/nova` resolves to Marcações
-        // rather than to the dashboard's `/gestao`.
+        // Longest match wins, so `/private/appointments/new` resolves to
+        // Marcações rather than to the dashboard.
         return (
           [...PRIVATE_NAV]
             .sort((a, b) => b.path.length - a.path.length)

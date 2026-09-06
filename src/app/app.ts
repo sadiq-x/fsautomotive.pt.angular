@@ -21,7 +21,7 @@ import { Lightbox } from './shared/components/lightbox/lightbox';
  *
  * WHY THE CHROME IS CONDITIONAL
  * -----------------------------
- * `/gestao` renders inside `PrivateShell`, which supplies its own sidebar,
+ * `/private` renders inside `PrivateShell`, which supplies its own sidebar,
  * header and `<main>`. Rendering the public header and footer around it too
  * would put two navigations, two landmarks and a tab bar linking back to the
  * brochure site on every management screen.
@@ -55,7 +55,7 @@ export class App {
     { initialValue: undefined },
   );
 
-  /** `false` for anything under `/gestao`, which brings its own frame. */
+  /** `false` for anything under `/private`, which brings its own frame. */
   protected readonly showPublicChrome = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -89,7 +89,7 @@ export class App {
 /**
  * Whether a path belongs to the private area.
  *
- * The `/` boundary matters: a future public route named `/gestaoxyz` must not
+ * The `/` boundary matters: a future public route named `/privateiro` must not
  * be mistaken for the management area and lose its header.
  */
 export function isPrivatePath(path: string): boolean {

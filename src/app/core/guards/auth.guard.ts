@@ -26,9 +26,10 @@ import { PRIVATE_ROUTES } from '../config/private-routes.config';
 /**
  * Requires a signed-in user.
  *
- * An anonymous visitor is sent to `/gestao`, plain — no `?redirect=`. The URL
- * they wanted is deliberately not carried: one clean address is what a person
- * turned away should see, and after signing in they land on the dashboard.
+ * An anonymous visitor is sent to `/private/login`, plain — no `?redirect=`.
+ * The URL they wanted is deliberately not carried: one clean address is what a
+ * person turned away should see, and after signing in they land on the
+ * dashboard.
  *
  * Dropping it also removes the open-redirect surface entirely. A `?redirect=`
  * parameter is exactly the shape attackers phish with, and the safest version
@@ -50,7 +51,7 @@ export const authGuard: CanActivateFn = async () => {
 /**
  * Keeps a signed-in user off the login page.
  *
- * Without it, following a bookmarked `/gestao/entrar` while already signed in
+ * Without it, following a bookmarked `/private/login` while already signed in
  * shows a form that cannot do anything useful.
  */
 export const guestGuard: CanActivateFn = async () => {
@@ -90,9 +91,11 @@ export function permissionGuard(...permissions: readonly Permission[]): CanActiv
     // anything: the user already knows which page they tried to open.
     notifications.warning('Não tem permissão para aceder a essa área.');
 
-    // The same door as every other refusal. For a signed-in user `/gestao`
-    // resolves on to the dashboard, so this costs one hop and buys a single
+    // The same door as every other refusal, including the anonymous case
+    // above — the early return exists to skip the toast, not to reach a
+    // different URL. `guestGuard` on the login route resolves a signed-in user
+    // straight on to the dashboard, so this costs one hop and buys a single
     // answer to "where does the private area send someone it turned away".
-    return router.createUrlTree([PRIVATE_ROUTES.base]);
+    return router.createUrlTree([PRIVATE_ROUTES.login]);
   };
 }

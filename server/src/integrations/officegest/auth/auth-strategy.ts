@@ -27,6 +27,15 @@ export type UnauthenticatedRequest = (options: {
   readonly method: 'POST' | 'DELETE';
   readonly body?: unknown;
   readonly signal?: AbortSignal;
+  /**
+   * Headers the strategy sets itself.
+   *
+   * "Unauthenticated" means the client does not consult the strategy for
+   * credentials — it would recurse — not that the request can never carry one.
+   * Logout is the case that needs the distinction: it is the one call that must
+   * present the very token it is about to revoke.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }) => Promise<unknown>;
 
 export interface OfficeGestAuthStrategy {

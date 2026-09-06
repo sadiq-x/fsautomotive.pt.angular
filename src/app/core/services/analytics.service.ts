@@ -496,9 +496,9 @@ export class AnalyticsService {
  * Whether a router URL belongs to the private management area.
  *
  * **This is a data-protection boundary, not a tidiness rule.** The private
- * routes are parameterised by real records — `/gestao/veiculos/:plate`,
- * `/gestao/clientes/:customerId`, `/gestao/folhas-de-obra/:serviceOrderId`,
- * `/gestao/marcacoes/:appointmentId`. A registration plate identifies a vehicle
+ * routes are parameterised by real records — `/private/vehicles/:plate`,
+ * `/private/customers/:customerId`, `/private/service-orders/:serviceOrderId`,
+ * `/private/appointments/:appointmentId`. A plate identifies a vehicle
  * and so its owner: sending one to Google is processing the workshop's
  * customers' personal data, and neither they nor the workshop ever agreed to
  * it. Stripping the query string does not help, because the identifier is in
@@ -510,7 +510,7 @@ export class AnalyticsService {
  *
  * There is no measurement to lose: the audience here is three members of staff.
  *
- * The `/` check matters — a future `/gestaoxyz` route must not be swept in by a
+ * The `/` check matters — a future `/privateiro` route must not be swept in by a
  * bare `startsWith`.
  */
 /**

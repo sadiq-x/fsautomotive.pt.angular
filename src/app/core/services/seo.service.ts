@@ -60,7 +60,7 @@ export class SeoService {
    * Removing it matters as much as adding it: the tag is set on one shared
    * document, so navigating from a private page back to a public one has to
    * take the `noindex` with it — otherwise the whole site becomes unindexable
-   * after any visit to `/gestao`.
+   * after any visit to `/private`.
    */
   private applyRobots(noIndex: boolean): void {
     if (noIndex) {

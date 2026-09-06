@@ -59,7 +59,7 @@ class Host {
   readonly columns = COLUMNS;
   readonly rows = signal(ROWS);
   readonly rowKey = (row: Row): string => row.id;
-  readonly rowLink = (row: Row): string => `/gestao/clientes/${row.id}`;
+  readonly rowLink = (row: Row): string => `/private/customers/${row.id}`;
   readonly rowLabel = (row: Row): string => `Ver ${row.name}`;
 }
 
@@ -195,7 +195,7 @@ describe('DataTable', () => {
 
       expect(link).toBeTruthy();
       // A real href is what makes middle-click and "open in new tab" work.
-      expect(link.getAttribute('href')).toBe('/gestao/clientes/1');
+      expect(link.getAttribute('href')).toBe('/private/customers/1');
       expect(link.getAttribute('aria-label')).toBe('Ver Bruno');
       expect(link.textContent!.trim()).toBe('Bruno');
     });
@@ -205,7 +205,7 @@ describe('DataTable', () => {
       const cards = fixture.nativeElement.querySelectorAll('ul[role="list"] > li');
       const anchor = (cards[0] as HTMLElement).querySelector('a') as HTMLAnchorElement;
 
-      expect(anchor.getAttribute('href')).toBe('/gestao/clientes/1');
+      expect(anchor.getAttribute('href')).toBe('/private/customers/1');
       expect((cards[0] as HTMLElement).getAttribute('role')).toBeNull();
     });
 

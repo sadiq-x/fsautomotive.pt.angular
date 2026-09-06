@@ -1,6 +1,6 @@
 # Private Management Area
 
-Reference for `/gestao` — the authenticated area inside the FS Automotive
+Reference for `/private` — the authenticated area inside the FS Automotive
 Angular application that reads and writes OfficeGest data through the backend in
 [`server/`](../server/).
 
@@ -117,55 +117,86 @@ touches the DOM.
 
 ## 3. Routes
 
-Portuguese, like the public routes — a mixed-language URL space reads like an
-accident. Declared once in
+English, unlike the public routes. The public URLs (`/sobre-nos`, `/servicos`,
+`/contactos`) are the ones customers see, share and search for, so they stay in
+the language of the site; the private area is a tool for three members of staff
+and is `noindex` everywhere. Naming it in English keeps the two spaces visibly
+separate — a URL either starts with `/private` and is a management screen, or it
+does not. The interface itself remains Portuguese.
+
+Declared once in
 [`private-routes.config.ts`](../src/app/core/config/private-routes.config.ts) so
 no template contains a hand-typed path.
 
-| Path                                     | Guard                              | Page            |
-| ---------------------------------------- | ---------------------------------- | --------------- |
-| `/gestao`                                | `guestGuard`                       | Login           |
-| `/gestao/entrar`                         | — (redirects to `/gestao`)         | legacy link     |
-| `/gestao/painel`                         | `authGuard`                        | Dashboard       |
-| `/gestao/clientes`                       | `+ officegest.customers.read`      | Customer list   |
-| `/gestao/clientes/:customerId`           | `+ officegest.customers.read`      | Customer        |
-| `/gestao/veiculos`                       | `+ officegest.vehicles.read`       | Vehicle list    |
-| `/gestao/veiculos/:plate`                | `+ officegest.vehicles.read`       | Vehicle         |
-| `/gestao/folhas-de-obra`                 | `+ officegest.service-orders.read` | Work orders     |
-| `/gestao/folhas-de-obra/:serviceOrderId` | `+ officegest.service-orders.read` | Work order      |
-| `/gestao/marcacoes`                      | `+ officegest.appointments.read`   | Appointments    |
-| `/gestao/marcacoes/nova`                 | `+ officegest.appointments.write`  | New appointment |
-| `/gestao/marcacoes/:appointmentId`       | `+ officegest.appointments.read`   | Appointment     |
-| `/gestao/trabalhadores`                  | `+ workers.read`                   | Worker list     |
-| `/gestao/configuracoes`                  | `+ settings.read`                  | Settings        |
+| Path                                      | Guard                              | Page            |
+| ----------------------------------------- | ---------------------------------- | --------------- |
+| `/private`                                | — (redirects to `/private/login`)  | area root       |
+| `/private/login`                          | `guestGuard`                       | Login           |
+| `/private/dashboard`                      | `authGuard`                        | Dashboard       |
+| `/private/customers`                      | `+ officegest.customers.read`      | Customer list   |
+| `/private/customers/:customerId`          | `+ officegest.customers.read`      | Customer        |
+| `/private/vehicles`                       | `+ officegest.vehicles.read`       | Vehicle list    |
+| `/private/vehicles/:plate`                | `+ officegest.vehicles.read`       | Vehicle         |
+| `/private/service-orders`                 | `+ officegest.service-orders.read` | Work orders     |
+| `/private/service-orders/:serviceOrderId` | `+ officegest.service-orders.read` | Work order      |
+| `/private/appointments`                   | `+ officegest.appointments.read`   | Appointments    |
+| `/private/appointments/new`               | `+ officegest.appointments.write`  | New appointment |
+| `/private/appointments/:appointmentId`    | `+ officegest.appointments.read`   | Appointment     |
+| `/private/workers`                        | `+ workers.read`                   | Worker list     |
+| `/private/settings`                       | `+ settings.read`                  | Settings        |
 
 `authGuard` sits on the parent route, so a page added later is protected by
-default rather than by remembering. `marcacoes/nova` is declared **before**
-`marcacoes/:appointmentId`, or the router would treat `nova` as an id.
+default rather than by remembering. `appointments/new` is declared **before**
+`appointments/:appointmentId`, or the router would treat `new` as an id.
 
-### `/gestao` is the front door, and the only place a refusal lands
+### The old `/gestao` addresses
 
-`/gestao` is a `pathMatch: 'full'` route carrying `guestGuard`, which resolves it
-both ways: the sign-in form for an anonymous visitor, the dashboard for someone
-already signed in. Because it resolves in both directions it can be the entry
-point _and_ the redirect target without looping, so every refusal in the area
-points at one URL:
+The area used to live at `/gestao`, with Portuguese sub-paths. Every one of
+those URLs still resolves, through `LEGACY_PRIVATE_ROUTES` in the same config
+file and mounted by `app.routes.ts`:
 
-| Situation                     | Lands on              |
-| ----------------------------- | --------------------- |
-| Anonymous → any private page  | `/gestao`             |
-| Signed in, missing permission | `/gestao` → dashboard |
-| Session expires (401)         | `/gestao`             |
-| Sign out                      | `/gestao`             |
-| Unknown `/gestao/*` page      | dashboard             |
+| Old                              | New                                |
+| -------------------------------- | ---------------------------------- |
+| `/gestao`, `/gestao/entrar`      | `/private/login`                   |
+| `/gestao/painel`                 | `/private/dashboard`               |
+| `/gestao/clientes[/:customerId]` | `/private/customers[/:customerId]` |
+| `/gestao/veiculos[/:plate]`      | `/private/vehicles[/:plate]`       |
+| `/gestao/folhas-de-obra[/:id]`   | `/private/service-orders[/:id]`    |
+| `/gestao/marcacoes/nova`         | `/private/appointments/new`        |
+| `/gestao/marcacoes[/:id]`        | `/private/appointments[/:id]`      |
+| `/gestao/trabalhadores`          | `/private/workers`                 |
+| `/gestao/configuracoes`          | `/private/settings`                |
+| anything else under `/gestao`    | `/private/login`                   |
 
-A static `redirectTo: 'painel'` here — which is what it used to be — could not
-be a redirect target: it would bounce an anonymous visitor into a protected
-route just to be turned away again.
+The parameterised entries carry their record through, so a bookmarked customer
+reopens on that customer rather than on the dashboard. Every row is pinned in
+`private.routes.spec.ts` by navigating for real. Delete the block once the old
+links have fallen out of use.
 
-**No `?redirect=`, anywhere.** A refused request produces a bare `/gestao`, and
-after signing in the user lands on the dashboard. The URL they originally wanted
-is deliberately dropped.
+### `/private/login` is the front door, and the only place a refusal lands
+
+`/private/login` carries `guestGuard`, which resolves it both ways: the sign-in
+form for an anonymous visitor, the dashboard for someone already signed in.
+Because it resolves in both directions it can be the entry point _and_ the
+redirect target without looping, so every refusal in the area points at one URL:
+
+| Situation                     | Lands on                     |
+| ----------------------------- | ---------------------------- |
+| `/private` (the bare root)    | `/private/login`             |
+| Anonymous → any private page  | `/private/login`             |
+| Signed in, missing permission | `/private/login` → dashboard |
+| Session expires (401)         | `/private/login`             |
+| Sign out                      | `/private/login`             |
+| Unknown `/private/*` page     | dashboard                    |
+
+`/private` itself is a static `redirectTo: 'login'`, which is safe only because
+its target resolves both ways. Pointing it straight at `dashboard` would bounce
+an anonymous visitor into a protected route just to be turned away again — which
+is exactly the bug the front door exists to avoid.
+
+**No `?redirect=`, anywhere.** A refused request produces a bare
+`/private/login`, and after signing in the user lands on the dashboard. The URL
+they originally wanted is deliberately dropped.
 
 That costs deep-link restoration and buys the removal of an entire class of bug:
 a `?redirect=` parameter is precisely the shape used for phishing, and the
@@ -212,7 +243,7 @@ there is no token handling anywhere in this codebase.
 DEV_AUTH_STUB=true
 ```
 
-Any password is then accepted at `/gestao/entrar`; `wrong` exercises the failure
+Any password is then accepted at `/private/login`; `wrong` exercises the failure
 path. It is gated **twice**, because a stub that accepts any password is a
 complete authentication bypass:
 
@@ -233,7 +264,7 @@ Visitor → authGuard → AuthService.restore() → AuthGateway → backend
                             ↓
                  unknown → authenticated → PrivateShell → pages
                             ↓
-                        anonymous → /gestao
+                        anonymous → /private/login
 ```
 
 `status` starts at `unknown`, and the guard **awaits** `restore()` before
@@ -242,7 +273,8 @@ refresh would bounce a signed-in user to the login page. Concurrent guards share
 one in-flight promise, so several resolving at once make one request.
 
 There is no `redirect` parameter to validate: the guard sends an anonymous
-visitor to a bare `/gestao`, and sign-in always continues to the dashboard. See
+visitor to a bare `/private/login`, and sign-in always continues to the
+dashboard. See
 §3 for why that trade is deliberate.
 
 ---
@@ -420,19 +452,19 @@ npm start             # frontend (4200) + backend (3000)
 
 `npm test` — 204 tests across 21 spec files, no network.
 
-| Suite                          | Covers                                                                                                                                                                                                                      |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth.service.spec.ts`         | the `unknown` state, concurrent restore de-duplication, a failed backend still resolving to anonymous, umbrella permissions, logout clearing state even when the request fails                                              |
-| `auth.guard.spec.ts`           | signed-in, anonymous, a refusal carrying no query string, **waiting for restore rather than deciding on `unknown`**, permission allow/deny                                                                                  |
-| `officegest.service.spec.ts`   | envelope unwrapping, parameters sent, empty parameters omitted, path encoding, POST, failure propagation                                                                                                                    |
-| `error.interceptor.spec.ts`    | envelope → `ApiError`, 5xx rewording, 401 signing out and redirecting, the session probe exempted, which statuses toast                                                                                                     |
-| `resource-page.spec.ts`        | skeleton, rows, both empty states, error + retry, **rows kept during refresh**, page reset on filter change                                                                                                                 |
-| `data-table.spec.ts`           | sort cycle, nulls last in both directions, `aria-sort`, no mutation of the input, real anchors instead of `role="link"` rows, mobile cards                                                                                  |
-| `login.spec.ts`                | always continues to the dashboard, **no `redirect` input for a crafted query parameter to bind to**, a `?redirect=` on the URL ignored, non-enumerating error message, `aria-describedby` wiring                            |
-| `private.routes.spec.ts`       | the front-door contract, navigating for real: every private URL turns an anonymous visitor away to `/gestao`, the deep link survives, `/gestao` resolves both ways, a permission refusal routes through it to the dashboard |
-| `calendar.spec.ts`             | six fixed week rows, Monday-first alignment, **local-day rather than UTC-day placement**, time ordering, overflow count, unparseable instants dropped, month paging off a 31-day month                                      |
-| `notification.service.spec.ts` | identical messages collapse instead of stacking, tone and detail keep messages distinct, the stack cap drops the oldest timer with it, errors never auto-dismiss, a repeat gets its full time again                         |
-| `app.spec.ts`                  | which URLs count as private, and therefore whether the public header and footer render at all                                                                                                                               |
+| Suite                          | Covers                                                                                                                                                                                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.service.spec.ts`         | the `unknown` state, concurrent restore de-duplication, a failed backend still resolving to anonymous, umbrella permissions, logout clearing state even when the request fails                                                                                                   |
+| `auth.guard.spec.ts`           | signed-in, anonymous, a refusal carrying no query string, **waiting for restore rather than deciding on `unknown`**, permission allow/deny                                                                                                                                       |
+| `officegest.service.spec.ts`   | envelope unwrapping, parameters sent, empty parameters omitted, path encoding, POST, failure propagation                                                                                                                                                                         |
+| `error.interceptor.spec.ts`    | envelope → `ApiError`, 5xx rewording, 401 signing out and redirecting, the session probe exempted, which statuses toast                                                                                                                                                          |
+| `resource-page.spec.ts`        | skeleton, rows, both empty states, error + retry, **rows kept during refresh**, page reset on filter change                                                                                                                                                                      |
+| `data-table.spec.ts`           | sort cycle, nulls last in both directions, `aria-sort`, no mutation of the input, real anchors instead of `role="link"` rows, mobile cards                                                                                                                                       |
+| `login.spec.ts`                | always continues to the dashboard, **no `redirect` input for a crafted query parameter to bind to**, a `?redirect=` on the URL ignored, non-enumerating error message, `aria-describedby` wiring                                                                                 |
+| `private.routes.spec.ts`       | the front-door contract, navigating for real: every private URL turns an anonymous visitor away to `/private/login`, that URL resolves both ways, a permission refusal routes through it to the dashboard, and every legacy `/gestao/...` address still lands on its replacement |
+| `calendar.spec.ts`             | six fixed week rows, Monday-first alignment, **local-day rather than UTC-day placement**, time ordering, overflow count, unparseable instants dropped, month paging off a 31-day month                                                                                           |
+| `notification.service.spec.ts` | identical messages collapse instead of stacking, tone and detail keep messages distinct, the stack cap drops the oldest timer with it, errors never auto-dismiss, a repeat gets its full time again                                                                              |
+| `app.spec.ts`                  | which URLs count as private, and therefore whether the public header and footer render at all                                                                                                                                                                                    |
 
 The backend is mocked with `HttpTestingController`; the real OfficeGest API is
 never called.

@@ -107,15 +107,17 @@ Every route is lazily loaded and carries its own SEO metadata in `data.meta`.
 | `/contactos` | `Contact`  | 1.35 kB      | anchor `#onde-estamos` |
 | `**`         | `NotFound` | 0.95 kB      | catch-all              |
 
-Plus the lazily loaded private area at `/gestao` — its own routes, guards and
+Plus the lazily loaded private area at `/private` — its own routes, guards and
 shell live in [`PRIVATE-AREA.md`](./PRIVATE-AREA.md). A visitor to the public
 site never downloads any of it.
 
 Legacy redirects preserve inbound links from the previous static site:
-`/home → /`, `/sobrenos → /sobre-nos`, `/contacts → /contactos`.
+`/home → /`, `/sobrenos → /sobre-nos`, `/contacts → /contactos`. The private
+area's own former addresses (`/gestao/...`) redirect into `/private/...` the
+same way, parameters included — see [`PRIVATE-AREA.md`](./PRIVATE-AREA.md).
 
 **The public chrome is conditional.** `app.html` renders `Header`, `Footer`,
-`MobileTabBar` and `<main id="conteudo">` only on public routes. `/gestao`
+`MobileTabBar` and `<main id="conteudo">` only on public routes. `/private`
 supplies its own frame — sidebar, header and `<main>` — so rendering both would
 stack two navigations, two `<main>` landmarks and a tab bar linking back out of
 the management area on every screen behind the login. The decision is read from
@@ -340,17 +342,17 @@ publishes the existing output with `ng deploy --no-build`.
 4. **The private area is not measured at all.** Neither page views nor contact
    clicks, gated on `PRIVATE_BASE` in both places.
 
-**Why `/gestao` is excluded — a data-protection boundary, not tidiness.** The
-private routes are parameterised by real records: `/gestao/veiculos/:plate`,
-`/gestao/clientes/:customerId`, `/gestao/folhas-de-obra/:serviceOrderId`,
-`/gestao/marcacoes/:appointmentId`. A registration plate identifies a vehicle
+**Why `/private` is excluded — a data-protection boundary, not tidiness.** The
+private routes are parameterised by real records: `/private/vehicles/:plate`,
+`/private/customers/:customerId`, `/private/service-orders/:serviceOrderId`,
+`/private/appointments/:appointmentId`. A plate identifies a vehicle
 and therefore its owner, so a page view from there sends the workshop's
 _customers'_ personal data to Google — data neither they nor the workshop
 agreed to share. Stripping the query string does not help, because the
 identifier sits in the path. The codebase had already reached this conclusion
 once, setting `noIndex: true` on every private route to stay out of search
 results, and simply never carried it across to analytics. Nothing is lost:
-the audience inside `/gestao` is three members of staff.
+the audience inside `/private` is three members of staff.
 
 **Withdrawal revokes storage and clears the cookie.** Refusing after having
 accepted sends `consent update` with `analytics_storage: denied` **and** expires

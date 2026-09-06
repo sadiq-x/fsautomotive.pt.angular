@@ -59,7 +59,7 @@ if (COMMANDS_ACCEPTING_DEFINE.has(command)) {
   const checks = [
     checkMeasurementId(process.env['GOOGLE_ANALYTICS_ID'], isProduction),
     // The authentication stub accepts any password; a production build that
-    // included it would leave /gestao open to anyone.
+    // included it would leave /private open to anyone.
     checkDevAuthStub(process.env['DEV_AUTH_STUB'], isProduction),
   ];
 

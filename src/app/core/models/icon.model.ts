@@ -30,6 +30,8 @@ export type IconName =
   | 'alert-triangle'
   | 'inbox'
   | 'lock'
+  | 'eye'
+  | 'eye-off'
   | 'log-out'
   // Management area
   | 'dashboard'

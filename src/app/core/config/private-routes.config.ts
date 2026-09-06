@@ -3,40 +3,106 @@
  *
  * Guards, the sidebar, the login redirect and the pages themselves all need
  * these paths. Defined once so a rename is a single edit, and so no template
- * contains a hand-typed `/gestao/...` that a refactor can miss.
+ * contains a hand-typed `/private/...` that a refactor can miss.
  *
- * Portuguese, like the public routes (`/sobre-nos`, `/servicos`), because the
- * whole site is in Portuguese and a mixed-language URL space reads like an
- * accident.
+ * WHY ENGLISH, WHEN THE PUBLIC SITE IS PORTUGUESE
+ * -----------------------------------------------
+ * The public routes (`/sobre-nos`, `/servicos`, `/contactos`) are the ones
+ * customers see, share and search for, so they stay in the language of the
+ * site. The private area is a tool used by three members of staff and is
+ * `noindex` everywhere: naming it in English keeps the two spaces visibly
+ * separate — a URL either starts with `/private` and is a management screen, or
+ * it does not. The *interface* remains Portuguese; only the addresses changed.
  */
-export const PRIVATE_BASE = '/gestao';
+import type { Routes } from '@angular/router';
+
+export const PRIVATE_BASE = '/private';
 
 export const PRIVATE_ROUTES = {
   base: PRIVATE_BASE,
   /**
-   * The sign-in screen is the area's front door — `/gestao` itself, not a
-   * sub-path.
+   * The sign-in screen, and the only place a refusal lands.
    *
-   * Every refusal in the private area lands here: the auth guard, the
+   * Every refusal in the private area points here: the auth guard, the
    * permission guard, the 401 handler and sign-out all navigate to
    * `PRIVATE_ROUTES.login`, so there is exactly one URL a user can be turned
-   * away to. `/gestao` then shows the form when anonymous and the dashboard
-   * when not, which is why it can be both the entry point and the redirect
-   * target without a loop.
+   * away to. `guestGuard` resolves it in both directions — the form when
+   * anonymous, the dashboard when not — which is what lets it be the entry
+   * point *and* the redirect target without ever looping.
    */
-  login: PRIVATE_BASE,
-  /** The previous login URL. Redirects to `login`, so old links still work. */
-  legacyLogin: `${PRIVATE_BASE}/entrar`,
-  dashboard: `${PRIVATE_BASE}/painel`,
-  customers: `${PRIVATE_BASE}/clientes`,
-  customer: (id: string) => `${PRIVATE_BASE}/clientes/${encodeURIComponent(id)}`,
-  vehicles: `${PRIVATE_BASE}/veiculos`,
-  vehicle: (plate: string) => `${PRIVATE_BASE}/veiculos/${encodeURIComponent(plate)}`,
-  serviceOrders: `${PRIVATE_BASE}/folhas-de-obra`,
-  serviceOrder: (id: string) => `${PRIVATE_BASE}/folhas-de-obra/${encodeURIComponent(id)}`,
-  appointments: `${PRIVATE_BASE}/marcacoes`,
-  appointment: (id: string) => `${PRIVATE_BASE}/marcacoes/${encodeURIComponent(id)}`,
-  newAppointment: `${PRIVATE_BASE}/marcacoes/nova`,
-  workers: `${PRIVATE_BASE}/trabalhadores`,
-  settings: `${PRIVATE_BASE}/configuracoes`,
+  login: `${PRIVATE_BASE}/login`,
+  dashboard: `${PRIVATE_BASE}/dashboard`,
+  customers: `${PRIVATE_BASE}/customers`,
+  customer: (id: string) => `${PRIVATE_BASE}/customers/${encodeURIComponent(id)}`,
+  vehicles: `${PRIVATE_BASE}/vehicles`,
+  vehicle: (plate: string) => `${PRIVATE_BASE}/vehicles/${encodeURIComponent(plate)}`,
+  serviceOrders: `${PRIVATE_BASE}/service-orders`,
+  serviceOrder: (id: string) => `${PRIVATE_BASE}/service-orders/${encodeURIComponent(id)}`,
+  appointments: `${PRIVATE_BASE}/appointments`,
+  appointment: (id: string) => `${PRIVATE_BASE}/appointments/${encodeURIComponent(id)}`,
+  newAppointment: `${PRIVATE_BASE}/appointments/new`,
+  workers: `${PRIVATE_BASE}/workers`,
+  settings: `${PRIVATE_BASE}/settings`,
 } as const;
+
+/**
+ * The previous `/gestao/...` addresses, mapped onto the new ones.
+ *
+ * The area moved from `/gestao` to `/private`; the staff who use it every day
+ * have the old URLs bookmarked, and a bookmark that 404s reads as an outage.
+ * Kept in the same spirit as the public site's `/home` and `/sobrenos`
+ * redirects — the difference being that these carry their parameters through,
+ * so a bookmarked customer or work order reopens on that record rather than on
+ * the dashboard.
+ *
+ * `pathMatch: 'full'` on every entry: without it `clientes` would also match
+ * `clientes/42` and drop the id on the way past.
+ *
+ * These are eager route *data*, not components, so they cost the public bundle
+ * nothing beyond their own bytes. Delete the block once the old links have
+ * fallen out of use.
+ */
+export const LEGACY_PRIVATE_ROUTES: Routes = [
+  { path: 'gestao', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.login },
+  {
+    path: 'gestao',
+    children: [
+      { path: 'entrar', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.login },
+      { path: 'painel', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.dashboard },
+
+      { path: 'clientes', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.customers },
+      {
+        path: 'clientes/:customerId',
+        pathMatch: 'full',
+        redirectTo: `${PRIVATE_BASE}/customers/:customerId`,
+      },
+
+      { path: 'veiculos', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.vehicles },
+      { path: 'veiculos/:plate', pathMatch: 'full', redirectTo: `${PRIVATE_BASE}/vehicles/:plate` },
+
+      { path: 'folhas-de-obra', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.serviceOrders },
+      {
+        path: 'folhas-de-obra/:serviceOrderId',
+        pathMatch: 'full',
+        redirectTo: `${PRIVATE_BASE}/service-orders/:serviceOrderId`,
+      },
+
+      // `nova` before `:appointmentId`, for the same reason the live routes
+      // order them that way: otherwise it redirects to an appointment with the
+      // id "nova".
+      { path: 'marcacoes/nova', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.newAppointment },
+      { path: 'marcacoes', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.appointments },
+      {
+        path: 'marcacoes/:appointmentId',
+        pathMatch: 'full',
+        redirectTo: `${PRIVATE_BASE}/appointments/:appointmentId`,
+      },
+
+      { path: 'trabalhadores', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.workers },
+      { path: 'configuracoes', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.settings },
+
+      /* Anything else that used to live under `/gestao` goes to the front door. */
+      { path: '**', redirectTo: PRIVATE_ROUTES.login },
+    ],
+  },
+];

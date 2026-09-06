@@ -1,86 +1,237 @@
-<div class="flex flex-1 items-center justify-center px-5 py-12">
-  <div class="w-full max-w-sm">
-    <div class="text-center">
-      <span class="inline-flex size-12 items-center justify-center rounded-2xl bg-brand-600 text-white">
-        <app-icon name="lock" [size]="22" />
+<div class="grid min-h-dvh lg:grid-cols-[1.05fr_1fr] xl:grid-cols-[1.15fr_1fr]">
+  <!--
+    Brand panel. Hidden below `lg`, where a photograph would push the form
+    itself below the fold on a phone — the one thing this page exists to show.
+
+    The photo sits under four painted layers rather than a blur filter: a flat
+    scrim for contrast, a gradient that darkens the side the divider is on, the
+    brand hatch and the corner glow. All four are backgrounds, so none of them
+    can overflow the panel (see the `glow-corner` note in `styles.css`).
+  -->
+  <aside class="relative isolate hidden overflow-hidden lg:flex lg:flex-col">
+    <app-responsive-image
+      [image]="panelImage"
+      sizes="(min-width: 64rem) 55vw, 100vw"
+      imgClass="absolute inset-0 size-full object-cover"
+    />
+    <span class="absolute inset-0 bg-ink-950/45" aria-hidden="true"></span>
+    <span
+      class="absolute inset-0 bg-gradient-to-r from-ink-950/95 via-ink-950/40 to-ink-950/85"
+      aria-hidden="true"
+    ></span>
+    <span
+      class="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/20 to-ink-950/70"
+      aria-hidden="true"
+    ></span>
+    <span class="absolute inset-0 texture-diagonal" aria-hidden="true"></span>
+    <span class="absolute inset-0 glow-diagonal" aria-hidden="true"></span>
+    <span class="absolute inset-y-0 right-0 w-px bg-white/12" aria-hidden="true"></span>
+
+    <div class="relative flex flex-1 flex-col justify-between gap-12 p-10 xl:p-14">
+      <a
+        class="w-fit rounded-sm transition-opacity duration-200 hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        routerLink="/"
+        aria-label="FS Automotive — página inicial"
+      >
+        <img [src]="site.logo" alt="FS Automotive" width="661" height="182" class="h-11 w-auto" />
+      </a>
+
+      <div class="max-w-lg">
+        <p class="flex items-center gap-2 text-eyebrow text-brand-400 uppercase">
+          <app-icon name="chevron-right" [size]="14" [strokeWidth]="2.5" />
+          Área reservada
+        </p>
+
+        <!--
+          A `<p>`, not an `<h2>`: the page's only heading is the `<h1>` in the
+          form column, which comes later in the DOM. A heading here would put
+          the document outline out of order for the sake of a display size.
+        -->
+        <p class="mt-4 text-h2 font-extrabold text-white">A oficina inteira, num só painel.</p>
+        <p class="mt-5 max-w-md text-lead text-bone-300">
+          Clientes, viaturas, folhas de obra e marcações — sempre em linha com o OfficeGest.
+        </p>
+
+        <ul role="list" class="mt-9 space-y-4">
+          @for (highlight of highlights; track highlight.label) {
+            <li class="flex items-start gap-3.5">
+              <span
+                class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/8 text-brand-300 ring-1 ring-white/12 ring-inset"
+              >
+                <app-icon [name]="highlight.icon" [size]="18" />
+              </span>
+              <span>
+                <span class="block text-body font-semibold text-white">{{ highlight.label }}</span>
+                <span class="block text-meta text-bone-400">{{ highlight.detail }}</span>
+              </span>
+            </li>
+          }
+        </ul>
+      </div>
+
+      <p class="flex items-center gap-2.5 text-meta text-bone-400">
+        <app-icon name="shield-check" [size]="16" class="text-brand-400" />
+        Acesso restrito à equipa {{ site.name }}.
+      </p>
+    </div>
+  </aside>
+
+  <!--
+    Form column. It carries the page's `<main>` because the private area's own
+    shell — which provides one for every other page — is not mounted until
+    after sign-in.
+  -->
+  <main class="relative isolate flex flex-col justify-center px-5 py-12 sm:px-8 short:py-8">
+    <span class="pointer-events-none absolute inset-0 glow-corner lg:hidden" aria-hidden="true"></span>
+
+    <div class="relative mx-auto w-full max-w-sm">
+      <!-- The brand mark the hidden panel would otherwise have carried. -->
+      <a
+        class="mb-10 block w-fit rounded-sm transition-opacity duration-200 hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white lg:hidden"
+        routerLink="/"
+        aria-label="FS Automotive — página inicial"
+      >
+        <img [src]="site.logo" alt="FS Automotive" width="661" height="182" class="h-10 w-auto" />
+      </a>
+
+      <span
+        class="inline-flex size-11 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-brand"
+        aria-hidden="true"
+      >
+        <app-icon name="lock" [size]="20" />
       </span>
+
       <h1 class="mt-5 text-h2 text-white">Área de gestão</h1>
       <p class="mt-2 text-body text-bone-400">Inicie sessão para consultar os dados do OfficeGest.</p>
-    </div>
 
-    @if (stubActive) {
-      <p
-        class="mt-6 rounded-xl bg-amber-400/10 px-4 py-3 text-meta text-amber-200 ring-1 ring-amber-400/25"
-        role="status"
-      >
-        <strong class="font-bold">Modo de desenvolvimento.</strong>
-        Qualquer palavra-passe é aceite — use
-        <code class="font-mono">{{ stubRejectedPassword }}</code> para testar o estado de erro.
-      </p>
-    }
-
-    <form class="mt-8 space-y-4" (ngSubmit)="submit()">
-      <div>
-        <label class="block text-meta font-semibold text-bone-300" for="email">E-mail</label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          autocomplete="username"
-          required
-          class="placeholder:text-bone-500 mt-1.5 w-full rounded-xl border-0 bg-white/8 px-4 py-3 text-body text-white ring-1 ring-white/15 transition-shadow ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
-          placeholder="nome@fsautomotive.pt"
-          [ngModel]="email()"
-          (ngModelChange)="email.set($event)"
-          [attr.aria-invalid]="errorMessage() ? 'true' : null"
-          [attr.aria-describedby]="errorMessage() ? 'login-erro' : null"
-        />
-      </div>
-
-      <div>
-        <label class="block text-meta font-semibold text-bone-300" for="password"> Palavra-passe </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autocomplete="current-password"
-          required
-          class="placeholder:text-bone-500 mt-1.5 w-full rounded-xl border-0 bg-white/8 px-4 py-3 text-body text-white ring-1 ring-white/15 transition-shadow ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
-          [ngModel]="password()"
-          (ngModelChange)="password.set($event)"
-          [attr.aria-invalid]="errorMessage() ? 'true' : null"
-          [attr.aria-describedby]="errorMessage() ? 'login-erro' : null"
-        />
-      </div>
-
-      @if (errorMessage(); as message) {
+      @if (stubActive) {
         <p
-          id="login-erro"
-          role="alert"
-          class="flex items-start gap-2 rounded-xl bg-brand-500/10 px-4 py-3 text-meta text-brand-200 ring-1 ring-brand-500/25"
+          class="mt-6 rounded-xl bg-amber-400/10 px-4 py-3 text-meta text-amber-200 ring-1 ring-amber-400/25"
+          role="status"
         >
-          <app-icon name="alert-triangle" [size]="16" class="mt-0.5 shrink-0" />
-          {{ message }}
+          <strong class="font-bold">Modo de desenvolvimento.</strong>
+          Qualquer palavra-passe é aceite — use
+          <code class="font-mono">{{ stubRejectedPassword }}</code> para testar o estado de erro.
         </p>
       }
 
-      <app-button
-        class="pt-2"
-        type="submit"
-        variant="primary"
-        [block]="true"
-        [disabled]="submitting() || !email() || !password()"
-      >
-        {{ submitting() ? 'A entrar…' : 'Entrar' }}
-      </app-button>
-    </form>
+      <form class="mt-8 space-y-5" (ngSubmit)="submit()">
+        <div>
+          <label class="block text-meta font-semibold text-bone-300" for="email">E-mail</label>
+          <div class="relative mt-2">
+            <span
+              class="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center text-ink-400"
+              aria-hidden="true"
+            >
+              <app-icon name="mail" [size]="18" />
+            </span>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              inputmode="email"
+              spellcheck="false"
+              required
+              class="w-full rounded-xl border-0 bg-white/6 py-3.5 pr-4 pl-11 text-body text-white ring-1 ring-white/12 transition-[background-color,box-shadow] ring-inset placeholder:text-ink-400 hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              placeholder="nome@fsautomotive.pt"
+              [ngModel]="email()"
+              (ngModelChange)="email.set($event)"
+              [attr.aria-invalid]="errorMessage() ? 'true' : null"
+              [attr.aria-describedby]="errorMessage() ? 'login-erro' : null"
+            />
+          </div>
+        </div>
 
-    <p class="text-bone-500 mt-8 text-center text-meta">
-      <a
-        class="underline decoration-white/25 underline-offset-4 transition-colors hover:text-bone-300"
-        href="/"
-        >Voltar ao site</a
-      >
-    </p>
-  </div>
+        <div>
+          <label class="block text-meta font-semibold text-bone-300" for="password"> Palavra-passe </label>
+          <div class="relative mt-2">
+            <span
+              class="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center text-ink-400"
+              aria-hidden="true"
+            >
+              <app-icon name="lock" [size]="18" />
+            </span>
+            <input
+              id="password"
+              name="password"
+              [type]="passwordVisible() ? 'text' : 'password'"
+              autocomplete="current-password"
+              required
+              class="w-full rounded-xl border-0 bg-white/6 py-3.5 pr-12 pl-11 text-body text-white ring-1 ring-white/12 transition-[background-color,box-shadow] ring-inset placeholder:text-ink-400 hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              [ngModel]="password()"
+              (ngModelChange)="password.set($event)"
+              [attr.aria-invalid]="errorMessage() ? 'true' : null"
+              [attr.aria-describedby]="errorMessage() ? 'login-erro' : null"
+            />
+
+            <!--
+              `type="button"`, or it would submit the form on every reveal.
+              The label states the action rather than the state, so a screen
+              reader announces what pressing it will do.
+            -->
+            <button
+              type="button"
+              class="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-ink-400 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              [attr.aria-label]="passwordVisible() ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'"
+              (click)="togglePasswordVisibility()"
+            >
+              <app-icon [name]="passwordVisible() ? 'eye-off' : 'eye'" [size]="18" />
+            </button>
+          </div>
+        </div>
+
+        @if (errorMessage(); as message) {
+          <p
+            id="login-erro"
+            role="alert"
+            class="flex items-start gap-2.5 rounded-xl bg-brand-500/10 px-4 py-3 text-meta text-brand-200 ring-1 ring-brand-500/25"
+          >
+            <app-icon name="alert-triangle" [size]="16" class="mt-0.5 shrink-0" />
+            {{ message }}
+          </p>
+        }
+
+        <app-button
+          class="pt-1"
+          type="submit"
+          variant="primary"
+          size="lg"
+          icon="arrow-right"
+          [block]="true"
+          [disabled]="!canSubmit()"
+        >
+          {{ submitting() ? 'A entrar…' : 'Entrar' }}
+        </app-button>
+      </form>
+
+      <div class="mt-10 border-t border-white/10 pt-6">
+        <!--
+          `routerLink`, not `href="/"`. The application is served from a
+          sub-path on GitHub Pages, so a root-relative href leaves the
+          deployment; the router resolves this against the build's base href.
+        -->
+        <a
+          class="group inline-flex items-center gap-1.5 text-meta font-semibold text-bone-300 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500"
+          routerLink="/"
+        >
+          <app-icon
+            name="chevron-left"
+            [size]="16"
+            class="transition-transform duration-200 group-hover:-translate-x-0.5"
+          />
+          Voltar ao site
+        </a>
+
+        <p class="mt-3 text-meta text-ink-400">
+          Sem acesso? Fale com a oficina —
+          <a
+            class="font-semibold text-bone-300 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60"
+            [href]="site.phone.href"
+            >{{ site.phone.display }}</a
+          >
+        </p>
+      </div>
+    </div>
+  </main>
 </div>

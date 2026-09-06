@@ -116,7 +116,7 @@ export function checkDevAuthStub(flag, isProduction) {
   return {
     level: 'warn',
     message:
-      'DEV_AUTH_STUB is enabled: any password will be accepted at /gestao/entrar.\n' +
+      'DEV_AUTH_STUB is enabled: any password will be accepted at /private/login.\n' +
       'This build must never be deployed.',
   };
 }

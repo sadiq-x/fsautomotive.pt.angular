@@ -35,28 +35,33 @@ function privateMeta(title: string, path: string): PageMeta {
 
 export const privateRoutes: Routes = [
   /**
-   * `/gestao` is the front door, and the only place a refused request lands.
+   * `/private` is not a page — it is the name of the area, so it hands over to
+   * the front door.
+   *
+   * `pathMatch: 'full'` keeps this to `/private` exactly and leaves
+   * `/private/<anything>` to the routes below. It is safe as a *static*
+   * redirect only because its target resolves in both directions (see below);
+   * pointing it straight at `dashboard` would bounce an anonymous visitor into
+   * a protected route just to have them turned away again.
+   */
+  { path: '', pathMatch: 'full', redirectTo: 'login' },
+
+  /**
+   * `/private/login` is the front door, and the only place a refused request
+   * lands.
    *
    * `guestGuard` decides what it shows: the sign-in form for an anonymous
    * visitor, or a redirect to the dashboard for someone already signed in.
    * Because the guard resolves it both ways, every guard, the 401 handler and
-   * sign-out can point at this one URL without risking a redirect loop —
-   * whereas a static `redirectTo: 'painel'` here would bounce an anonymous
-   * visitor into a protected route just to be turned away again.
-   *
-   * `pathMatch: 'full'` is what keeps this to `/gestao` exactly and leaves
-   * `/gestao/<anything>` to the shell route below.
+   * sign-out can point at this one URL without risking a redirect loop.
    */
   {
-    path: '',
+    path: 'login',
     pathMatch: 'full',
     canActivate: [guestGuard],
     loadComponent: () => import('./login/login').then((m) => m.Login),
-    data: { meta: privateMeta('Entrar', '/gestao') },
+    data: { meta: privateMeta('Entrar', '/private/login') },
   },
-
-  /* The login used to live here; keep old links and bookmarks working. */
-  { path: 'entrar', pathMatch: 'full', redirectTo: '' },
 
   {
     path: '',
@@ -64,100 +69,100 @@ export const privateRoutes: Routes = [
     loadComponent: () => import('./layout/private-shell').then((m) => m.PrivateShell),
     children: [
       {
-        path: 'painel',
+        path: 'dashboard',
         loadComponent: () =>
           import('./officegest/pages/dashboard/dashboard').then((m) => m.Dashboard),
-        data: { meta: privateMeta('Painel', '/gestao/painel') },
+        data: { meta: privateMeta('Painel', '/private/dashboard') },
       },
 
       {
-        path: 'clientes',
+        path: 'customers',
         canActivate: [permissionGuard('officegest.customers.read')],
         loadComponent: () =>
           import('./officegest/pages/customers/customers').then((m) => m.Customers),
-        data: { meta: privateMeta('Clientes', '/gestao/clientes') },
+        data: { meta: privateMeta('Clientes', '/private/customers') },
       },
       {
-        path: 'clientes/:customerId',
+        path: 'customers/:customerId',
         canActivate: [permissionGuard('officegest.customers.read')],
         loadComponent: () =>
           import('./officegest/pages/customers/customer-detail').then((m) => m.CustomerDetail),
-        data: { meta: privateMeta('Cliente', '/gestao/clientes') },
+        data: { meta: privateMeta('Cliente', '/private/customers') },
       },
 
       {
-        path: 'veiculos',
+        path: 'vehicles',
         canActivate: [permissionGuard('officegest.vehicles.read')],
         loadComponent: () => import('./officegest/pages/vehicles/vehicles').then((m) => m.Vehicles),
-        data: { meta: privateMeta('Veículos', '/gestao/veiculos') },
+        data: { meta: privateMeta('Veículos', '/private/vehicles') },
       },
       {
-        path: 'veiculos/:plate',
+        path: 'vehicles/:plate',
         canActivate: [permissionGuard('officegest.vehicles.read')],
         loadComponent: () =>
           import('./officegest/pages/vehicles/vehicle-detail').then((m) => m.VehicleDetail),
-        data: { meta: privateMeta('Veículo', '/gestao/veiculos') },
+        data: { meta: privateMeta('Veículo', '/private/vehicles') },
       },
 
       {
-        path: 'folhas-de-obra',
+        path: 'service-orders',
         canActivate: [permissionGuard('officegest.service-orders.read')],
         loadComponent: () =>
           import('./officegest/pages/service-orders/service-orders').then((m) => m.ServiceOrders),
-        data: { meta: privateMeta('Folhas de obra', '/gestao/folhas-de-obra') },
+        data: { meta: privateMeta('Folhas de obra', '/private/service-orders') },
       },
       {
-        path: 'folhas-de-obra/:serviceOrderId',
+        path: 'service-orders/:serviceOrderId',
         canActivate: [permissionGuard('officegest.service-orders.read')],
         loadComponent: () =>
           import('./officegest/pages/service-orders/service-order-detail').then(
             (m) => m.ServiceOrderDetail,
           ),
-        data: { meta: privateMeta('Folha de obra', '/gestao/folhas-de-obra') },
+        data: { meta: privateMeta('Folha de obra', '/private/service-orders') },
       },
 
-      // `nova` is declared before `:appointmentId`, or the router would treat
-      // it as an id and try to load a booking called "nova".
+      // `new` is declared before `:appointmentId`, or the router would treat
+      // it as an id and try to load a booking called "new".
       {
-        path: 'marcacoes/nova',
+        path: 'appointments/new',
         canActivate: [permissionGuard('officegest.appointments.write')],
         loadComponent: () =>
           import('./officegest/pages/appointments/appointment-form').then((m) => m.AppointmentForm),
-        data: { meta: privateMeta('Nova marcação', '/gestao/marcacoes/nova') },
+        data: { meta: privateMeta('Nova marcação', '/private/appointments/new') },
       },
       {
-        path: 'marcacoes',
+        path: 'appointments',
         canActivate: [permissionGuard('officegest.appointments.read')],
         loadComponent: () =>
           import('./officegest/pages/appointments/appointments').then((m) => m.Appointments),
-        data: { meta: privateMeta('Marcações', '/gestao/marcacoes') },
+        data: { meta: privateMeta('Marcações', '/private/appointments') },
       },
       {
-        path: 'marcacoes/:appointmentId',
+        path: 'appointments/:appointmentId',
         canActivate: [permissionGuard('officegest.appointments.read')],
         loadComponent: () =>
           import('./officegest/pages/appointments/appointment-detail').then(
             (m) => m.AppointmentDetail,
           ),
-        data: { meta: privateMeta('Marcação', '/gestao/marcacoes') },
+        data: { meta: privateMeta('Marcação', '/private/appointments') },
       },
 
       {
-        path: 'trabalhadores',
+        path: 'workers',
         canActivate: [permissionGuard('workers.read')],
         loadComponent: () => import('./officegest/pages/workers/workers').then((m) => m.Workers),
-        data: { meta: privateMeta('Trabalhadores', '/gestao/trabalhadores') },
+        data: { meta: privateMeta('Trabalhadores', '/private/workers') },
       },
 
       {
-        path: 'configuracoes',
+        path: 'settings',
         canActivate: [permissionGuard('settings.read')],
         loadComponent: () => import('./officegest/pages/settings/settings').then((m) => m.Settings),
-        data: { meta: privateMeta('Configurações', '/gestao/configuracoes') },
+        data: { meta: privateMeta('Configurações', '/private/settings') },
       },
 
-      /* Also catches an empty child path, which the front door above owns. */
-      { path: '**', redirectTo: 'painel' },
+      /* Also catches an empty child path, which the redirect above owns. */
+      { path: '**', redirectTo: 'dashboard' },
     ],
   },
 ];

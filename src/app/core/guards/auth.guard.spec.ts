@@ -39,7 +39,7 @@ function configure(session: SessionUser | null): void {
 }
 
 /** Guards are `CanActivateFn`, so they need an injection context to run in. */
-function run(guard: ReturnType<typeof permissionGuard>, url = '/gestao/clientes') {
+function run(guard: ReturnType<typeof permissionGuard>, url = '/private/customers') {
   return TestBed.runInInjectionContext(() =>
     Promise.resolve(guard({} as never, { url } as never) as Promise<boolean | UrlTree>),
   );
@@ -59,22 +59,22 @@ describe('authGuard', () => {
     const url = TestBed.inject(Router).serializeUrl(result as UrlTree);
 
     expect(result).toBeInstanceOf(UrlTree);
-    // The path exactly, not merely "contains": `/gestao` is a prefix of every
+    // The path exactly, not merely "contains": `/private` is a prefix of every
     // private URL, so a containment check here would pass on any of them.
     expect(url.split('?')[0]).toBe(PRIVATE_ROUTES.login);
   });
 
   /**
-   * A refusal produces a bare `/gestao` — no `?redirect=`.
+   * A refusal produces a bare `/private/login` — no `?redirect=`.
    *
    * The requested URL is deliberately not carried: one clean address is what a
    * person turned away should see, and not accepting the parameter anywhere
    * removes the open-redirect surface rather than validating it.
    */
-  it('sends them to a clean /gestao, carrying nothing', async () => {
+  it('sends them to a clean /private/login, carrying nothing', async () => {
     configure(null);
 
-    const result = await run(authGuard, '/gestao/clientes/42');
+    const result = await run(authGuard, '/private/customers/42');
     const url = TestBed.inject(Router).serializeUrl(result as UrlTree);
 
     expect(url).toBe(PRIVATE_ROUTES.login);
@@ -127,14 +127,15 @@ describe('permissionGuard', () => {
     await expect(run(permissionGuard('officegest.customers.read'))).resolves.toBe(true);
   });
 
-  // Every refusal lands on the same URL. `/gestao` then resolves on to the
-  // dashboard for a signed-in user, so they still end up somewhere useful.
+  // Every refusal lands on the same URL. `guestGuard` on the login route then
+  // resolves a signed-in user on to the dashboard, so they still end up
+  // somewhere useful rather than staring at a form they do not need.
   it('sends a user without the permission to the front door', async () => {
     configure(USER);
 
     const result = await run(permissionGuard('officegest.appointments.write'));
 
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(PRIVATE_ROUTES.base);
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(PRIVATE_ROUTES.login);
   });
 
   it('sends an anonymous visitor to the login page, not the dashboard', async () => {

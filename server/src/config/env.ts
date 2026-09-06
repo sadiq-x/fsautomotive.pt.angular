@@ -51,6 +51,15 @@ const baseUrl = z
   .trim()
   .min(1, 'is required')
   .superRefine((value, ctx) => {
+    // Zod runs every check on a string and collects all of them, so an unset
+    // variable would otherwise be reported twice — "is required" *and* "must be
+    // an absolute URL". Two lines for one cause reads like two problems, and
+    // the second one sends the reader looking for a malformed value that is not
+    // there. `min(1)` has already said what is wrong.
+    if (value === '') {
+      return;
+    }
+
     let url: URL;
 
     try {
@@ -156,6 +165,15 @@ const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
+/**
+ * The files `npm run dev` / `npm start` actually load, in order — last wins.
+ *
+ * Named in the failure message because the commonest cause of "it is set and it
+ * still says it is missing" is a value written into `server/.env.example`, which
+ * is a committed template and is never loaded by anything.
+ */
+const ENV_FILES = ['.env', '.env.local', 'server/.env', 'server/.env.local'] as const;
+
 /** Thrown when the process is started with an unusable configuration. */
 export class EnvValidationError extends Error {
   override readonly name = 'EnvValidationError';
@@ -163,7 +181,9 @@ export class EnvValidationError extends Error {
   constructor(readonly issues: readonly string[]) {
     super(
       `Invalid environment configuration:\n${issues.map((issue) => `  - ${issue}`).join('\n')}\n\n` +
-        'See server/.env.example for the full list of variables.',
+        `Values are read from, in order (last wins): ${ENV_FILES.join(', ')}\n` +
+        'server/.env.example is a template — it is NEVER loaded. Copy it to ' +
+        'server/.env and set the values there.',
     );
   }
 }

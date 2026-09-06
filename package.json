@@ -1,7 +1,7 @@
 {
   "name": "fsautomotive",
   "version": "1.0.0",
-  "description": "Website institucional da FS Automotive — oficina automóvel multimarca em Vialonga.",
+  "description": "Website institucional da FS Automotive \u2014 oficina autom\u00f3vel multimarca em Vialonga.",
   "private": true,
   "license": "MIT",
   "packageManager": "npm@11.2.0",
@@ -17,17 +17,18 @@
     "build": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build",
     "watch": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --watch --configuration development",
     "test": "ng test",
-    "test:scripts": "node --test scripts/lib/env.test.mjs",
+    "test:scripts": "node --test scripts/lib/env.test.mjs scripts/lib/env-templates.test.mjs",
     "deploy": "npm run build:ghpages && ng deploy --no-build",
     "test:watch": "ng test --watch",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run format:check && npm run test && npm run test:scripts && npm run build",
+    "verify": "npm run format:check && npm run check:env-templates && npm run test && npm run test:scripts && npm run build",
     "audit:responsive": "node scripts/audit-responsive.mjs",
     "verify:full": "npm run verify && npm run audit:responsive",
     "build:ghpages": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --base-href=/fsautomotive.pt.angular/",
     "build:ghpages:stub": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ng-env.mjs build --configuration development --base-href=/fsautomotive.pt.angular/",
-    "deploy:stub": "npm run build:ghpages:stub && ng deploy --no-build"
+    "deploy:stub": "npm run build:ghpages:stub && ng deploy --no-build",
+    "check:env-templates": "node scripts/check-env-templates.mjs"
   },
   "dependencies": {
     "@angular/common": "^21.2.0",

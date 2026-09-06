@@ -6,7 +6,7 @@
  *
  *      DEV_AUTH_STUB=true
  *
- *    Then sign in at `/gestao/entrar` with any e-mail and password.
+ *    Then sign in at `/private/login` with any e-mail and password.
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * WHY THIS CANNOT REACH PRODUCTION

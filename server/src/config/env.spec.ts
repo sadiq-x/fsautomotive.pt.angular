@@ -44,6 +44,53 @@ describe('parseEnv', () => {
     }
   });
 
+  /**
+   * One cause, one line.
+   *
+   * An unset OFFICEGEST_BASE_URL used to report both "is required" and "must be
+   * an absolute URL": Zod collects every check on a string, and the URL parse
+   * fails on `''` too. The second line reads like a separate problem and sends
+   * you hunting for a malformed value that was never there.
+   */
+  it('reports an unset base URL once, not as two contradictory problems', () => {
+    try {
+      parseEnv({ ...VALID, OFFICEGEST_BASE_URL: '' });
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      const issues = (error as EnvValidationError).issues.filter((issue) =>
+        issue.startsWith('OFFICEGEST_BASE_URL'),
+      );
+
+      expect(issues).toEqual(['OFFICEGEST_BASE_URL is required']);
+    }
+  });
+
+  // A malformed value is a different problem, and must still be reported.
+  it('still reports a malformed base URL', () => {
+    try {
+      parseEnv({ ...VALID, OFFICEGEST_BASE_URL: 'not-a-url' });
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect((error as EnvValidationError).issues).toContain(
+        'OFFICEGEST_BASE_URL must be an absolute URL, e.g. https://host/api/v2',
+      );
+    }
+  });
+
+  // The commonest first-run mistake is filling in `.env.example`, which nothing
+  // loads. The failure has to say so, or it reads as "I set it and it is wrong".
+  it('names the files it actually reads, and that the example is not one', () => {
+    try {
+      parseEnv({});
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      const message = (error as Error).message;
+
+      expect(message).toContain('server/.env');
+      expect(message).toContain('server/.env.example is a template');
+    }
+  });
+
   it('never repeats a credential in the failure message', () => {
     try {
       // A valid key, but no username — so the error is about the pair.

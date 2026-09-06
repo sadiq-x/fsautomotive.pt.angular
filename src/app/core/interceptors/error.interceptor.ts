@@ -108,7 +108,7 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
         }
 
         auth.clear();
-        // Plain `/gestao`, like every other refusal — no `?redirect=`.
+        // Plain `/private/login`, like every other refusal — no `?redirect=`.
         void router.navigate([PRIVATE_ROUTES.login]);
       }
 
