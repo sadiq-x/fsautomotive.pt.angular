@@ -1,8 +1,16 @@
 /**
  * OfficeGest record → `Vehicle`.
  *
- * ⚠️ The candidate field names are inferred, not published — see
- * `customer.mapper.ts` for the reasoning and how to narrow them.
+ * CONFIRMED against the tenant on 2026-09-07. Four of these were wrong and read
+ * as `undefined` on every record: mileage is `km_counter`, the owner is
+ * `owner_customer_id`, and the brand and model arrive as `brand_name` /
+ * `model_name` — and only on the detail endpoint, which is why `description` is
+ * now mapped too.
+ *
+ * Still genuinely absent upstream, so still `undefined`: `year`, `fuel` (only a
+ * numeric `fuel_id`), `version` (only `version_id`) and `lastServiceAt`. Also
+ * available and not yet published: `color`, `monthly_kms`,
+ * `next_inspection_date`.
  */
 import {
   readNumber,
@@ -15,14 +23,16 @@ import type { Vehicle } from './vehicle.model.js';
 
 const FIELDS = {
   plate: ['plate', 'matricula', 'registration', 'license_plate'],
-  brand: ['brand', 'marca', 'make'],
-  model: ['model', 'modelo'],
+  description: ['description', 'descricao'],
+  // Detail-only upstream; a list row falls back to `description`.
+  brand: ['brand_name', 'brand', 'marca', 'make'],
+  model: ['model_name', 'model', 'modelo'],
   version: ['version', 'versao', 'variant'],
   year: ['year', 'ano', 'model_year'],
   fuel: ['fuel', 'combustivel', 'fuel_type'],
   vin: ['vin', 'chassis', 'chassi', 'numero_chassis'],
-  mileage: ['mileage', 'km', 'kms', 'quilometros', 'odometer'],
-  customerId: ['customer_id', 'cliente_id', 'customer', 'cliente'],
+  mileage: ['km_counter', 'mileage', 'km', 'kms', 'quilometros', 'odometer'],
+  customerId: ['owner_customer_id', 'customer_id', 'billing_customer_id', 'cliente_id'],
   lastServiceAt: ['last_service_at', 'ultima_intervencao', 'last_intervention'],
 } as const;
 
@@ -37,6 +47,7 @@ export function toVehicle(record: UpstreamRecord): Vehicle | undefined {
 
   return {
     plate: normalisePlate(rawPlate),
+    description: readString(record, FIELDS.description),
     brand: readString(record, FIELDS.brand),
     model: readString(record, FIELDS.model),
     version: readString(record, FIELDS.version),

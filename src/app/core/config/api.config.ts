@@ -44,8 +44,13 @@ export const API_ROUTES = {
   officegest: {
     customers: '/api/officegest/customers',
     customer: (id: string) => `/api/officegest/customers/${encodeURIComponent(id)}`,
+    // OfficeGest reports no total, so a count is a deliberate extra request.
+    customersCount: '/api/officegest/customers/count',
     vehicles: '/api/officegest/vehicles',
     vehicle: (plate: string) => `/api/officegest/vehicles/${encodeURIComponent(plate)}`,
+    vehiclesCount: '/api/officegest/vehicles/count',
+    /** The company's staff — OfficeGest's only staff resource. */
+    employees: '/api/officegest/employees',
     serviceOrders: '/api/officegest/service-orders',
     serviceOrder: (id: string) => `/api/officegest/service-orders/${encodeURIComponent(id)}`,
     appointments: '/api/officegest/appointments',

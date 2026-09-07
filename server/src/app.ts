@@ -59,6 +59,16 @@ export function createApp(container: Container): Express {
       // "all are": this service holds a credential to the client's ERP, and the
       // permissive default is the wrong one to inherit by omission.
       origin: config.cors.allowedOrigins.length > 0 ? [...config.cors.allowedOrigins] : false,
+      // The browser sends every request to this service with `withCredentials`
+      // (the session cookie rides on it), and it discards any response to such
+      // a request that does not carry `Access-Control-Allow-Credentials` — even
+      // a 200. Without this the whole private area fails in the browser while
+      // the server log shows nothing but successes.
+      //
+      // Safe only because `origin` above is an explicit allow-list, never `*`:
+      // the two together are what the specification requires, and what stops a
+      // credentialed response being readable by any site that asks.
+      credentials: true,
       methods: ['GET', 'POST'],
       allowedHeaders: ['Content-Type', 'x-api-key', 'x-request-id'],
       exposedHeaders: ['x-request-id', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],

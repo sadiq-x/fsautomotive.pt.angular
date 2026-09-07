@@ -20,6 +20,9 @@ export function createCustomersRouter(service: CustomersService): Router {
   const controller = new CustomersController(service);
 
   router.get('/', listCustomersValidator.middleware, controller.list);
+  // Declared before `/:customerId`, or the router reads "count" as an id — the
+  // same trap `appointments/new` sits in.
+  router.get('/count', listCustomersValidator.middleware, controller.count);
   router.get('/:customerId', getCustomerValidator.middleware, controller.getById);
 
   return router;

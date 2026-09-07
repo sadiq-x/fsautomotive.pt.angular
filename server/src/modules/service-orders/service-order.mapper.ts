@@ -1,8 +1,15 @@
 /**
  * OfficeGest record → `ServiceOrder`.
  *
- * ⚠️ Candidate field names are inferred, not published — see
- * `customer.mapper.ts`.
+ * CONFIRMED against the tenant on 2026-09-07.
+ *
+ * THE ONE THAT MATTERED
+ * ---------------------
+ * A work order has no `id`. Its key is `number`, and `id` was the only
+ * candidate — so `toServiceOrder` returned `undefined` for every record and
+ * `toServiceOrders` filtered them all out. The endpoint answered 200 with a
+ * full page of data and the list rendered "Ainda não há registos", which is
+ * precisely the silent failure the candidate-list approach exists to avoid.
  */
 import {
   readIsoDate,
@@ -14,13 +21,15 @@ import { normalisePlate } from '../vehicles/plate.js';
 import type { ServiceOrder } from './service-order.model.js';
 
 const FIELDS = {
-  id: ['id', 'codigo', 'code', 'service_order_id'],
-  number: ['number', 'numero', 'document_number', 'nr'],
+  id: ['number', 'id', 'document_number', 'codigo', 'code', 'service_order_id'],
+  number: ['document_number', 'number', 'numero', 'nr'],
   plate: ['plate', 'matricula', 'vehicle_plate'],
   customerId: ['customer_id', 'cliente_id', 'customer', 'cliente'],
-  status: ['status', 'estado', 'state'],
-  description: ['description', 'descricao', 'observacoes', 'notes'],
-  openedAt: ['opened_at', 'data_abertura', 'created_at', 'date'],
+  // `status_name` is the readable one, and only the detail endpoint sends it.
+  status: ['status_name', 'status', 'estado', 'state'],
+  // Detail-only upstream; a list row legitimately has none.
+  description: ['observations', 'description', 'descricao', 'observacoes', 'notes'],
+  openedAt: ['date', 'system_entry_date', 'opened_at', 'data_abertura', 'created_at'],
   closedAt: ['closed_at', 'data_fecho', 'finished_at'],
   total: ['total', 'valor_total', 'amount', 'net_total'],
 } as const;

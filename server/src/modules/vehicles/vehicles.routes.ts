@@ -13,6 +13,8 @@ export function createVehiclesRouter(service: VehiclesService): Router {
   const controller = new VehiclesController(service);
 
   router.get('/', listVehiclesValidator.middleware, controller.list);
+  // Before `/:plate`, or "count" is read as a registration plate.
+  router.get('/count', listVehiclesValidator.middleware, controller.count);
   router.get('/:plate', getVehicleValidator.middleware, controller.getByPlate);
 
   return router;

@@ -29,6 +29,12 @@ export interface Customer {
 export interface Vehicle {
   /** Registration plate, normalised by the backend (`AA00BB`) — the identifier. */
   readonly plate: string;
+  /**
+   * The workshop's one-line description of the car. On a list row this is the
+   * only human-readable field there is: `brand` and `model` reach the backend
+   * from OfficeGest's detail record only.
+   */
+  readonly description?: string;
   readonly brand?: string;
   readonly model?: string;
   readonly version?: string;
@@ -50,6 +56,34 @@ export interface ServiceOrder {
   readonly openedAt?: string;
   readonly closedAt?: string;
   readonly total?: number;
+}
+
+/**
+ * A member of staff, from OfficeGest's `entities/employees`.
+ *
+ * This replaced a hand-maintained local roster: the endpoint exists after all,
+ * and it is the only staff resource the API publishes — it carries both HR
+ * facts and login facts, so it answers both readings of "worker".
+ */
+export interface Employee {
+  readonly id: string;
+  readonly name: string;
+  readonly email?: string;
+  /** Mobile when there is one, else the landline. */
+  readonly phone?: string;
+  /** Their OfficeGest sign-in name. */
+  readonly login?: string;
+  readonly onWorkshopAgenda?: boolean;
+  /** ISO date the record was created — the closest thing to "joined". */
+  readonly since?: string;
+  readonly active?: boolean;
+}
+
+/** The answer from a `/count` endpoint. */
+export interface ResourceCount {
+  readonly total: number;
+  /** `false` when the sweep hit its cap, so `total` is a floor. */
+  readonly exact: boolean;
 }
 
 export interface Appointment {

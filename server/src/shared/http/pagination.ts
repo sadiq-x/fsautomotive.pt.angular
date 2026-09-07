@@ -20,13 +20,28 @@ export const paginationQuerySchema = z.object({
 
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
-/** Derives `totalPages` when the upstream reported a total. */
+/** Reads the upstream `has_more` flag, which is the only paging signal sent. */
+export function readHasMore(meta: Record<string, unknown> | undefined): boolean | undefined {
+  const value = meta?.['has_more'];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+/**
+ * Builds the pagination envelope from what the upstream actually reported.
+ *
+ * OfficeGest sends no `total` on any list endpoint — only `has_more` — so
+ * `total` and `totalPages` are almost always absent and the caller must cope.
+ * `hasMore` is forwarded because it is the one reliable "is there a next page"
+ * signal: inferring it from a short page is wrong whenever the last page
+ * happens to be exactly full.
+ */
 export function toPaginationMeta(
   query: PaginationQuery,
   total: number | undefined,
-): { page: number; perPage: number; total?: number; totalPages?: number } {
+  hasMore?: boolean,
+): { page: number; perPage: number; total?: number; totalPages?: number; hasMore?: boolean } {
   if (total === undefined) {
-    return { page: query.page, perPage: query.perPage };
+    return { page: query.page, perPage: query.perPage, hasMore };
   }
 
   return {
@@ -34,5 +49,6 @@ export function toPaginationMeta(
     perPage: query.perPage,
     total,
     totalPages: Math.max(1, Math.ceil(total / query.perPage)),
+    hasMore,
   };
 }

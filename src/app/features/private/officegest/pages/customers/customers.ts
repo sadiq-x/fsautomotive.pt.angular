@@ -30,6 +30,7 @@ interface CustomerFilters {
   template: `
     <app-resource-page
       title="Clientes"
+      countNoun="clientes"
       subtitle="Base de clientes sincronizada com o OfficeGest."
       caption="Lista de clientes"
       searchLabel="Pesquisar clientes"
@@ -49,6 +50,8 @@ export class Customers {
 
   protected readonly store = createResourceList<Customer, CustomerFilters>({
     fetch: (query) => this.officegest.listCustomers(query),
+    // Enables the "contar total" action; OfficeGest sends no total of its own.
+    count: (filters) => this.officegest.countCustomers(filters.search),
     initialFilters: {},
   });
 

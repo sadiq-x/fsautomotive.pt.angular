@@ -37,6 +37,15 @@ export class CustomersController {
     res.status(200).json(success(result.customers, result.meta));
   };
 
+  /** `GET /api/officegest/customers/count` — see `CustomersService.count`. */
+  readonly count: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+    const { query } = listCustomersValidator.read(req);
+
+    const result = await this.service.count(query, { logger: req.log, signal: req.abortSignal });
+
+    res.status(200).json(success(result));
+  };
+
   readonly getById: RequestHandler = async (req: Request, res: Response): Promise<void> => {
     const { params } = getCustomerValidator.read(req);
 

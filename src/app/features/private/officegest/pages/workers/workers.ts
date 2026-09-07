@@ -1,34 +1,41 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import type { TableColumn } from '../../components/data-table/data-table.model';
 import { ResourcePage } from '../../components/resource-page/resource-page';
+import type { Employee } from '../../models';
+import { OfficeGestService } from '../../services/officegest.service';
 import { createResourceList } from '../../services/resource-list.store';
 import { formatActive, orNull } from '../../utils/format';
-import { listWorkers } from './workers.data';
-import type { Worker } from './worker.model';
 
 /**
  * The workshop team.
  *
- * It sits beside the OfficeGest pages and is built from the same machinery —
- * `ResourcePage`, `createResourceList`, the shared formatters — so it gets the
- * identical search debouncing, request cancellation, skeleton-on-first-load and
- * mobile card layout for a column definition and a fetch.
+ * WHERE THE DATA COMES FROM, AND WHY THAT CHANGED
+ * -----------------------------------------------
+ * This page used to render a roster typed by hand into `workers.data.ts`, on
+ * the stated grounds that "OfficeGest publishes no staff resource". That was
+ * wrong: `/entities/employees` exists, and it is the only staff resource the API
+ * has — `/entities/users`, `/users` and `/hr/employees` all answer 404. It
+ * carries HR facts (name, contacts, department) *and* login facts (`login`,
+ * `web_active`, `permissions_group`), so the "employees or system users?"
+ * question has one answer here: they are the same records.
  *
- * ⚠️ The data, however, is NOT from OfficeGest: that API publishes customers,
- * vehicles, service orders and appointments, and no staff resource. The roster
- * is local. See `workers.data.ts`.
+ * NO PAGER, DELIBERATELY
+ * ----------------------
+ * The endpoint returns the whole roster in one request — twelve people, with
+ * `hasMore: false` — so the page asks for the maximum page size and renders
+ * everything, and `paginated` is off. Should a company ever outgrow that, the
+ * backend logs a warning and `pagination().hasMore` turns true; switching this
+ * page back on is deleting one attribute.
  *
- * The rows do not link anywhere: there is no per-worker record to open, and a
- * link to a page that only repeats the row is worse than no link. `rowLink` is
- * optional on `ResourcePage` for exactly this case.
- *
- * The data is local — see `workers.data.ts` for why, and for the one line that
- * changes when a staff endpoint exists.
+ * The rows do not link anywhere: there is no per-worker record to open.
  */
 interface WorkerFilters {
   readonly search?: string;
 }
+
+/** The backend's maximum, which is what "fetch them all" costs here. */
+const ROSTER_PAGE_SIZE = 100;
 
 @Component({
   selector: 'app-workers',
@@ -37,10 +44,12 @@ interface WorkerFilters {
   template: `
     <app-resource-page
       title="Trabalhadores"
-      subtitle="A equipa da oficina. Mantida localmente — o OfficeGest não publica pessoal."
+      countNoun="trabalhadores"
+      subtitle="A equipa da oficina, sincronizada com o OfficeGest."
       caption="Lista de trabalhadores"
       searchLabel="Pesquisar trabalhadores"
-      searchPlaceholder="Nome, função ou especialidade…"
+      searchPlaceholder="Nome do trabalhador…"
+      [paginated]="false"
       [searchValue]="store.filters().search ?? ''"
       [store]="store"
       [columns]="columns"
@@ -50,14 +59,17 @@ interface WorkerFilters {
   `,
 })
 export class Workers {
-  protected readonly store = createResourceList<Worker, WorkerFilters>({
-    fetch: (query) => listWorkers(query),
+  private readonly officegest = inject(OfficeGestService);
+
+  protected readonly store = createResourceList<Employee, WorkerFilters>({
+    fetch: (query) => this.officegest.listEmployees(query),
     initialFilters: {},
+    perPage: ROSTER_PAGE_SIZE,
   });
 
-  protected readonly rowKey = (worker: Worker): string => worker.id;
+  protected readonly rowKey = (worker: Employee): string => worker.id;
 
-  protected readonly columns: readonly TableColumn<Worker>[] = [
+  protected readonly columns: readonly TableColumn<Employee>[] = [
     {
       key: 'name',
       header: 'Nome',
@@ -66,16 +78,16 @@ export class Workers {
       priority: 'primary',
     },
     {
-      key: 'role',
-      header: 'Função',
-      value: (worker) => orNull(worker.role),
-      sortValue: (worker) => worker.role,
+      key: 'login',
+      header: 'Utilizador',
+      value: (worker) => orNull(worker.login),
+      sortValue: (worker) => worker.login ?? null,
       priority: 'secondary',
     },
     {
-      key: 'speciality',
-      header: 'Especialidade',
-      value: (worker) => orNull(worker.speciality),
+      key: 'email',
+      header: 'E-mail',
+      value: (worker) => orNull(worker.email),
     },
     {
       key: 'phone',
@@ -83,9 +95,12 @@ export class Workers {
       value: (worker) => orNull(worker.phone),
     },
     {
-      key: 'email',
-      header: 'E-mail',
-      value: (worker) => orNull(worker.email),
+      // Upstream sends a flag rather than a role, and it is the one fact that
+      // says whether someone is scheduled on jobs.
+      key: 'agenda',
+      header: 'Na agenda',
+      value: (worker) =>
+        worker.onWorkshopAgenda === undefined ? null : worker.onWorkshopAgenda ? 'Sim' : 'Não',
       priority: 'detail',
     },
     {

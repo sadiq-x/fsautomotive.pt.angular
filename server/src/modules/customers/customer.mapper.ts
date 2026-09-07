@@ -6,8 +6,10 @@
  * Portuguese, so each field is read through the names it plausibly arrives
  * under. See `officegest.record-readers.ts` for why this beats guessing once.
  *
- * ⚠️ Once real payloads from your tenant are known, cut each list down to the
- * single correct name. Nothing else has to change.
+ * CONFIRMED against the tenant on 2026-09-07: the field actually present is
+ * first in each list. Two were wrong and read as `undefined` on every record —
+ * `mobile_phone` was being looked for as `mobile`, and `country` is an object,
+ * so a string read of it silently failed.
  */
 import {
   readBoolean,
@@ -21,11 +23,13 @@ const FIELDS = {
   name: ['name', 'nome', 'designacao', 'company_name'],
   taxId: ['tax_id', 'nif', 'vat', 'vat_number', 'contribuinte'],
   email: ['email', 'e_mail'],
-  phone: ['phone', 'telefone', 'tel'],
-  mobile: ['mobile', 'telemovel', 'cellphone'],
+  phone: ['phone', 'phone2', 'telefone', 'tel'],
+  mobile: ['mobile_phone', 'mobile', 'telemovel', 'cellphone'],
   city: ['city', 'localidade', 'cidade'],
   postalCode: ['postal_code', 'codigo_postal', 'zip', 'zip_code'],
-  country: ['country', 'pais'],
+  // `country` is an object ({ country_code, name, … }); `country.name` reads
+  // through it, with the flat code as the fallback.
+  country: ['country.name', 'country_code', 'pais'],
   active: ['active', 'activo', 'ativo', 'is_active'],
 } as const;
 

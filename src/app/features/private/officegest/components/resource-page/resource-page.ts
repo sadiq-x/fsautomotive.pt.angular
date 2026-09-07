@@ -40,6 +40,21 @@ export class ResourcePage<T, F extends object> {
   readonly rowKey = input.required<(row: T) => string>();
   readonly title = input.required<string>();
   readonly subtitle = input<string | null>(null);
+  /**
+   * The plural noun for the count line — "clientes", "viaturas".
+   *
+   * Supplied per page rather than derived from the title, because the title is
+   * a heading ("Clientes") and this is part of a sentence ("1 276 clientes").
+   */
+  readonly countNoun = input<string>('registos');
+  /**
+   * Whether to show the pager and page-size control.
+   *
+   * `false` for a collection that arrives whole — the staff roster comes back in
+   * one request with `hasMore: false`, and a pager over a single page is a
+   * control that can only ever do nothing.
+   */
+  readonly paginated = input(true);
   /** Accessible caption for the table, e.g. "Lista de clientes". */
   readonly caption = input.required<string>();
   /** Destination for each row. Omit for a read-only list. */
@@ -55,6 +70,54 @@ export class ResourcePage<T, F extends object> {
   readonly search = output<string>();
 
   /** First load: nothing has arrived yet, so the skeleton is the whole page. */
+  /**
+   * What is actually known about the size of the list.
+   *
+   * Three honest states, because OfficeGest reports no total:
+   *   - counted        → "1–10 de 1 276 clientes"
+   *   - counted, capped→ "1–10 de mais de 5 000 clientes" (the sweep hit its cap)
+   *   - not counted    → "1–10 clientes", beside the action that counts them
+   *
+   * A guessed or omitted total would be worse than either: the page would imply
+   * a size it has no way of knowing.
+   */
+  protected readonly countLabel = computed(() => {
+    const store = this.store();
+
+    if (store.status() === 'loading' && store.items().length === 0) {
+      return 'A carregar…';
+    }
+
+    if (store.status() === 'error') {
+      return '';
+    }
+
+    const loaded = store.items().length;
+
+    if (loaded === 0) {
+      return `0 ${this.countNoun()}`;
+    }
+
+    const { page, perPage } = store.pagination();
+    const first = (page - 1) * perPage + 1;
+    const range = `${first}–${first + loaded - 1}`;
+
+    if (store.countStatus() === 'counting') {
+      return `${range} ${this.countNoun()} — a contar o total…`;
+    }
+
+    const count = store.count();
+
+    if (count) {
+      const total = count.total.toLocaleString('pt-PT');
+      return count.exact
+        ? `${range} de ${total} ${this.countNoun()}`
+        : `${range} de mais de ${total} ${this.countNoun()}`;
+    }
+
+    return `${range} ${this.countNoun()}`;
+  });
+
   protected readonly showSkeleton = computed(
     () => this.store().status() === 'loading' && this.store().items().length === 0,
   );

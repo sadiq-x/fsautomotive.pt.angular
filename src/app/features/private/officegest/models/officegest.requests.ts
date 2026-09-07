@@ -20,6 +20,7 @@ export interface SearchableListQuery extends ListQuery {
 }
 
 export type CustomerListQuery = SearchableListQuery;
+export type EmployeeListQuery = SearchableListQuery;
 export type VehicleListQuery = SearchableListQuery;
 
 export interface ServiceOrderListQuery extends ListQuery {

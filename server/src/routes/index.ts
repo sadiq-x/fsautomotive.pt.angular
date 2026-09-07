@@ -12,6 +12,7 @@ import type { Container } from '../container.js';
 import { requireApiKey } from '../middleware/api-key.middleware.js';
 import { createAppointmentsRouter } from '../modules/appointments/appointments.routes.js';
 import { createCustomersRouter } from '../modules/customers/customers.routes.js';
+import { createEmployeesRouter } from '../modules/employees/employees.routes.js';
 import { createServiceOrdersRouter } from '../modules/service-orders/service-orders.routes.js';
 import { createVehiclesRouter } from '../modules/vehicles/vehicles.routes.js';
 import { createHealthRouter } from './health.routes.js';
@@ -32,6 +33,7 @@ export function createApiRouter(container: Container): Router {
   officegest.use(requireApiKey());
 
   officegest.use('/customers', createCustomersRouter(container.customers));
+  officegest.use('/employees', createEmployeesRouter(container.employees));
   officegest.use('/vehicles', createVehiclesRouter(container.vehicles));
   officegest.use('/service-orders', createServiceOrdersRouter(container.serviceOrders));
   officegest.use('/appointments', createAppointmentsRouter(container.appointments));

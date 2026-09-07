@@ -20,6 +20,8 @@ export interface PaginationMeta {
   /** Total matching records, when the upstream response reports one. */
   readonly total?: number;
   readonly totalPages?: number;
+  /** Upstream's own "is there a next page" flag; see `toPaginationMeta`. */
+  readonly hasMore?: boolean;
 }
 
 export interface SuccessResponse<T> {

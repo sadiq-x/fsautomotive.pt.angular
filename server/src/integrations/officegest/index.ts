@@ -10,6 +10,7 @@ import { config } from '../../config/index.js';
 import { OfficeGestClient, type OfficeGestClientDeps } from './officegest.client.js';
 import { AppointmentsResource } from './resources/appointments.resource.js';
 import { CustomersResource } from './resources/customers.resource.js';
+import { EmployeesResource } from './resources/employees.resource.js';
 import { ServiceOrdersResource } from './resources/service-orders.resource.js';
 import { VehiclesResource } from './resources/vehicles.resource.js';
 
@@ -19,6 +20,7 @@ export interface OfficeGestIntegration {
   readonly vehicles: VehiclesResource;
   readonly serviceOrders: ServiceOrdersResource;
   readonly appointments: AppointmentsResource;
+  readonly employees: EmployeesResource;
 }
 
 export function createOfficeGestIntegration(
@@ -29,6 +31,7 @@ export function createOfficeGestIntegration(
   return {
     client,
     customers: new CustomersResource(client),
+    employees: new EmployeesResource(client),
     vehicles: new VehiclesResource(client),
     serviceOrders: new ServiceOrdersResource(client),
     appointments: new AppointmentsResource(client),

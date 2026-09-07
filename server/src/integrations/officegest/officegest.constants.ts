@@ -69,6 +69,8 @@ export const OFFICEGEST_PATHS = {
   serviceOrderById: (serviceOrder: string) =>
     `/workshop/service-orders/${encodeURIComponent(serviceOrder)}`,
 
+  employees: '/entities/employees',
+
   appointments: '/crm/appointments',
   appointmentById: (id: string) => `/crm/appointments/${encodeURIComponent(id)}`,
 } as const;
@@ -78,26 +80,61 @@ export const OFFICEGEST_PATHS = {
 /* -------------------------------------------------------------------------- */
 
 /**
- * ⚠️ INFERRED, NOT DOCUMENTED.
+ * CONFIRMED against the tenant on 2026-09-07, and the deduction was wrong.
  *
- * The documented response envelope (`meta.current_page`, `meta.total`) is the
- * shape a Laravel paginator emits, and that paginator reads `page` and
- * `per_page`. That makes these the well-founded default — but they are a
- * deduction, not a published contract.
+ * The envelope looks like a Laravel paginator, so `per_page` was inferred. The
+ * API **silently ignores it**: every request came back with exactly 15 rows and
+ * `meta.per_page: 15` whatever was asked for, so the page-size control changed
+ * the label and nothing else. The parameter it actually reads is `limit`.
  *
- * Verify against your tenant's documentation. If they differ, change them here
- * and nowhere else: every list endpoint in this service reads these names.
+ * `page` was right — pages 1 and 2 return disjoint records.
  */
 export const PAGINATION_PARAMS = {
   page: 'page',
-  perPage: 'per_page',
+  perPage: 'limit',
 } as const;
 
 /**
- * ⚠️ INFERRED, NOT DOCUMENTED. The free-text filter accepted by list endpoints.
- * Same caveat as `PAGINATION_PARAMS`.
+ * The largest `limit` the API honours. Asking for 500 or 1000 returns 250.
+ *
+ * Only the count sweep uses this; ordinary requests are bounded far lower by
+ * `MAX_PER_PAGE` in `shared/http/pagination.ts`.
  */
-export const SEARCH_PARAM = 'search';
+export const MAX_UPSTREAM_LIMIT = 250;
+
+/**
+ * The filter parameters each list endpoint accepts. CONFIRMED 2026-09-07.
+ *
+ * There is no shared free-text `search`: the codebase inferred one, and — like
+ * `per_page` — the API ignores it silently, answering 200 with an unfiltered
+ * first page. That is why the search boxes appeared to do nothing.
+ *
+ * The two resources also differ in kind, which the callers have to respect:
+ *
+ *  - **Customers and employees** take `name`, and it is a *partial* match: a
+ *    prefix or a substring both narrow the list.
+ *  - **Vehicles** take `plate`, `vin` and `description`, and every one of them
+ *    is an *exact* match. A plate must carry its hyphens — `00-00-ZZ` finds the
+ *    car, `0000ZZ` finds nothing — which matters because this codebase stores
+ *    plates normalised without them.
+ *
+ * `filter` exists too and answers 422 to a bare string; it wants a structure
+ * nothing here needs. Left alone deliberately.
+ */
+export const FILTER_PARAMS = {
+  /** Partial match. Customers and employees. */
+  name: 'name',
+  /** Exact. */
+  taxId: 'tax_id',
+  /** Exact. */
+  email: 'email',
+  /** Exact, hyphenated. */
+  plate: 'plate',
+  /** Exact. */
+  vin: 'vin',
+  /** Exact — the whole description, so it is a poor free-text target. */
+  description: 'description',
+} as const;
 
 /* -------------------------------------------------------------------------- */
 /* Transport                                                                   */

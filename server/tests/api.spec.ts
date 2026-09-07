@@ -70,8 +70,16 @@ describe('GET /api/officegest/customers', () => {
     await request(app).get('/api/officegest/customers?page=2&perPage=5&search=silva').expect(200);
 
     expect(http.apiCalls()[0]?.url).toContain('page=2');
-    expect(http.apiCalls()[0]?.url).toContain('per_page=5');
-    expect(http.apiCalls()[0]?.url).toContain('search=silva');
+    // `limit`, not `per_page`. The Laravel-shaped envelope made `per_page` the
+    // obvious inference and it was wrong: the API ignores it silently and
+    // returns a fixed 15 rows, so the page-size control moved a label and
+    // nothing else. Confirmed against the tenant on 2026-09-07.
+    expect(http.apiCalls()[0]?.url).toContain('limit=5');
+    expect(http.apiCalls()[0]?.url).not.toContain('per_page');
+    // `name=`, not `search=`. Upstream has no free-text search; it ignored
+    // `search` silently, which is why the box appeared to do nothing.
+    expect(http.apiCalls()[0]?.url).toContain('name=silva');
+    expect(http.apiCalls()[0]?.url).not.toContain('search=');
   });
 
   it('rejects a page size above the cap before any upstream call', async () => {

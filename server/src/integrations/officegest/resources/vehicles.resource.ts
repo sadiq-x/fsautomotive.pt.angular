@@ -7,14 +7,19 @@
  * being translated into something the upstream would not recognise.
  */
 import { OfficeGestClient, type OfficeGestRequestOptions } from '../officegest.client.js';
-import { OFFICEGEST_PATHS, SEARCH_PARAM } from '../officegest.constants.js';
+import { FILTER_PARAMS, OFFICEGEST_PATHS } from '../officegest.constants.js';
 import type { UpstreamRecord } from '../officegest.record-readers.js';
 import { officeGestRecordSchema, type OfficeGestListResult } from '../officegest.types.js';
 
 export interface ListVehiclesParams {
   readonly page: number;
   readonly perPage: number;
-  readonly search?: string;
+  /** Exact, and hyphenated — `00-00-ZZ`, not `0000ZZ`. */
+  readonly plate?: string;
+  /** Exact. */
+  readonly vin?: string;
+  /** Exact, whole-string. */
+  readonly description?: string;
 }
 
 export class VehiclesResource {
@@ -29,7 +34,9 @@ export class VehiclesResource {
       ...options,
       query: {
         ...OfficeGestClient.paginationQuery(params.page, params.perPage),
-        [SEARCH_PARAM]: params.search,
+        [FILTER_PARAMS.plate]: params.plate,
+        [FILTER_PARAMS.vin]: params.vin,
+        [FILTER_PARAMS.description]: params.description,
       },
     });
   }

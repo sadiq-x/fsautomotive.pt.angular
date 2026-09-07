@@ -23,12 +23,14 @@ import {
 } from './integrations/officegest/index.js';
 import { AppointmentsService } from './modules/appointments/appointments.service.js';
 import { CustomersService } from './modules/customers/customers.service.js';
+import { EmployeesService } from './modules/employees/employees.service.js';
 import { ServiceOrdersService } from './modules/service-orders/service-orders.service.js';
 import { VehiclesService } from './modules/vehicles/vehicles.service.js';
 
 export interface Container {
   readonly officegest: OfficeGestIntegration;
   readonly customers: CustomersService;
+  readonly employees: EmployeesService;
   readonly vehicles: VehiclesService;
   readonly serviceOrders: ServiceOrdersService;
   readonly appointments: AppointmentsService;
@@ -46,6 +48,7 @@ export function createContainer(deps: OfficeGestClientDeps = {}): Container {
   return {
     officegest,
     customers: new CustomersService(officegest.customers),
+    employees: new EmployeesService(officegest.employees),
     vehicles: new VehiclesService(officegest.vehicles),
     serviceOrders: new ServiceOrdersService(officegest.serviceOrders),
     appointments: new AppointmentsService(officegest.appointments),

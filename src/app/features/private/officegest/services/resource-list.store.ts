@@ -33,16 +33,26 @@
  * Putting it here would also delay page changes and filter clicks, which should
  * be immediate.
  */
-import { Injector, type Signal, computed, inject, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { DestroyRef, Injector, type Signal, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, scan, startWith, switchMap, type Observable } from 'rxjs';
 
 import { ApiError, type ApiPagination, type Paged } from '../../../../core/models/api.model';
+import type { ResourceCount } from '../models/officegest.models';
 
 export type ListStatus = 'loading' | 'ready' | 'error';
 
-/** The pagination the private area starts every list on. */
-export const DEFAULT_PER_PAGE = 25;
+/** The count action's own state; see `countTotal`. */
+export type CountStatus = 'unavailable' | 'idle' | 'counting' | 'done' | 'failed';
+
+/**
+ * The pagination the private area starts every list on.
+ *
+ * Ten rather than twenty-five: these tables are read on a phone in a workshop as
+ * often as at a desk, and a shorter first page is faster to scan and cheaper to
+ * fetch. The page-size control raises it for anyone who wants more.
+ */
+export const DEFAULT_PER_PAGE = 10;
 
 /** Offered in the page-size control. The backend rejects anything above 100. */
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
@@ -66,6 +76,19 @@ export interface ResourceListStore<T, F extends object> {
   /** `true` while refreshing a list that already has rows on screen. */
   readonly isRefreshing: Signal<boolean>;
 
+  /** The counted total, once `countTotal()` has succeeded. */
+  readonly count: Signal<ResourceCount | null>;
+  readonly countStatus: Signal<CountStatus>;
+  /**
+   * Establishes the exact total.
+   *
+   * Separate from the list because OfficeGest reports no total: the backend has
+   * to walk the collection to produce one, several upstream requests against a
+   * metered quota. So it is an action a person takes, never a page-load cost.
+   * Counts the current filters, and is discarded when those change.
+   */
+  countTotal(): void;
+
   /** Applies a filter change and returns to page 1, where the results now are. */
   setFilters(patch: Partial<F>): void;
   setPage(page: number): void;
@@ -80,6 +103,8 @@ export interface ResourceListOptions<T, F extends object> {
   readonly perPage?: number;
   /** Decides whether the empty state should suggest clearing filters. */
   readonly hasActiveFilters?: (filters: F) => boolean;
+  /** Supplying this enables the count action; omitting it hides the control. */
+  readonly count?: (filters: F) => Observable<ResourceCount>;
   /** Required only outside an injection context, such as in a test. */
   readonly injector?: Injector;
 }
@@ -133,7 +158,11 @@ export function createResourceList<T, F extends object>(
 ): ResourceListStore<T, F> {
   const injector = options.injector ?? inject(Injector);
 
+  const destroyRef = injector.get(DestroyRef);
+
   const filters = signal<F>(options.initialFilters);
+  const count = signal<ResourceCount | null>(null);
+  const countStatus = signal<CountStatus>(options.count ? 'idle' : 'unavailable');
   const page = signal(1);
   const perPage = signal(options.perPage ?? DEFAULT_PER_PAGE);
   /** Bumped by `reload()`; part of the query so a repeat refires the request. */
@@ -199,9 +228,38 @@ export function createResourceList<T, F extends object>(
     page: page.asReadonly(),
     perPage: perPage.asReadonly(),
     isRefreshing: computed(() => status() === 'loading' && items().length > 0),
+    count: count.asReadonly(),
+    countStatus: countStatus.asReadonly(),
+
+    countTotal(): void {
+      const countFn = options.count;
+
+      if (!countFn || countStatus() === 'counting') {
+        return;
+      }
+
+      countStatus.set('counting');
+
+      countFn(filters())
+        .pipe(takeUntilDestroyed(destroyRef))
+        .subscribe({
+          next: (result) => {
+            count.set(result);
+            countStatus.set('done');
+          },
+          error: () => {
+            count.set(null);
+            countStatus.set('failed');
+          },
+        });
+    },
 
     setFilters(patch: Partial<F>): void {
       filters.update((current) => ({ ...current, ...patch }));
+      // A count describes the filters it was taken under; keeping it after they
+      // change would state a total for a list nobody is looking at.
+      count.set(null);
+      countStatus.set(options.count ? 'idle' : 'unavailable');
       // Page 4 of the old result set is rarely page 4 of the new one, and an
       // out-of-range page returns nothing, which looks like "no results".
       page.set(1);

@@ -67,13 +67,22 @@ export class PaginationBar {
       return true;
     }
 
+    // Upstream's own flag, when it sends one. It is the only signal that is
+    // right when the last page happens to be exactly full — the short-page
+    // heuristic below would offer a next page that does not exist.
+    const hasMore = this.pagination().hasMore;
+
+    if (hasMore !== undefined) {
+      return !hasMore;
+    }
+
     const total = this.total();
 
     if (total !== undefined) {
       return this.lastIndex() >= total;
     }
 
-    // No total: a page that came back short is the last one.
+    // Nothing to go on: a page that came back short is the last one.
     return this.loadedCount() < this.perPage();
   });
 

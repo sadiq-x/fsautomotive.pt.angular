@@ -105,7 +105,11 @@ describe('CustomersService', () => {
       expect(silentLogger.warn).toHaveBeenCalled();
     });
 
-    it('forwards the search term and the cancellation signal to the resource', async () => {
+    /**
+     * The search term is resolved onto a real upstream filter on the way past —
+     * there is no `search` parameter to forward. See `toCustomerFilter`.
+     */
+    it('resolves the search term onto a filter, and forwards the cancellation signal', async () => {
       const list = vi.fn().mockResolvedValue({ items: [], meta: undefined });
       const controller = new AbortController();
 
@@ -115,9 +119,20 @@ describe('CustomersService', () => {
       );
 
       expect(list).toHaveBeenCalledWith(
-        { page: 2, perPage: 10, search: 'silva' },
+        { page: 2, perPage: 10, name: 'silva' },
         { logger: silentLogger, signal: controller.signal },
       );
+    });
+
+    it('sends a tax number as a tax-number filter, not as a name', async () => {
+      const list = vi.fn().mockResolvedValue({ items: [], meta: undefined });
+
+      await new CustomersService(makeResource({ list })).list(
+        { page: 1, perPage: 10, search: '500038872' },
+        { logger: silentLogger, signal: undefined },
+      );
+
+      expect(list.mock.calls[0]?.[0]).toMatchObject({ taxId: '500038872' });
     });
 
     it('lets an upstream failure through untranslated, for the error layer to map', async () => {

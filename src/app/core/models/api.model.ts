@@ -16,6 +16,12 @@ export interface ApiPagination {
   readonly perPage: number;
   readonly total?: number;
   readonly totalPages?: number;
+  /**
+   * Upstream's own "is there a next page" flag. OfficeGest sends no total, so
+   * this is the only reliable signal — inferring it from a short page is wrong
+   * whenever the last page happens to be exactly full.
+   */
+  readonly hasMore?: boolean;
 }
 
 export interface ApiSuccess<T> {

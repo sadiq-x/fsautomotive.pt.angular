@@ -20,6 +20,15 @@ export class VehiclesController {
     res.status(200).json(success(result.vehicles, result.meta));
   };
 
+  /** `GET /api/officegest/vehicles/count` — see `VehiclesService.count`. */
+  readonly count: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+    const { query } = listVehiclesValidator.read(req);
+
+    const result = await this.service.count(query, { logger: req.log, signal: req.abortSignal });
+
+    res.status(200).json(success(result));
+  };
+
   readonly getByPlate: RequestHandler = async (req: Request, res: Response): Promise<void> => {
     const { params } = getVehicleValidator.read(req);
 

@@ -20,10 +20,11 @@ interface VehicleFilters {
   template: `
     <app-resource-page
       title="Veículos"
+      countNoun="viaturas"
       subtitle="Viaturas registadas na oficina."
       caption="Lista de veículos"
       searchLabel="Pesquisar veículos"
-      searchPlaceholder="Matrícula, marca ou modelo…"
+      searchPlaceholder="Matrícula completa, ex. 00-00-ZZ"
       [searchValue]="store.filters().search ?? ''"
       [store]="store"
       [columns]="columns"
@@ -39,6 +40,7 @@ export class Vehicles {
 
   protected readonly store = createResourceList<Vehicle, VehicleFilters>({
     fetch: (query) => this.officegest.listVehicles(query),
+    count: (filters) => this.officegest.countVehicles(filters.search),
     initialFilters: {},
   });
 
@@ -58,8 +60,12 @@ export class Vehicles {
     {
       key: 'vehicle',
       header: 'Marca e modelo',
-      value: (vehicle) => orNull([vehicle.brand, vehicle.model].filter(Boolean).join(' ')),
-      sortValue: (vehicle) => vehicle.brand ?? null,
+      // `brand`/`model` reach us only from OfficeGest's detail record; a list
+      // row carries just `description`, so it is the fallback rather than an
+      // empty cell on every line.
+      value: (vehicle) =>
+        orNull([vehicle.brand, vehicle.model].filter(Boolean).join(' ') || vehicle.description),
+      sortValue: (vehicle) => vehicle.brand ?? vehicle.description ?? null,
       priority: 'secondary',
     },
     {

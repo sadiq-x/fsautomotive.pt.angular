@@ -25,10 +25,18 @@
 /** A validated-but-unmapped upstream record. */
 export type UpstreamRecord = Readonly<Record<string, unknown>>;
 
-/** First candidate present with a non-empty value, or `undefined`. */
+/**
+ * First candidate present with a non-empty value, or `undefined`.
+ *
+ * A candidate may be a dotted path — `country.name` — because OfficeGest
+ * expands some foreign keys into nested objects (`country`, `district`) while
+ * leaving others flat. Without this, `readString` handed such an object to a
+ * `typeof value === 'string'` check, failed it, and returned `undefined`: a
+ * field that is plainly present upstream read as missing, and nothing failed.
+ */
 function firstPresent(record: UpstreamRecord, keys: readonly string[]): unknown {
   for (const key of keys) {
-    const value = record[key];
+    const value = key.includes('.') ? resolvePath(record, key) : record[key];
 
     if (value !== undefined && value !== null && value !== '') {
       return value;
@@ -36,6 +44,21 @@ function firstPresent(record: UpstreamRecord, keys: readonly string[]): unknown 
   }
 
   return undefined;
+}
+
+/** Walks a dotted path, stopping at anything that is not a plain object. */
+function resolvePath(record: UpstreamRecord, path: string): unknown {
+  let current: unknown = record;
+
+  for (const segment of path.split('.')) {
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+      return undefined;
+    }
+
+    current = (current as Record<string, unknown>)[segment];
+  }
+
+  return current;
 }
 
 /** Reads a string, coercing the numbers that identifier fields often arrive as. */

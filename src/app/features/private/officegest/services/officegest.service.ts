@@ -23,11 +23,19 @@ import { map, type Observable } from 'rxjs';
 
 import { API_ROUTES } from '../../../../core/config/api.config';
 import type { ApiSuccess, Paged } from '../../../../core/models/api.model';
-import type { Appointment, Customer, ServiceOrder, Vehicle } from '../models/officegest.models';
+import type {
+  Appointment,
+  Customer,
+  Employee,
+  ResourceCount,
+  ServiceOrder,
+  Vehicle,
+} from '../models/officegest.models';
 import type {
   AppointmentListQuery,
   CreateAppointmentRequest,
   CustomerListQuery,
+  EmployeeListQuery,
   ServiceOrderListQuery,
   VehicleListQuery,
 } from '../models/officegest.requests';
@@ -134,6 +142,55 @@ export class OfficeGestService {
   /* ------------------------------------------------------------------ */
   /* Envelope handling — written once                                    */
   /* ------------------------------------------------------------------ */
+
+  /* ------------------------------------------------------------------ */
+  /* Staff                                                               */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The whole roster in one request.
+   *
+   * `perPage` is the backend's maximum rather than a page size: the endpoint
+   * returned the entire team with `hasMore: false`, and the page renders it all.
+   * If it ever comes back `true`, that is the signal to give this page a pager.
+   */
+  listEmployees(query: EmployeeListQuery): Observable<Paged<Employee>> {
+    return this.list<Employee>(API_ROUTES.officegest.employees, {
+      page: query.page,
+      perPage: query.perPage,
+      search: query.search,
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Counts                                                              */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * How many records a collection holds.
+   *
+   * A separate call on purpose. OfficeGest reports no total on any list
+   * response, so the backend has to walk the collection to establish one —
+   * several upstream requests against a metered quota. Nothing calls this on a
+   * page load; it backs an explicit "count" action.
+   */
+  countCustomers(search?: string): Observable<ResourceCount> {
+    return this.count(API_ROUTES.officegest.customersCount, search);
+  }
+
+  countVehicles(search?: string): Observable<ResourceCount> {
+    return this.count(API_ROUTES.officegest.vehiclesCount, search);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Envelope handling — written once                                    */
+  /* ------------------------------------------------------------------ */
+
+  private count(url: string, search?: string): Observable<ResourceCount> {
+    return this.http
+      .get<ApiSuccess<ResourceCount>>(url, { params: toParams({ search }) })
+      .pipe(map((response) => response.data));
+  }
 
   private list<T>(url: string, query: Readonly<Record<string, QueryValue>>): Observable<Paged<T>> {
     return this.http.get<ApiSuccess<readonly T[]>>(url, { params: toParams(query) }).pipe(

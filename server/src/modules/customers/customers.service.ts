@@ -13,6 +13,8 @@
  * testable without a server and reusable from somewhere that is not a
  * controller — a scheduled sync, a CLI, a queue worker.
  */
+import { countAll, type CountResult } from '../../integrations/officegest/officegest.counter.js';
+import { readHasMore } from '../../shared/http/pagination.js';
 import type { CustomersResource } from '../../integrations/officegest/index.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import type { PaginationMeta } from '../../shared/http/api-response.js';
@@ -21,6 +23,43 @@ import type { UseCaseContext } from '../../shared/use-case-context.js';
 import type { Customer } from './customer.model.js';
 import { toCustomer, toCustomers } from './customer.mapper.js';
 import type { ListCustomersQuery } from './customer.dto.js';
+
+/** A Portuguese tax number: nine digits, nothing else. */
+const TAX_ID_PATTERN = /^\d{9}$/;
+
+/**
+ * Resolves one search box onto the filter its content implies.
+ *
+ * Upstream has no free-text search — it has `name` (partial), `tax_id` (exact)
+ * and `email` (exact). Sending a NIF as `name` matches nothing, which is what
+ * made the box look broken for anything but a name. Choosing by shape is what
+ * lets one input honour the "Nome, NIF ou e-mail" it promises.
+ *
+ * Exported for the tests: the rule is the contract, not an implementation
+ * detail.
+ */
+export function toCustomerFilter(search: string | undefined): {
+  name?: string;
+  taxId?: string;
+  email?: string;
+} {
+  const term = search?.trim();
+
+  if (!term) {
+    return {};
+  }
+
+  // An `@` is unambiguous, and a NIF cannot contain one.
+  if (term.includes('@')) {
+    return { email: term };
+  }
+
+  if (TAX_ID_PATTERN.test(term)) {
+    return { taxId: term };
+  }
+
+  return { name: term };
+}
 
 export interface CustomerList {
   readonly customers: readonly Customer[];
@@ -32,7 +71,7 @@ export class CustomersService {
 
   async list(query: ListCustomersQuery, context: UseCaseContext): Promise<CustomerList> {
     const result = await this.customers.list(
-      { page: query.page, perPage: query.perPage, search: query.search },
+      { page: query.page, perPage: query.perPage, ...toCustomerFilter(query.search) },
       { logger: context.logger, signal: context.signal },
     );
 
@@ -49,10 +88,33 @@ export class CustomersService {
 
     return {
       customers: mapped,
-      // `meta.total` is the upstream count when it sends one; the page numbers
-      // stay ours, because they are what the caller asked for.
-      meta: toPaginationMeta(query, result.meta?.['total']),
+      // Upstream sends no total, so `hasMore` is what the pager actually uses.
+      meta: toPaginationMeta(query, result.meta?.['total'], readHasMore(result.meta)),
     };
+  }
+
+  /**
+   * How many records the collection holds.
+   *
+   * Deliberately a separate call, not part of `list`: OfficeGest reports no
+   * total, so this walks the collection, and no page load should pay for that.
+   * The search filter is applied, so counting a filtered list counts the filter.
+   */
+  async count(query: ListCustomersQuery, context: UseCaseContext): Promise<CountResult> {
+    const result = await countAll((page, perPage) =>
+      this.customers.list(
+        { page, perPage, ...toCustomerFilter(query.search) },
+        { logger: context.logger, signal: context.signal },
+      ),
+    );
+
+    context.logger.info('counted OfficeGest customers', {
+      total: result.total,
+      exact: result.exact,
+      upstreamRequests: result.requests,
+    });
+
+    return result;
   }
 
   async getById(customerId: string, context: UseCaseContext): Promise<Customer> {

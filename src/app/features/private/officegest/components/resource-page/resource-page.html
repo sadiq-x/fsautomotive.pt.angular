@@ -1,8 +1,43 @@
 <header class="flex flex-wrap items-end justify-between gap-4">
   <div>
     <h1 class="text-h2 text-ink-950">{{ title() }}</h1>
+
+    <!--
+      The result count.
+
+      `aria-live="polite"` because it changes underneath a screen-reader user
+      whenever they page, resize the page or count — and it is the one line that
+      tells them how much there is.
+    -->
+    <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink-500">
+      <span aria-live="polite">{{ countLabel() }}</span>
+
+      @if (store().countStatus() === 'idle') {
+        <!--
+          Counting is a real cost — OfficeGest reports no total, so the backend
+          walks the collection — which is why it is an action rather than
+          something every page load pays for.
+        -->
+        <button
+          type="button"
+          class="rounded-sm font-semibold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          (click)="store().countTotal()"
+        >
+          Contar total
+        </button>
+      } @else if (store().countStatus() === 'failed') {
+        <button
+          type="button"
+          class="rounded-sm font-semibold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          (click)="store().countTotal()"
+        >
+          Não foi possível contar — tentar novamente
+        </button>
+      }
+    </p>
+
     @if (subtitle()) {
-      <p class="mt-1 text-body text-ink-500">{{ subtitle() }}</p>
+      <p class="mt-1 text-meta text-ink-400">{{ subtitle() }}</p>
     }
   </div>
 
@@ -64,7 +99,7 @@
     </div>
   }
 
-  @if (showTable() || showEmpty()) {
+  @if (paginated() && (showTable() || showEmpty())) {
     <app-pagination-bar
       class="mt-4"
       [pagination]="store().pagination()"
