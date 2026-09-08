@@ -1,0 +1,1 @@
+var o=["FAC","F","ENT","ESP","ANU","COL","VIT","TCP","MAR"],t={TCP:"Trabalhos Complexos",COL:"Colis\xE3o"},l=o.map(n=>({value:n,label:t[n]?`${n} \u2014 ${t[n]}`:n}));function s(n,e){let r=n?.trim();return r?e?.trim()||t[r.toUpperCase()]||r:null}function i(n){return typeof n=="number"&&n>0?`${n.toLocaleString("pt-PT")} km`:null}export{l as a,s as b,i as c};

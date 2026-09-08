@@ -1,0 +1,1 @@
+var r=["confirmed","completed","no_show"];var o="none",t={confirmed:"Confirmada",completed:"Conclu\xEDda",no_show:"Faltou"},a={N:"Normal",H:"Alta"},g=[...r.map(e=>({value:e,label:t[e]})),{value:o,label:"Sem estado"}];function p(e){return e?t[e]:null}function c(e){let n=e?.trim().toUpperCase();return n?a[n]??n:null}export{g as a,p as b,c};

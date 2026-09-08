@@ -1,0 +1,1 @@
+function o(t=new Date){let n=new Date(t.getFullYear(),t.getMonth(),1,0,0,0,0),e=new Date(t.getFullYear(),t.getMonth()+1,0,23,59,59,999);return{from:n.toISOString(),to:e.toISOString()}}function r(t,n=new Date){let e=o(n);return t.from===e.from&&t.to===e.to}export{o as a,r as b};
