@@ -4,7 +4,32 @@ import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/http/pagination.js';
 import { isPlausiblePlate, normalisePlate } from '../vehicles/plate.js';
 
+/** An ISO-8601 instant. Kept as a string; only its parseability is asserted. */
+const isoDateTime = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'must be an ISO-8601 date-time')
+  .transform((value) => new Date(value).toISOString());
+
+/**
+ * Free-text search.
+ *
+ * Applied by this service rather than upstream, which has no search parameter.
+ * Trimming to `undefined` keeps "no search" and "search for nothing" from being
+ * two states that mean the same thing.
+ */
+const search = z
+  .string()
+  .trim()
+  .max(120)
+  .transform((value) => (value === '' ? undefined : value))
+  .optional();
+
 export const listServiceOrdersQuerySchema = paginationQuerySchema.extend({
+  /** ISO-8601 instants; only the date part reaches upstream. */
+  from: isoDateTime.optional(),
+  to: isoDateTime.optional(),
+  search,
   /** Restricts the list to one vehicle. Normalised so casing never matters. */
   plate: z
     .string()

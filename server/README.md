@@ -201,7 +201,7 @@ both — the whole point is that there is no question about which list is live.
 ```
 
 `role` sets a default permission set — `ADMIN` everything, `MANAGER` reads plus
-new bookings and staff, `USER` read-only OfficeGest. An explicit `permissions`
+staff, `USER` read-only OfficeGest. An explicit `permissions`
 array overrides it. `"disabled": true` suspends an account without deleting it,
 and takes effect for sessions already open.
 
@@ -297,18 +297,18 @@ which is what makes a fresh checkout against a sandbox tenant usable. Configure
 either one and anonymous access ends immediately; the startup log says loudly
 when neither is set.
 
-| Method | Path                                    | Query / body                                                      |
-| ------ | --------------------------------------- | ----------------------------------------------------------------- |
-| GET    | `/health`                               | —                                                                 |
-| GET    | `/api/officegest/customers`             | `page`, `perPage` (≤100), `search` (2–120 chars)                  |
-| GET    | `/api/officegest/customers/:customerId` | —                                                                 |
-| GET    | `/api/officegest/vehicles`              | `page`, `perPage`, `search`                                       |
-| GET    | `/api/officegest/vehicles/:plate`       | plate is normalised (`aa-00-bb` → `AA00BB`)                       |
-| GET    | `/api/officegest/service-orders`        | `page`, `perPage`, `plate`, `status`                              |
-| GET    | `/api/officegest/service-orders/:id`    | —                                                                 |
-| GET    | `/api/officegest/appointments`          | `page`, `perPage`, `from`, `to`, `customerId`                     |
-| GET    | `/api/officegest/appointments/:id`      | —                                                                 |
-| POST   | `/api/officegest/appointments`          | `title`, `startsAt`, `endsAt?`, `customerId?`, `plate?`, `notes?` |
+| Method | Path                                    | Query / body                                                       |
+| ------ | --------------------------------------- | ------------------------------------------------------------------ |
+| GET    | `/health`                               | —                                                                  |
+| GET    | `/api/officegest/customers`             | `page`, `perPage` (≤100), `search` (2–120 chars)                   |
+| GET    | `/api/officegest/customers/:customerId` | —                                                                  |
+| GET    | `/api/officegest/vehicles`              | `page`, `perPage`, `search`, `status` (`active` / `inactive`)      |
+| GET    | `/api/officegest/vehicles/count`        | `search`, `status` — walks the collection, so it is never implicit |
+| GET    | `/api/officegest/vehicles/:plate`       | plate is normalised in (`aa-00-bb` → `AA00BB`) and out             |
+| GET    | `/api/officegest/service-orders`        | `page`, `perPage`, `plate`, `status`                               |
+| GET    | `/api/officegest/service-orders/:id`    | —                                                                  |
+| GET    | `/api/officegest/appointments`          | `page`, `perPage`, `from`, `to`, `customerId`                      |
+| GET    | `/api/officegest/appointments/:id`      | —                                                                  |
 
 ### Request / response examples
 

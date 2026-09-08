@@ -27,6 +27,7 @@ import { AuthService } from './modules/auth/auth.service.js';
 import { CustomersService } from './modules/customers/customers.service.js';
 import { EmployeesService } from './modules/employees/employees.service.js';
 import { ServiceOrdersService } from './modules/service-orders/service-orders.service.js';
+import { VehicleCatalogue } from './modules/vehicles/vehicle-catalogue.js';
 import { VehiclesService } from './modules/vehicles/vehicles.service.js';
 
 export interface Container {
@@ -60,7 +61,10 @@ export function createContainer(deps: OfficeGestClientDeps = {}): Container {
     auth,
     customers: new CustomersService(officegest.customers),
     employees: new EmployeesService(officegest.employees),
-    vehicles: new VehiclesService(officegest.vehicles),
+    vehicles: new VehiclesService(
+      officegest.vehicles,
+      new VehicleCatalogue(officegest.vehicleCatalogue),
+    ),
     serviceOrders: new ServiceOrdersService(officegest.serviceOrders),
     appointments: new AppointmentsService(officegest.appointments),
     shutdown: async () => {

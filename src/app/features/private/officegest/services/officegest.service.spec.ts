@@ -106,22 +106,6 @@ describe('OfficeGestService', () => {
     await pending;
   });
 
-  it('posts an appointment and returns the created record', async () => {
-    const body = { title: 'Revisão', startsAt: '2099-01-01T09:00:00.000Z' };
-    const pending = firstValueFrom(service.createAppointment(body));
-
-    const request = http.expectOne((candidate) =>
-      candidate.url.endsWith('/api/officegest/appointments'),
-    );
-
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual(body);
-
-    request.flush({ success: true, data: { id: '900', title: 'Revisão' } });
-
-    await expect(pending).resolves.toMatchObject({ id: '900' });
-  });
-
   it('propagates a backend failure to the caller', async () => {
     const pending = firstValueFrom(service.getCustomer('999'));
 

@@ -2,9 +2,8 @@
  * The `crm/appointments` corner of the OfficeGest API — the bookings a workshop
  * schedules with a customer.
  *
- * This is the only resource here with a write path, and it is the reason the
- * client distinguishes idempotent from non-idempotent methods: a retried `POST`
- * would book the same slot twice.
+ * Read-only, like every other resource here: booking is done in OfficeGest
+ * itself, and this integration never writes to the client's ERP.
  */
 import { OfficeGestClient, type OfficeGestRequestOptions } from '../officegest.client.js';
 import { OFFICEGEST_PATHS } from '../officegest.constants.js';
@@ -41,22 +40,5 @@ export class AppointmentsResource {
       officeGestRecordSchema,
       options,
     );
-  }
-
-  /**
-   * `POST /crm/appointments`
-   *
-   * The request body is built by the service from a validated DTO; this method
-   * forwards it verbatim because the accepted field names are OfficeGest's, not
-   * ours, and inventing a translation here would be guessing twice.
-   */
-  create(
-    payload: Readonly<Record<string, unknown>>,
-    options: OfficeGestRequestOptions = {},
-  ): Promise<UpstreamRecord> {
-    return this.client.postOne(OFFICEGEST_PATHS.appointments, officeGestRecordSchema, {
-      ...options,
-      body: payload,
-    });
   }
 }

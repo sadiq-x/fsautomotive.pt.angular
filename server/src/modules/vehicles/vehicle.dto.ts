@@ -4,8 +4,18 @@ import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/http/pagination.js';
 import { isPlausiblePlate, normalisePlate } from './plate.js';
 
+/**
+ * The state filter.
+ *
+ * Spelled `active`/`inactive` rather than a raw boolean because a query string
+ * has no booleans — `?status=false` and `?status=0` would both have to be
+ * guessed at, and a typo would silently mean "active". Omitting it means both.
+ */
+export const VEHICLE_STATUSES = ['active', 'inactive'] as const;
+
 export const listVehiclesQuerySchema = paginationQuerySchema.extend({
   search: z.string().trim().min(2).max(120).optional(),
+  status: z.enum(VEHICLE_STATUSES).optional(),
 });
 
 export type ListVehiclesQuery = z.infer<typeof listVehiclesQuerySchema>;

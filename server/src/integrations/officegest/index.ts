@@ -12,12 +12,15 @@ import { AppointmentsResource } from './resources/appointments.resource.js';
 import { CustomersResource } from './resources/customers.resource.js';
 import { EmployeesResource } from './resources/employees.resource.js';
 import { ServiceOrdersResource } from './resources/service-orders.resource.js';
+import { VehicleCatalogueResource } from './resources/vehicle-catalogue.resource.js';
 import { VehiclesResource } from './resources/vehicles.resource.js';
 
 export interface OfficeGestIntegration {
   readonly client: OfficeGestClient;
   readonly customers: CustomersResource;
   readonly vehicles: VehiclesResource;
+  /** The fuel, brand and version tables a vehicle record only points at. */
+  readonly vehicleCatalogue: VehicleCatalogueResource;
   readonly serviceOrders: ServiceOrdersResource;
   readonly appointments: AppointmentsResource;
   readonly employees: EmployeesResource;
@@ -33,6 +36,7 @@ export function createOfficeGestIntegration(
     customers: new CustomersResource(client),
     employees: new EmployeesResource(client),
     vehicles: new VehiclesResource(client),
+    vehicleCatalogue: new VehicleCatalogueResource(client),
     serviceOrders: new ServiceOrdersResource(client),
     appointments: new AppointmentsResource(client),
   };
@@ -48,7 +52,8 @@ export * from './officegest.errors.js';
 export { isClientDisconnect, toAppError } from './officegest.error-mapper.js';
 export { AppointmentsResource } from './resources/appointments.resource.js';
 export { CustomersResource } from './resources/customers.resource.js';
-export { ServiceOrdersResource } from './resources/service-orders.resource.js';
+export { ServiceOrdersResource, nextCursor } from './resources/service-orders.resource.js';
+export { VehicleCatalogueResource } from './resources/vehicle-catalogue.resource.js';
 export { VehiclesResource } from './resources/vehicles.resource.js';
 export type { OfficeGestListResult } from './officegest.types.js';
 export type { UpstreamRecord } from './officegest.record-readers.js';

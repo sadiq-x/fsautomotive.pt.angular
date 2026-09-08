@@ -42,7 +42,6 @@ const STUB_USER: SessionUser = {
     'officegest.vehicles.read',
     'officegest.service-orders.read',
     'officegest.appointments.read',
-    'officegest.appointments.write',
     'workers.read',
     'settings.read',
   ],

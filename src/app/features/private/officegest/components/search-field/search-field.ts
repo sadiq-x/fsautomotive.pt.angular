@@ -17,6 +17,22 @@ import { Icon } from '../../../../../shared/components/icon/icon';
  *
  * The backend requires 2–120 characters or no parameter at all, so a
  * single character is held back rather than sent and rejected with a 422.
+ *
+ * WHY THE INPUT IS NOT `type="search"`
+ * ------------------------------------
+ * Because this component's output is called `search`, and so is a native DOM
+ * event. Chrome fires a bubbling `search` event on a `type="search"` input when
+ * the user presses Enter; it reached the `(search)` binding on this component
+ * as a raw `Event`, which then flowed back down as the field's own value and
+ * rendered as the literal text "[object Event]" in every search box in the
+ * private area.
+ *
+ * Nothing here was mistyping `$event.target.value` — the handler below has
+ * always read the value correctly. The stray Event never went through it: it
+ * arrived at the consumer directly, past this component's logic entirely.
+ *
+ * The input type is therefore part of this component's contract, not a
+ * cosmetic detail, and `search-field.spec.ts` pins it.
  */
 const DEBOUNCE_MS = 350;
 
@@ -36,7 +52,12 @@ export class SearchField {
   /** The committed value, so the field survives a navigation back to the page. */
   readonly value = input<string>('');
 
-  /** Emits the trimmed term, or `''` when the search is cleared. */
+  /**
+   * Emits the trimmed term, or `''` when the search is cleared.
+   *
+   * Named after a native DOM event, so nothing inside this component may use an
+   * element that fires one — see the note above.
+   */
   readonly search = output<string>();
 
   protected readonly draft = signal('');

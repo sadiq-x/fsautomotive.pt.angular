@@ -71,6 +71,23 @@ export const OFFICEGEST_PATHS = {
 
   employees: '/entities/employees',
 
+  /**
+   * The workshop's own reference tables. CONFIRMED 2026-09-08.
+   *
+   * A vehicle record carries `fuel_id`, `brand_id`, `model_id` and `version_id`
+   * and no names to go with them, so without these every one of those fields is
+   * an unusable number. Each table answers on the collection path and on
+   * `/{id}`, which is what lets the small ones be cached whole and the large
+   * ones read one row at a time.
+   *
+   * Sizes on this tenant: fuels 34, brands 65, models 7 750, versions unbounded
+   * (cursor-paged). That difference is the whole reason `vehicle-catalogue.ts`
+   * treats them in two ways rather than one.
+   */
+  fuels: '/workshop/fuels',
+  brands: '/workshop/brands',
+  versionById: (version: string) => `/workshop/versions/${encodeURIComponent(version)}`,
+
   appointments: '/crm/appointments',
   appointmentById: (id: string) => `/crm/appointments/${encodeURIComponent(id)}`,
 } as const;
@@ -134,7 +151,29 @@ export const FILTER_PARAMS = {
   vin: 'vin',
   /** Exact — the whole description, so it is a poor free-text target. */
   description: 'description',
+  /**
+   * Vehicles. Takes `true`/`false` — CONFIRMED 2026-09-08 by comparing the
+   * `is_active` values returned with and without it. The name `active` is
+   * silently ignored, which is why it is spelled out here rather than guessed.
+   */
+  isActive: 'is_active',
 } as const;
+
+/**
+ * Ordering. CONFIRMED on `/workshop/vehicles`, 2026-09-08.
+ *
+ * `sort=-created_at` returns the newest records first and `sort=created_at` the
+ * oldest; without it the collection comes back in no discernible order. A
+ * leading `-` is what reverses it. `order_by` is accepted and ignored.
+ *
+ * This is the only endpoint where ordering has been verified — service orders
+ * are ordered in the service after the window is gathered, because that
+ * endpoint pages by cursor and could not be trusted to order across pages.
+ */
+export const SORT_PARAM = 'sort';
+
+/** `sort` value for "most recently added first". */
+export const SORT_NEWEST_FIRST = '-created_at';
 
 /* -------------------------------------------------------------------------- */
 /* Transport                                                                   */

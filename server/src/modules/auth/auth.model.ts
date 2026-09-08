@@ -22,7 +22,6 @@ export const PERMISSIONS = [
   'officegest.vehicles.read',
   'officegest.service-orders.read',
   'officegest.appointments.read',
-  'officegest.appointments.write',
   // Not OfficeGest-backed, so deliberately outside that namespace: the
   // `officegest.read` umbrella must not reach them.
   'workers.read',

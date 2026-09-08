@@ -3,7 +3,6 @@ import { Router } from 'express';
 
 import {
   AppointmentsController,
-  createAppointmentValidator,
   getAppointmentValidator,
   listAppointmentsValidator,
 } from './appointments.controller.js';
@@ -14,7 +13,6 @@ export function createAppointmentsRouter(service: AppointmentsService): Router {
   const controller = new AppointmentsController(service);
 
   router.get('/', listAppointmentsValidator.middleware, controller.list);
-  router.post('/', createAppointmentValidator.middleware, controller.create);
   router.get('/:appointmentId', getAppointmentValidator.middleware, controller.getById);
 
   return router;

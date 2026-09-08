@@ -17,7 +17,7 @@ const USER: SessionUser = {
   name: 'Miguel Faria',
   email: 'miguel@fsautomotive.pt',
   role: 'ADMIN',
-  permissions: ['officegest.read', 'officegest.appointments.write'],
+  permissions: ['officegest.read', 'officegest.write'],
 };
 
 function configure(gateway: Partial<AuthGateway>): AuthService {
@@ -142,7 +142,7 @@ describe('AuthService', () => {
       const auth = configure({ session: () => of(USER) });
       await auth.restore();
 
-      expect(auth.hasPermission('officegest.appointments.write')).toBe(true);
+      expect(auth.hasPermission('officegest.write')).toBe(true);
     });
 
     // `officegest.read` is the umbrella grant, so a simple deployment can issue
@@ -161,7 +161,7 @@ describe('AuthService', () => {
       });
       await auth.restore();
 
-      expect(auth.hasPermission('officegest.appointments.write')).toBe(false);
+      expect(auth.hasPermission('officegest.write')).toBe(false);
     });
 
     // The umbrella is named after OfficeGest, so it grants OfficeGest reads and

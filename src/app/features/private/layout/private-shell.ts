@@ -73,7 +73,7 @@ export class PrivateShell {
       startWith(null),
       map(() => {
         const url = this.router.url.split('?')[0] ?? '';
-        // Longest match wins, so `/private/appointments/new` resolves to
+        // Longest match wins, so `/private/appointments/12` resolves to
         // Marcações rather than to the dashboard.
         return (
           [...PRIVATE_NAV]

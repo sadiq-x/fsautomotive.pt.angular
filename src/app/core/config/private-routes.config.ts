@@ -40,7 +40,6 @@ export const PRIVATE_ROUTES = {
   serviceOrder: (id: string) => `${PRIVATE_BASE}/service-orders/${encodeURIComponent(id)}`,
   appointments: `${PRIVATE_BASE}/appointments`,
   appointment: (id: string) => `${PRIVATE_BASE}/appointments/${encodeURIComponent(id)}`,
-  newAppointment: `${PRIVATE_BASE}/appointments/new`,
   workers: `${PRIVATE_BASE}/workers`,
   settings: `${PRIVATE_BASE}/settings`,
 } as const;
@@ -87,10 +86,14 @@ export const LEGACY_PRIVATE_ROUTES: Routes = [
         redirectTo: `${PRIVATE_BASE}/service-orders/:serviceOrderId`,
       },
 
-      // `nova` before `:appointmentId`, for the same reason the live routes
-      // order them that way: otherwise it redirects to an appointment with the
-      // id "nova".
-      { path: 'marcacoes/nova', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.newAppointment },
+      // `nova` before `:appointmentId`, or this would redirect to an
+      // appointment whose id is the literal "nova".
+      //
+      // Booking from the site was removed, so the old "nova marcação" address
+      // has no destination of its own any more. It lands on the list rather
+      // than being deleted outright: a bookmark from the previous site should
+      // arrive somewhere useful, not on "esta marcação não existe".
+      { path: 'marcacoes/nova', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.appointments },
       { path: 'marcacoes', pathMatch: 'full', redirectTo: PRIVATE_ROUTES.appointments },
       {
         path: 'marcacoes/:appointmentId',

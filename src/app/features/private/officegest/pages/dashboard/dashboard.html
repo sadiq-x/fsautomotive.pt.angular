@@ -20,12 +20,12 @@
           </div>
         } @else if (tile.metric.failed) {
           <p class="mt-3 text-body text-ink-400">Indisponível</p>
-        } @else if (tile.metric.value === null) {
+        } @else if (tile.text === null) {
           <!-- The endpoint answered but reported no total; a zero here would
                be a claim the data does not support. -->
           <p class="mt-3 text-h2 text-ink-300" title="O OfficeGest não indicou um total">—</p>
         } @else {
-          <p class="mt-3 text-h2 text-ink-950 tabular-nums">{{ tile.metric.value }}</p>
+          <p class="mt-3 text-h2 text-ink-950 tabular-nums">{{ tile.text }}</p>
         }
       </div>
     }

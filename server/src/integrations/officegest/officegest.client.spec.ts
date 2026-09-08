@@ -179,13 +179,15 @@ describe('OfficeGestClient', () => {
     it('carries the upstream field errors on a 422', async () => {
       const http = fakeFetch([
         LOGIN_OK,
-        { status: 422, body: { errors: { start_date: ['is required'] } } },
+        { status: 422, body: { errors: { start: ['is required'] } } },
       ]);
       const client = new OfficeGestClient(makeConfig(), { fetch: http.fetch, sleep: noWait });
 
+      // The real case: `/crm/appointments` answers 422 when the mandatory
+      // `start` / `end` range is missing.
       await expect(
-        client.postOne('/crm/appointments', officeGestRecordSchema, { body: {} }),
-      ).rejects.toMatchObject({ details: { start_date: ['is required'] } });
+        client.getList('/crm/appointments', officeGestRecordSchema),
+      ).rejects.toMatchObject({ details: { start: ['is required'] } });
     });
 
     it('reads Retry-After from a 429', async () => {
@@ -230,24 +232,33 @@ describe('OfficeGestClient', () => {
       expect(http.apiCalls()).toHaveLength(2);
     });
 
+    /**
+     * No resource here writes any more, but the rule still governs every `POST`
+     * the client makes — `/auth/login` among them — so it stays tested through
+     * the generic `request` escape hatch rather than through a resource.
+     */
     it('never replays a POST that failed with a server error', async () => {
       const http = fakeFetch([LOGIN_OK, { status: 500 }]);
       const client = new OfficeGestClient(makeConfig(), { fetch: http.fetch, sleep: noWait });
 
       await expect(
-        client.postOne('/crm/appointments', officeGestRecordSchema, { body: { title: 'x' } }),
+        client.request('POST', '/crm/appointments', officeGestRecordSchema, {
+          body: { title: 'x' },
+        }),
       ).rejects.toBeInstanceOf(OfficeGestServerError);
 
-      // One attempt only: the booking may already exist upstream.
+      // One attempt only: the request may already have been processed upstream.
       expect(http.apiCalls()).toHaveLength(1);
     });
 
     it('does retry a POST that was rate limited, because nothing was processed', async () => {
-      const http = fakeFetch([LOGIN_OK, { status: 429 }, { body: { data: { id: '9' } } }]);
+      const http = fakeFetch([LOGIN_OK, { status: 429 }, { body: { id: '9' } }]);
       const client = new OfficeGestClient(makeConfig(), { fetch: http.fetch, sleep: noWait });
 
       await expect(
-        client.postOne('/crm/appointments', officeGestRecordSchema, { body: { title: 'x' } }),
+        client.request('POST', '/crm/appointments', officeGestRecordSchema, {
+          body: { title: 'x' },
+        }),
       ).resolves.toEqual({ id: '9' });
       expect(http.apiCalls()).toHaveLength(2);
     });

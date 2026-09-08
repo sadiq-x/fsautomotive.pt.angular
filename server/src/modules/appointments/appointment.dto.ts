@@ -2,7 +2,7 @@
 import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../shared/http/pagination.js';
-import { isPlausiblePlate, normalisePlate } from '../vehicles/plate.js';
+import { APPOINTMENT_STATUSES } from './appointment.model.js';
 
 /** An ISO-8601 instant. Kept as a string; only its parseability is asserted. */
 const isoDateTime = z
@@ -11,16 +11,32 @@ const isoDateTime = z
   .refine((value) => !Number.isNaN(Date.parse(value)), 'must be an ISO-8601 date-time')
   .transform((value) => new Date(value).toISOString());
 
-const plate = z
+/**
+ * Free-text search.
+ *
+ * Bounded and trimmed, and an empty result of trimming becomes `undefined`
+ * rather than `''` — otherwise "no search" and "search for nothing" would be
+ * two states meaning the same thing, and only one of them would count as an
+ * active filter.
+ */
+const search = z
   .string()
   .trim()
-  .transform(normalisePlate)
-  .refine(isPlausiblePlate, 'must be a registration plate, e.g. AA-00-BB');
+  .max(120)
+  .transform((value) => (value === '' ? undefined : value))
+  .optional();
 
 export const listAppointmentsQuerySchema = paginationQuerySchema.extend({
   from: isoDateTime.optional(),
   to: isoDateTime.optional(),
   customerId: z.string().trim().min(1).max(64).optional(),
+  /**
+   * `none` is a real choice, not the absence of one: it selects the bookings
+   * with no state set, which are a third of this tenant's diary. Omitting the
+   * parameter is what means "any state".
+   */
+  status: z.enum([...APPOINTMENT_STATUSES, 'none']).optional(),
+  search,
 });
 
 export type ListAppointmentsQuery = z.infer<typeof listAppointmentsQuerySchema>;
@@ -35,27 +51,3 @@ export const appointmentIdParamsSchema = z.object({
 });
 
 export type AppointmentIdParams = z.infer<typeof appointmentIdParamsSchema>;
-
-/**
- * `POST /api/officegest/appointments`
- *
- * Ordering (`endsAt` after `startsAt`) is asserted here because it is a property
- * of the payload itself. Whether the slot is in the future is *not* — that is a
- * rule about the world, it depends on the clock, and it belongs in the service
- * where it can be tested with a fixed time.
- */
-export const createAppointmentBodySchema = z
-  .object({
-    title: z.string().trim().min(3).max(160),
-    startsAt: isoDateTime,
-    endsAt: isoDateTime.optional(),
-    customerId: z.string().trim().min(1).max(64).optional(),
-    plate: plate.optional(),
-    notes: z.string().trim().max(2000).optional(),
-  })
-  .refine(
-    (value) => value.endsAt === undefined || Date.parse(value.endsAt) > Date.parse(value.startsAt),
-    { path: ['endsAt'], message: 'must be after startsAt' },
-  );
-
-export type CreateAppointmentBody = z.infer<typeof createAppointmentBodySchema>;

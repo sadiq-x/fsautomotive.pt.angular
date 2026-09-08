@@ -5,8 +5,23 @@
     <app-icon name="search" [size]="18" />
   </span>
 
+  <!--
+    NOT `type="search"`, deliberately — see the note in `search-field.ts`.
+
+    Chrome fires a native, *bubbling* `search` event on a `type="search"` input
+    when Enter is pressed. That event has the same name as this component's
+    `search` output, so it arrived at every `(search)` binding above as a raw
+    DOM Event and was rendered as the literal text "[object Event]".
+
+    `role` and `enterkeyhint` keep what the search type was actually giving us:
+    the `searchbox` role for assistive technology, and a "search" key on mobile
+    keyboards. The clear button below replaces the browser's built-in one, which
+    a search input would render *in addition* to ours.
+  -->
   <input
-    type="search"
+    type="text"
+    role="searchbox"
+    enterkeyhint="search"
     autocomplete="off"
     class="w-full rounded-full border-0 bg-white py-2.5 pr-10 pl-11 text-body text-ink-900 shadow-btn ring-1 ring-ink-950/8 transition-shadow ring-inset placeholder:text-ink-400 focus:ring-2 focus:ring-brand-600 focus:outline-none"
     [placeholder]="placeholder()"

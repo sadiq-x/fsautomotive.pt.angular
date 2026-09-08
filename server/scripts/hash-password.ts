@@ -150,6 +150,6 @@ stdout.write(
       null,
       2,
     )}\n\n` +
-    'Roles: ADMIN (everything), MANAGER (reads, plus new bookings and staff),\n' +
+    'Roles: ADMIN (everything), MANAGER (reads, plus staff),\n' +
     'USER (read-only OfficeGest). Add a "permissions" array to override.\n',
 );

@@ -158,22 +158,6 @@ export class OfficeGestClient {
     return envelope.data as T;
   }
 
-  /** Creates a resource and validates the `{ data }` it returns. */
-  async postOne<T>(
-    path: string,
-    itemSchema: z.ZodType<T>,
-    options: OfficeGestRequestOptions = {},
-  ): Promise<T> {
-    const envelope = await this.request(
-      'POST',
-      path,
-      officeGestItemEnvelope(itemSchema as z.ZodTypeAny),
-      options,
-    );
-
-    return envelope.data as T;
-  }
-
   /**
    * The escape hatch for a call that does not fit the envelope helpers.
    * Still validated — `schema` is mandatory, so no unchecked `unknown` can

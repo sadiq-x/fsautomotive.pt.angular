@@ -360,21 +360,6 @@ describe('the OfficeGest endpoints once sign-in is configured', () => {
     await request(app).get('/api/officegest/vehicles').set('Cookie', cookie).expect(200);
   });
 
-  /** Reading the diary and writing to it are different privileges. */
-  it('refuses a booking from a session that may only read the diary', async () => {
-    const app = await appWith([
-      { permissions: ['officegest.read', 'officegest.appointments.read'] },
-    ]);
-    const cookie = await signIn(app);
-
-    await request(app)
-      .post('/api/officegest/appointments')
-      .set('Cookie', cookie)
-      .set('Origin', SITE_ORIGIN)
-      .send({ customerId: '1', start: '2026-01-01T09:00:00Z' })
-      .expect(403);
-  });
-
   it('is unguarded only when nothing at all is configured', async () => {
     const app = await appWithoutAuth();
 

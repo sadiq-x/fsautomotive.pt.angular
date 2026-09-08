@@ -13,7 +13,13 @@
  * testable without a server and reusable from somewhere that is not a
  * controller — a scheduled sync, a CLI, a queue worker.
  */
-import { countAll, type CountResult } from '../../integrations/officegest/officegest.counter.js';
+import {
+  COUNT_TTL_MS,
+  countAll,
+  type CountResult,
+} from '../../integrations/officegest/officegest.counter.js';
+import { logger as sharedLogger } from '../../shared/logger.js';
+import { memoizeWithTtl } from '../../shared/ttl-memo.js';
 import { readHasMore } from '../../shared/http/pagination.js';
 import type { CustomersResource } from '../../integrations/officegest/index.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
@@ -69,6 +75,20 @@ export interface CustomerList {
 export class CustomersService {
   constructor(private readonly customers: CustomersResource) {}
 
+  /**
+   * The size of the whole collection, held for `COUNT_TTL_MS`.
+   *
+   * Shared by every caller, so it takes no request signal: one browser
+   * navigating away must not cancel the sweep three other requests are waiting
+   * on. It logs against the shared logger for the same reason — the sweep
+   * belongs to no single request.
+   */
+  private readonly total = memoizeWithTtl(
+    () =>
+      countAll((page, perPage) => this.customers.list({ page, perPage }, { logger: sharedLogger })),
+    COUNT_TTL_MS,
+  );
+
   async list(query: ListCustomersQuery, context: UseCaseContext): Promise<CustomerList> {
     const result = await this.customers.list(
       { page: query.page, perPage: query.perPage, ...toCustomerFilter(query.search) },
@@ -101,12 +121,21 @@ export class CustomersService {
    * The search filter is applied, so counting a filtered list counts the filter.
    */
   async count(query: ListCustomersQuery, context: UseCaseContext): Promise<CountResult> {
-    const result = await countAll((page, perPage) =>
-      this.customers.list(
-        { page, perPage, ...toCustomerFilter(query.search) },
-        { logger: context.logger, signal: context.signal },
-      ),
-    );
+    const filter = toCustomerFilter(query.search);
+
+    // Only the unfiltered total is cached — it is the one the dashboard asks
+    // for on every visit, and the only one whose answer is the same for every
+    // caller. A filtered count is a question one person asked about one term,
+    // so it is swept fresh and never stored.
+    const result =
+      Object.keys(filter).length > 0
+        ? await countAll((page, perPage) =>
+            this.customers.list(
+              { page, perPage, ...filter },
+              { logger: context.logger, signal: context.signal },
+            ),
+          )
+        : await this.total.get();
 
     context.logger.info('counted OfficeGest customers', {
       total: result.total,

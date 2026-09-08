@@ -89,7 +89,7 @@ export class AuthConfigError extends Error {
  */
 const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
   ADMIN: PERMISSIONS,
-  MANAGER: ['officegest.read', 'officegest.appointments.write', 'workers.read'],
+  MANAGER: ['officegest.read', 'workers.read'],
   USER: ['officegest.read'],
 };
 

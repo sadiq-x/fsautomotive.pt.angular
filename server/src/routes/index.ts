@@ -91,24 +91,11 @@ export function createApiRouter(container: Container): Router {
     createEmployeesRouter(container.employees),
   );
 
-  // The only namespace where the method matters: reading the diary and writing
-  // to it are different privileges, and one `requirePermission` across the
-  // whole router could express only the weaker of the two — which would let
-  // anyone who may read the diary also add to it.
-  //
-  // The choice is made per request rather than per path, so it cannot be
-  // sidestepped by a route added later: any method that is not a read is
-  // treated as a write, which is the safe way round for a default.
-  const canReadDiary = requirePermission('officegest.appointments.read');
-  const canWriteDiary = requirePermission('officegest.appointments.write');
-
-  const appointments = Router();
-  appointments.use((req, res, next) =>
-    (req.method === 'GET' || req.method === 'HEAD' ? canReadDiary : canWriteDiary)(req, res, next),
+  officegest.use(
+    '/appointments',
+    requirePermission('officegest.appointments.read'),
+    createAppointmentsRouter(container.appointments),
   );
-  appointments.use(createAppointmentsRouter(container.appointments));
-
-  officegest.use('/appointments', appointments);
 
   router.use(OFFICEGEST_ROUTE_PREFIX, officegest);
 

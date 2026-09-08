@@ -133,7 +133,7 @@ describe('permissionGuard', () => {
   it('sends a user without the permission to the front door', async () => {
     configure(USER);
 
-    const result = await run(permissionGuard('officegest.appointments.write'));
+    const result = await run(permissionGuard('officegest.write'));
 
     expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(PRIVATE_ROUTES.login);
   });

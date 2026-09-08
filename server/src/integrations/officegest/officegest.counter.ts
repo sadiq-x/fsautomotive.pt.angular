@@ -26,6 +26,22 @@ import type { OfficeGestListResult } from './officegest.types.js';
 /** At 250 rows each, this covers 5 000 records — well past this workshop's data. */
 const MAX_REQUESTS = 20;
 
+/**
+ * How long an unfiltered collection count stays fresh.
+ *
+ * The sweep is the expensive thing in this file — 6 requests for the customers
+ * and 11 for the vehicles on this tenant — so the dashboard, which wants those
+ * two numbers on every visit, would otherwise spend 17 upstream requests per
+ * page load on data that changes a few times a day.
+ *
+ * Six hours makes that at most four sweeps a day, roughly 2 000 requests a
+ * month against a 100 000 quota, while a staff member opening the dashboard
+ * gets a number that is at worst a few hours stale — which is the right
+ * trade for "how many customers do we have", and would be the wrong one for
+ * anything a decision is made on.
+ */
+export const COUNT_TTL_MS = 6 * 60 * 60 * 1000;
+
 export interface CountResult {
   readonly total: number;
   /** `false` when the sweep hit its cap, so `total` is a floor, not the count. */

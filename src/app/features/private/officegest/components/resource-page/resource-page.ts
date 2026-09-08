@@ -67,6 +67,15 @@ export class ResourcePage<T, F extends object> {
   readonly searchPlaceholder = input('Pesquisar…');
   readonly searchValue = input('');
 
+  /**
+   * The committed search term, already a plain string.
+   *
+   * This shares its name with a native DOM event, which bubbles. Anything
+   * projected into the `filters` slot must therefore not be an
+   * `<input type="search">`: its native `search` event would reach this
+   * component's own `(search)` binding as a raw Event. That is exactly the
+   * defect `SearchField` was carrying — see the note there.
+   */
   readonly search = output<string>();
 
   /** First load: nothing has arrived yet, so the skeleton is the whole page. */
@@ -98,9 +107,17 @@ export class ResourcePage<T, F extends object> {
       return `0 ${this.countNoun()}`;
     }
 
-    const { page, perPage } = store.pagination();
+    const pagination = store.pagination();
+    const { page, perPage } = pagination;
     const first = (page - 1) * perPage + 1;
     const range = `${first}–${first + loaded - 1}`;
+
+    // Some endpoints now report an exact total of their own — the bookings list
+    // knows one because the backend holds the whole date window. When that is
+    // present it is authoritative, and the "count" action below is redundant.
+    if (pagination.total !== undefined) {
+      return `${range} de ${pagination.total.toLocaleString('pt-PT')} ${this.countNoun()}`;
+    }
 
     if (store.countStatus() === 'counting') {
       return `${range} ${this.countNoun()} — a contar o total…`;

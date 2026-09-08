@@ -26,7 +26,7 @@ const USER: SessionUser = {
   id: 'u1',
   name: 'Miguel Faria',
   role: 'ADMIN',
-  permissions: ['officegest.read', 'officegest.appointments.write'],
+  permissions: ['officegest.read', 'officegest.write'],
 };
 
 function configure(user: SessionUser | null) {
@@ -161,7 +161,6 @@ describe('private routes', () => {
       ['/gestao/veiculos', PRIVATE_ROUTES.vehicles],
       ['/gestao/folhas-de-obra', PRIVATE_ROUTES.serviceOrders],
       ['/gestao/marcacoes', PRIVATE_ROUTES.appointments],
-      ['/gestao/marcacoes/nova', PRIVATE_ROUTES.newAppointment],
     ])('maps %s to %s', async (from, to) => {
       const router = configure(USER);
 
@@ -182,10 +181,15 @@ describe('private routes', () => {
     // `nova` is declared before `:appointmentId` in both tables; getting that
     // order wrong turns the "new appointment" link into a lookup for a booking
     // with the id "nova".
+    /**
+     * Booking from the site was removed, so `/gestao/marcacoes/nova` has no
+     * destination of its own — but it must still not be read as an appointment
+     * whose id is "nova", which is what the route ordering guarantees.
+     */
     it('does not mistake the old "nova" link for an appointment id', async () => {
       const router = configure(USER);
 
-      expect(await land(router, '/gestao/marcacoes/nova')).toBe(PRIVATE_ROUTES.newAppointment);
+      expect(await land(router, '/gestao/marcacoes/nova')).toBe(PRIVATE_ROUTES.appointments);
     });
   });
 });

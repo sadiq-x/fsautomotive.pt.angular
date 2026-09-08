@@ -12,7 +12,7 @@ import { grants, grantsAny, PERMISSIONS, toSessionUser, type AuthUser } from './
  */
 describe('grants', () => {
   it('accepts a permission that was granted outright', () => {
-    expect(grants(['officegest.appointments.write'], 'officegest.appointments.write')).toBe(true);
+    expect(grants(['officegest.write'], 'officegest.write')).toBe(true);
   });
 
   it('treats officegest.read as covering every OfficeGest read', () => {
@@ -23,7 +23,6 @@ describe('grants', () => {
   });
 
   it('does not let the umbrella read grant imply a write permission', () => {
-    expect(grants(['officegest.read'], 'officegest.appointments.write')).toBe(false);
     expect(grants(['officegest.read'], 'officegest.write')).toBe(false);
   });
 

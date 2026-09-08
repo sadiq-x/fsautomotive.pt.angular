@@ -113,73 +113,37 @@ describe('GET /api/officegest/customers', () => {
 });
 
 describe('GET /api/officegest/vehicles/:plate', () => {
-  it('normalises the plate before using it as the upstream key', async () => {
-    const { app, http } = appWith([LOGIN_OK, { body: { data: { matricula: 'aa-00-bb' } } }]);
+  /**
+   * The regression this pins.
+   *
+   * This test previously asserted that the *normalised* plate was sent
+   * upstream, which is what the code did and what made every vehicle detail
+   * page report "not found": OfficeGest keys vehicles by the hyphenated plate
+   * and answers 404 for `0000ZZ` while returning the record for `00-00-ZZ`
+   * (verified against the tenant, 2026-09-08).
+   *
+   * Both halves matter, which is why they are asserted together: hyphenated on
+   * the way out, normalised on the way back, whatever the caller typed.
+   */
+  it.each(['aa-00-bb', 'AA00BB', 'aa 00 bb'])(
+    'sends the hyphenated plate upstream and answers with the normalised one (%s)',
+    async (typed) => {
+      const { app, http } = appWith([LOGIN_OK, { body: { data: { matricula: 'aa-00-bb' } } }]);
 
-    const response = await request(app).get('/api/officegest/vehicles/aa-00-bb').expect(200);
+      const response = await request(app).get(`/api/officegest/vehicles/${typed}`).expect(200);
 
-    expect(http.apiCalls()[0]?.url).toBe(
-      'https://tenant.example.test/api/v2/workshop/vehicles/AA00BB',
-    );
-    expect(response.body.data.plate).toBe('AA00BB');
-  });
+      expect(http.apiCalls()[0]?.url).toBe(
+        'https://tenant.example.test/api/v2/workshop/vehicles/AA-00-BB',
+      );
+      expect(response.body.data.plate).toBe('AA00BB');
+    },
+  );
 
   it('rejects something that is not a plate', async () => {
     const { app, http } = appWith([LOGIN_OK]);
 
     await request(app).get('/api/officegest/vehicles/not-a-plate').expect(422);
     expect(http.calls).toHaveLength(0);
-  });
-});
-
-describe('POST /api/officegest/appointments', () => {
-  it('creates a booking and points at it with Location', async () => {
-    const { app, http } = appWith([LOGIN_OK, { status: 201, body: { data: { id: '900' } } }]);
-
-    const response = await request(app)
-      .post('/api/officegest/appointments')
-      .send({ title: 'Revisão dos 60.000 km', startsAt: '2099-01-01T09:00:00.000Z' })
-      .expect(201);
-
-    expect(response.body).toEqual({ success: true, data: { id: '900' } });
-    expect(response.headers['location']).toBe('/api/officegest/appointments/900');
-    expect(http.apiCalls()[0]?.body).toEqual({
-      title: 'Revisão dos 60.000 km',
-      start_date: '2099-01-01T09:00:00.000Z',
-    });
-  });
-
-  it('rejects a body that fails validation, listing every problem', async () => {
-    const { app, http } = appWith([LOGIN_OK]);
-
-    const response = await request(app)
-      .post('/api/officegest/appointments')
-      .send({ title: 'no', startsAt: 'yesterday' })
-      .expect(422);
-
-    expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    expect(response.body.error.details.length).toBeGreaterThanOrEqual(2);
-    expect(http.calls).toHaveLength(0);
-  });
-
-  it('rejects a booking in the past as a business-rule failure, not a schema one', async () => {
-    const { app } = appWith([LOGIN_OK]);
-
-    const response = await request(app)
-      .post('/api/officegest/appointments')
-      .send({ title: 'Revisão atrasada', startsAt: '2020-01-01T09:00:00.000Z' })
-      .expect(400);
-
-    expect(response.body.error.code).toBe('BAD_REQUEST');
-  });
-
-  it('refuses a body larger than the configured limit', async () => {
-    const { app } = appWith([LOGIN_OK]);
-
-    await request(app)
-      .post('/api/officegest/appointments')
-      .send({ title: 'x'.repeat(200_000), startsAt: '2099-01-01T09:00:00.000Z' })
-      .expect(413);
   });
 });
 
@@ -222,16 +186,13 @@ describe('upstream failures', () => {
   it('forwards an upstream 422 with the field errors that help the caller', async () => {
     const { app } = appWith([
       LOGIN_OK,
-      { status: 422, body: { errors: { start_date: ['is required'] } } },
+      { status: 422, body: { errors: { start: ['is required'] } } },
     ]);
 
-    const response = await request(app)
-      .post('/api/officegest/appointments')
-      .send({ title: 'Revisão', startsAt: '2099-01-01T09:00:00.000Z' })
-      .expect(422);
+    const response = await request(app).get('/api/officegest/appointments').expect(422);
 
     expect(response.body.error.code).toBe('OFFICEGEST_VALIDATION_ERROR');
-    expect(response.body.error.details).toEqual({ start_date: ['is required'] });
+    expect(response.body.error.details).toEqual({ start: ['is required'] });
   });
 
   it('reports a response that is not JSON as a contract failure', async () => {

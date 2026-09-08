@@ -10,17 +10,20 @@ import { Icon } from '../../../../../shared/components/icon/icon';
 import { PRIVATE_NAV, type PrivateNavItem } from '../../../layout/private-nav.data';
 import { Calendar } from '../../components/calendar/calendar';
 import type { CalendarEvent } from '../../components/calendar/calendar.model';
-import type { Appointment } from '../../models';
+import type { Appointment, ResourceCount } from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
 
 /** A headline number, or the reason there isn't one. */
 interface Metric {
   readonly value: number | null;
+  /** `false` when the count hit its cap upstream, so `value` is a floor. */
+  readonly exact: boolean;
   readonly loading: boolean;
   readonly failed: boolean;
 }
 
-const PENDING: Metric = { value: null, loading: true, failed: false };
+const PENDING: Metric = { value: null, exact: true, loading: true, failed: false };
+const FAILED: Metric = { value: null, exact: true, loading: false, failed: true };
 
 /**
  * The landing page of the private area.
@@ -28,14 +31,22 @@ const PENDING: Metric = { value: null, loading: true, failed: false };
  * WHERE THE NUMBERS COME FROM
  * ---------------------------
  * There is no statistics endpoint, and inventing one would mean inventing a
- * backend. Instead each tile asks an existing list endpoint for a single row
- * and reads `meta.total` — one cheap request per tile, using only what the API
- * genuinely provides.
+ * backend. So each tile is built from what the API genuinely provides — and
+ * that differs by resource, which is why they are not fetched the same way.
  *
- * That total is not always there: OfficeGest omits it on some endpoints (see
- * `server/README.md` §8). A tile with no total shows a dash rather than a zero,
- * because "we could not count this" and "there are none" are different
- * statements and only one of them is alarming.
+ * The bookings tile asks the list endpoint for a single row and reads
+ * `meta.total`. That works because the backend gathers the whole date window
+ * itself to sort it, so it knows the total as a by-product.
+ *
+ * The customers and vehicles tiles cannot do that: OfficeGest reports no total
+ * on those endpoints at all — no `total`, no `last_page`, only `has_more` — so
+ * `meta.total` was always `undefined` and both tiles rendered a permanent dash.
+ * The only way to a real number is the backend's count endpoint, which walks
+ * the collection; it caches the answer for six hours, so the sweep is paid once
+ * a session rather than once a visit.
+ *
+ * A count can still come back inexact when the sweep hits its cap, and that is
+ * shown as "mais de N" rather than as a number the data does not support.
  *
  * Each tile fails independently. One endpoint being down leaves the other
  * numbers and the whole navigation working.
@@ -63,31 +74,34 @@ export class Dashboard {
     );
   });
 
-  protected readonly customers = this.metric(() =>
-    this.officegest.listCustomers({ page: 1, perPage: 1 }),
+  protected readonly customers = this.track(this.officegest.countCustomers().pipe(map(fromCount)));
+
+  protected readonly vehicles = this.track(this.officegest.countVehicles().pipe(map(fromCount)));
+
+  protected readonly appointments = this.track(
+    this.officegest
+      .listAppointments({
+        page: 1,
+        perPage: 1,
+        // From now on: the useful count is what is still to come, not the archive.
+        from: new Date().toISOString(),
+      })
+      .pipe(map(fromPage)),
   );
 
-  protected readonly vehicles = this.metric(() =>
-    this.officegest.listVehicles({ page: 1, perPage: 1 }),
-  );
-
-  protected readonly appointments = this.metric(() =>
-    this.officegest.listAppointments({
-      page: 1,
-      perPage: 1,
-      // From now on: the useful count is what is still to come, not the archive.
-      from: new Date().toISOString(),
-    }),
-  );
-
-  /** Typed here rather than in the template, so `IconName` survives. */
-  protected readonly tiles = computed<readonly { label: string; icon: IconName; metric: Metric }[]>(
-    () => [
+  /**
+   * Typed here rather than in the template, so `IconName` survives — and the
+   * number is formatted here too, so the template only ever prints a string.
+   */
+  protected readonly tiles = computed<readonly Tile[]>(() => {
+    const metrics: readonly Omit<Tile, 'text'>[] = [
       { label: 'Clientes', icon: 'users', metric: this.customers() },
       { label: 'Veículos', icon: 'car', metric: this.vehicles() },
       { label: 'Marcações futuras', icon: 'calendar', metric: this.appointments() },
-    ],
-  );
+    ];
+
+    return metrics.map((tile) => ({ ...tile, text: format(tile.metric) }));
+  });
 
   /* ------------------------------------------------------------------ */
   /* Calendar                                                            */
@@ -154,21 +168,52 @@ export class Dashboard {
     return name ? `${salutation}, ${name}` : salutation;
   });
 
-  /** Turns any list request into a tile state, without ever throwing. */
-  private metric<T>(request: () => Observable<Paged<T>>) {
+  /** Follows one tile's request, without ever throwing. */
+  private track(source: Observable<Metric>) {
     return toSignal(
-      request().pipe(
-        map((page): Metric => ({
-          value: page.pagination.total ?? null,
-          loading: false,
-          failed: false,
-        })),
-        catchError(() => of<Metric>({ value: null, loading: false, failed: true })),
+      source.pipe(
+        catchError(() => of(FAILED)),
         startWith(PENDING),
       ),
       { initialValue: PENDING },
     );
   }
+}
+
+/** A tile, with its number already rendered. */
+interface Tile {
+  readonly label: string;
+  readonly icon: IconName;
+  readonly metric: Metric;
+  /** `null` when there is no number to show — see `format`. */
+  readonly text: string | null;
+}
+
+/** A counted collection: an exact size, or a floor when the sweep hit its cap. */
+function fromCount(count: ResourceCount): Metric {
+  return { value: count.total, exact: count.exact, loading: false, failed: false };
+}
+
+/**
+ * A list response that reports its own total.
+ *
+ * `total` is genuinely absent on some endpoints, and a tile that cannot be
+ * counted says so with a dash rather than a zero: "we could not count this" and
+ * "there are none" are different statements, and only one of them is alarming.
+ */
+function fromPage<T>(page: Paged<T>): Metric {
+  return { value: page.pagination.total ?? null, exact: true, loading: false, failed: false };
+}
+
+/** The number as it should read, or `null` when there is none to show. */
+function format(metric: Metric): string | null {
+  if (metric.value === null) {
+    return null;
+  }
+
+  const total = metric.value.toLocaleString('pt-PT');
+
+  return metric.exact ? total : `mais de ${total}`;
 }
 
 /** What the calendar section is doing, in one value. */

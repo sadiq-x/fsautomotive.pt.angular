@@ -1,15 +1,15 @@
 /**
- * Booking rules, at a fixed instant.
+ * The listing window, at a fixed instant.
  *
  * The clock is injected precisely so these assertions do not depend on when the
- * suite runs — the usual way a "must be in the future" rule becomes flaky.
+ * suite runs — the usual way a "defaults to the last thirty days" rule becomes
+ * flaky.
  */
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AppointmentsResource } from '../../integrations/officegest/index.js';
 import type { Logger } from '../../shared/logger.js';
 import { AppointmentsService } from './appointments.service.js';
-import type { CreateAppointmentBody } from './appointment.dto.js';
 
 const NOW = new Date('2026-08-28T09:00:00.000Z');
 
@@ -27,7 +27,6 @@ function makeResource(overrides: Partial<AppointmentsResource> = {}): Appointmen
   return {
     list: vi.fn().mockResolvedValue({ items: [], meta: undefined }),
     getById: vi.fn(),
-    create: vi.fn().mockResolvedValue({ id: '100', title: 'Revisão' }),
     ...overrides,
   } as unknown as AppointmentsResource;
 }
@@ -36,92 +35,211 @@ function makeService(resource = makeResource()): AppointmentsService {
   return new AppointmentsService(resource, () => NOW);
 }
 
-const validBody: CreateAppointmentBody = {
-  title: 'Revisão dos 60.000 km',
-  startsAt: '2026-08-29T09:00:00.000Z',
-  endsAt: '2026-08-29T11:00:00.000Z',
-  plate: 'AA00BB',
-};
+/** An upstream record, in the shape the tenant actually returns. */
+function record(
+  id: string,
+  start: string,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return { id, title: `Marcação ${id}`, start, end: start, ...extra };
+}
+
+/** A resource whose window is exactly these records, on one page. */
+function windowOf(...records: readonly Record<string, unknown>[]): AppointmentsResource {
+  return makeResource({
+    list: vi.fn().mockResolvedValue({ items: records, meta: { has_more: false } }),
+  });
+}
 
 describe('AppointmentsService', () => {
-  describe('create', () => {
-    it('books a valid appointment and returns the mapped record', async () => {
-      const resource = makeResource();
+  describe('list', () => {
+    /**
+     * 5.3 on screen: the newest booking is the one someone opened the page to
+     * see. Upstream returns no dependable order, so this is the service's job.
+     */
+    it('returns the most recent booking first, whatever order upstream used', async () => {
+      const service = makeService(
+        windowOf(
+          record('1', '2026-08-01 09:00:00'),
+          record('3', '2026-08-30 09:00:00'),
+          record('2', '2026-08-15 09:00:00'),
+        ),
+      );
 
-      await expect(makeService(resource).create(validBody, context)).resolves.toMatchObject({
-        id: '100',
-      });
-      expect(resource.create).toHaveBeenCalledTimes(1);
+      const result = await service.list({ page: 1, perPage: 10 }, context);
+
+      expect(result.appointments.map((a) => a.id)).toEqual(['3', '2', '1']);
     });
 
-    it('sends only the fields the caller supplied', async () => {
-      const create = vi.fn().mockResolvedValue({ id: '100' });
+    it('sorts a booking with no date last rather than first', async () => {
+      const service = makeService(
+        windowOf({ id: 'undated', title: 'Sem data' }, record('dated', '2026-08-01 09:00:00')),
+      );
 
-      await makeService(makeResource({ create })).create(
-        { title: 'Diagnóstico', startsAt: '2026-08-29T09:00:00.000Z' },
+      const result = await service.list({ page: 1, perPage: 10 }, context);
+
+      expect(result.appointments.map((a) => a.id)).toEqual(['dated', 'undated']);
+    });
+
+    it('reports an exact total, which upstream never provides', async () => {
+      const service = makeService(
+        windowOf(
+          record('1', '2026-08-01 09:00:00'),
+          record('2', '2026-08-02 09:00:00'),
+          record('3', '2026-08-03 09:00:00'),
+        ),
+      );
+
+      const result = await service.list({ page: 2, perPage: 2 }, context);
+
+      expect(result.meta).toMatchObject({ page: 2, perPage: 2, total: 3, totalPages: 2 });
+      expect(result.appointments).toHaveLength(1);
+      expect(result.meta.hasMore).toBe(false);
+    });
+
+    /**
+     * The property that makes filtering on this side legitimate: the page is
+     * cut *after* the filter, so page 1 of a filtered list is full.
+     */
+    it('paginates the filtered set, not the fetched one', async () => {
+      const service = makeService(
+        windowOf(
+          record('1', '2026-08-01 09:00:00', { completed: true }),
+          record('2', '2026-08-02 09:00:00'),
+          record('3', '2026-08-03 09:00:00', { completed: true }),
+          record('4', '2026-08-04 09:00:00'),
+        ),
+      );
+
+      const result = await service.list({ page: 1, perPage: 10, status: 'completed' }, context);
+
+      expect(result.appointments.map((a) => a.id)).toEqual(['3', '1']);
+      expect(result.meta.total).toBe(2);
+    });
+
+    it('selects the bookings with no state at all', async () => {
+      const service = makeService(
+        windowOf(
+          record('1', '2026-08-01 09:00:00', { completed: true }),
+          record('2', '2026-08-02 09:00:00'),
+        ),
+      );
+
+      const result = await service.list({ page: 1, perPage: 10, status: 'none' }, context);
+
+      expect(result.appointments.map((a) => a.id)).toEqual(['2']);
+    });
+
+    it('searches without regard to case or accents', async () => {
+      const service = makeService(
+        windowOf(
+          { id: '1', title: 'Revisão dos travões', start: '2026-08-01 09:00:00' },
+          { id: '2', title: 'Alinhamento', start: '2026-08-02 09:00:00' },
+        ),
+      );
+
+      const result = await service.list({ page: 1, perPage: 10, search: '  REVISAO ' }, context);
+
+      expect(result.appointments.map((a) => a.id)).toEqual(['1']);
+    });
+
+    it('searches the location as well as the title', async () => {
+      const service = makeService(
+        windowOf(
+          record('1', '2026-08-01 09:00:00', { location: '[1] Sede' }),
+          record('2', '2026-08-02 09:00:00', { location: 'DRIVE 360 EM FRIELAS' }),
+        ),
+      );
+
+      const result = await service.list({ page: 1, perPage: 10, search: 'frielas' }, context);
+
+      expect(result.appointments.map((a) => a.id)).toEqual(['2']);
+    });
+
+    it('combines the state and the search with AND', async () => {
+      const service = makeService(
+        windowOf(
+          { id: '1', title: 'Revisão', start: '2026-08-01 09:00:00', completed: true },
+          { id: '2', title: 'Revisão', start: '2026-08-02 09:00:00' },
+          { id: '3', title: 'Pintura', start: '2026-08-03 09:00:00', completed: true },
+        ),
+      );
+
+      const result = await service.list(
+        { page: 1, perPage: 10, status: 'completed', search: 'revisao' },
         context,
       );
 
-      expect(create.mock.calls[0]?.[0]).toEqual({
-        title: 'Diagnóstico',
-        start_date: '2026-08-29T09:00:00.000Z',
+      expect(result.appointments.map((a) => a.id)).toEqual(['1']);
+    });
+
+    /**
+     * Sorting and filtering are only honest over the whole window, so the
+     * service follows upstream's paging rather than reading one page.
+     */
+    it('follows upstream paging until the window is complete', async () => {
+      const list = vi
+        .fn()
+        .mockResolvedValueOnce({
+          items: [record('a', '2026-08-01 09:00:00')],
+          meta: { has_more: true },
+        })
+        .mockResolvedValueOnce({
+          items: [record('b', '2026-08-02 09:00:00')],
+          meta: { has_more: false },
+        });
+
+      const result = await makeService(makeResource({ list })).list(
+        { page: 1, perPage: 10 },
+        context,
+      );
+
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(result.appointments.map((a) => a.id)).toEqual(['b', 'a']);
+      expect(list.mock.calls[1]?.[0]).toMatchObject({ page: 2 });
+    });
+
+    it('stops at the page cap instead of following upstream for ever', async () => {
+      const list = vi.fn().mockResolvedValue({
+        items: [record('x', '2026-08-01 09:00:00')],
+        meta: { has_more: true },
+      });
+      const warn = vi.fn();
+      const logger = { ...silentLogger, warn } as unknown as Logger;
+
+      await makeService(makeResource({ list })).list({ page: 1, perPage: 10 }, { logger });
+
+      expect(list).toHaveBeenCalledTimes(10);
+      expect(warn).toHaveBeenCalled();
+    });
+
+    it('maps the fields the tenant actually sends', async () => {
+      const service = makeService(
+        windowOf({
+          id: '503',
+          title: 'FERIAS DE 3/08 A 17/08',
+          start: '2026-08-03 08:30:00',
+          end: '2026-08-17 09:00:00',
+          employee_id: 8,
+          priority: 'N',
+          location: '[1] Sede',
+          completed: true,
+        }),
+      );
+
+      const [appointment] = (await service.list({ page: 1, perPage: 10 }, context)).appointments;
+
+      expect(appointment).toMatchObject({
+        id: '503',
+        title: 'FERIAS DE 3/08 A 17/08',
+        status: 'completed',
+        // A number upstream, an opaque label here.
+        employeeId: '8',
+        priority: 'N',
+        location: '[1] Sede',
       });
     });
 
-    it('refuses a slot in the past before spending an upstream call', async () => {
-      const resource = makeResource();
-
-      await expect(
-        makeService(resource).create(
-          { ...validBody, startsAt: '2026-08-27T09:00:00.000Z', endsAt: undefined },
-          context,
-        ),
-      ).rejects.toMatchObject({ httpStatus: 400 });
-      expect(resource.create).not.toHaveBeenCalled();
-    });
-
-    it('tolerates a start time a few seconds in the past, for clock skew', async () => {
-      const resource = makeResource();
-
-      await expect(
-        makeService(resource).create(
-          { title: 'Entrega', startsAt: '2026-08-28T08:59:30.000Z' },
-          context,
-        ),
-      ).resolves.toBeDefined();
-    });
-
-    it('refuses an implausibly long booking', async () => {
-      const resource = makeResource();
-
-      await expect(
-        makeService(resource).create(
-          {
-            ...validBody,
-            startsAt: '2026-08-29T09:00:00.000Z',
-            endsAt: '2026-08-30T09:00:00.000Z',
-          },
-          context,
-        ),
-      ).rejects.toMatchObject({ httpStatus: 400 });
-      expect(resource.create).not.toHaveBeenCalled();
-    });
-
-    it('does not log the free-text fields that may carry personal data', async () => {
-      const logger = { ...silentLogger, info: vi.fn() } as unknown as Logger;
-
-      await makeService().create(
-        { ...validBody, notes: 'Cliente João, 912345678' },
-        {
-          logger,
-        },
-      );
-
-      expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain('912345678');
-    });
-  });
-
-  describe('list', () => {
     it('rejects a reversed date range without calling the upstream', async () => {
       const resource = makeResource();
 

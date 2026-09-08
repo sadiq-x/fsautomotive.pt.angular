@@ -15,6 +15,12 @@
  *
  *   npm run probe -- /entities/customers
  *   npm run probe -- /workshop/vehicles
+ *   npm run probe -- /crm/appointments start=2026-09-01 end=2026-09-30
+ *
+ * Trailing `key=value` arguments become query parameters. Some resources
+ * require them: `/crm/appointments` answers 422 without `start` and `end`, so
+ * without a way to pass filters the one endpoint whose field names are least
+ * documented is also the one that cannot be probed.
  *
  * It performs one authenticated GET against the configured tenant, so it also
  * doubles as the connectivity and credential check the health endpoint
@@ -47,17 +53,41 @@ function describe(value: unknown): string {
   return typeof value;
 }
 
+/**
+ * Reads trailing `key=value` arguments into query parameters.
+ *
+ * Only the first `=` splits, so a value may contain one — an ISO instant
+ * (`start=2026-09-01T00:00:00`) is the case that matters. Anything without an
+ * `=` is ignored rather than guessed at.
+ */
+function parseQueryArgs(args: readonly string[]): Record<string, string> {
+  const query: Record<string, string> = {};
+
+  for (const arg of args) {
+    const separator = arg.indexOf('=');
+
+    if (separator > 0) {
+      query[arg.slice(0, separator)] = arg.slice(separator + 1);
+    }
+  }
+
+  return query;
+}
+
 async function main(): Promise<void> {
   const path = process.argv[2] ?? '/entities/customers';
+  const extraQuery = parseQueryArgs(process.argv.slice(3));
 
   process.stdout.write(`\nProbing ${config.officegest.baseUrl}${path}\n`);
-  process.stdout.write(`Auth mode: ${config.officegest.credentials.mode}\n\n`);
+  process.stdout.write(`Auth mode: ${config.officegest.credentials.mode}\n`);
+  // Parameter names only. A value here could be a customer id or a plate.
+  process.stdout.write(`Query: ${Object.keys(extraQuery).join(', ') || '(none)'}\n\n`);
 
   const client = new OfficeGestClient(config.officegest);
 
   try {
     const result = await client.getList(path, officeGestRecordSchema, {
-      query: { page: 1, per_page: 1 },
+      query: { page: 1, per_page: 1, ...extraQuery },
     });
 
     process.stdout.write(`Records returned: ${result.items.length}\n`);

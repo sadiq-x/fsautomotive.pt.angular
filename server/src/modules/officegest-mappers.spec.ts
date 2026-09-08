@@ -86,6 +86,33 @@ describe('vehicle mapping', () => {
     const detail = { ...listRecord, brand_name: 'Renault', model_name: 'Clio' };
     expect(toVehicle(detail)).toMatchObject({ brand: 'Renault', model: 'Clio' });
   });
+
+  /**
+   * The misconception this pins. A single sampled list row looked like seven
+   * fields, because OfficeGest omits the null ones — so these were assumed to
+   * be detail-only and went unread, which is why the columns showed dashes.
+   * Across the 2 613 vehicles on the tenant they are on list rows too.
+   */
+  it('reads the fields a list row was assumed not to carry', () => {
+    const row = {
+      ...listRecord,
+      color: 'Cinzento',
+      fuel_id: 17,
+      monthly_kms: 1500,
+      next_inspection_date: '2027-03-01',
+      created_at: '2026-02-17 10:00:00',
+    };
+
+    expect(toVehicle(row)).toMatchObject({
+      color: 'Cinzento',
+      fuelId: 17,
+      monthlyMileage: 1500,
+      vin: 'VF1000000000000',
+      active: true,
+    });
+    expect(toVehicle(row)?.nextInspectionAt).toMatch(/^2027-03-01/);
+    expect(toVehicle(row)?.registeredAt).toMatch(/^2026-02-17/);
+  });
 });
 
 describe('service order mapping', () => {
@@ -119,8 +146,71 @@ describe('service order mapping', () => {
     expect(toServiceOrder(record)?.openedAt).toMatch(/^2026-09-01/);
   });
 
-  it('prefers the readable `status_name` when the detail record supplies it', () => {
-    expect(toServiceOrder({ ...record, status_name: 'Em curso' })?.status).toBe('Em curso');
+  /**
+   * `status` is the tenant's own code and stays the code, on both endpoints.
+   * Letting the detail-only `status_name` overwrite it made the same job read
+   * "FAC" in the list and "n4482" on its own page.
+   */
+  it('keeps the status code, and carries a readable status_name beside it', () => {
+    const mapped = toServiceOrder({ ...record, status: 'TCP', status_name: 'Trabalhos Complexos' });
+
+    expect(mapped?.status).toBe('TCP');
+    expect(mapped?.statusName).toBe('Trabalhos Complexos');
+  });
+
+  /**
+   * Most of this tenant's `status_name` values are untranslated tokens. The
+   * code the mechanic already recognises is better than "n4482".
+   */
+  it('discards an untranslated status_name token', () => {
+    const mapped = toServiceOrder({ ...record, status: 'FAC', status_name: 'n4482' });
+
+    expect(mapped?.status).toBe('FAC');
+    expect(mapped?.statusName).toBeUndefined();
+  });
+
+  it('reads the fields that were previously dropped', () => {
+    const mapped = toServiceOrder({
+      ...record,
+      invoice_name: 'Ana Silva',
+      km_counter: 128_400,
+      mechanic_id: 8,
+      is_cancelled: true,
+      awaiting_parts: true,
+      priority: 2,
+      expected_delivery_date: '2026-09-12',
+    });
+
+    expect(mapped).toMatchObject({
+      customerName: 'Ana Silva',
+      mileage: 128_400,
+      mechanicId: '8',
+      cancelled: true,
+      awaitingParts: true,
+      priority: 2,
+    });
+    expect(mapped?.expectedDeliveryAt).toMatch(/^2026-09-12/);
+  });
+
+  it('maps the billed lines, and leaves them absent on a list row', () => {
+    expect(toServiceOrder(record)?.lines).toBeUndefined();
+
+    const mapped = toServiceOrder({
+      ...record,
+      lines: [{ id: 1, description: 'Pastilhas', quantity: 4, unit_price: 12.5, total: 61.5 }],
+      extra_lines: [{ id: 2, description: 'Mão de obra', quantity: 1, unit_price: 40 }],
+    });
+
+    expect(mapped?.lines).toEqual([
+      { id: '1', description: 'Pastilhas', quantity: 4, unitPrice: 12.5, total: 61.5 },
+      { id: '2', description: 'Mão de obra', quantity: 1, unitPrice: 40, total: undefined },
+    ]);
+  });
+
+  it('skips a malformed line rather than losing the whole job', () => {
+    const mapped = toServiceOrder({ ...record, lines: [null, 'nonsense', { id: 3 }] });
+
+    expect(mapped?.lines).toHaveLength(1);
   });
 });
 

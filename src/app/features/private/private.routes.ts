@@ -121,15 +121,6 @@ export const privateRoutes: Routes = [
         data: { meta: privateMeta('Folha de obra', '/private/service-orders') },
       },
 
-      // `new` is declared before `:appointmentId`, or the router would treat
-      // it as an id and try to load a booking called "new".
-      {
-        path: 'appointments/new',
-        canActivate: [permissionGuard('officegest.appointments.write')],
-        loadComponent: () =>
-          import('./officegest/pages/appointments/appointment-form').then((m) => m.AppointmentForm),
-        data: { meta: privateMeta('Nova marcação', '/private/appointments/new') },
-      },
       {
         path: 'appointments',
         canActivate: [permissionGuard('officegest.appointments.read')],
