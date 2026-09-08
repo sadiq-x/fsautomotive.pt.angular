@@ -1,23 +1,30 @@
 /**
- * Guards *this* service's endpoints with an `x-api-key` header.
+ * The `x-api-key` half of this service's access control.
  *
  * WHY THIS IS SEPARATE FROM THE OFFICEGEST CREDENTIAL
  * ---------------------------------------------------
  * The whole point of the backend is that the OfficeGest credential never leaves
- * it. A key configured here can be held by the front end, rotated on its own
- * schedule, and revoked without touching OfficeGest — and if it leaks, the
- * blast radius is this API's read endpoints, not the client's ERP. Sharing one
- * secret for both would throw that away.
+ * it. A key configured here can be held by another service, rotated on its own
+ * schedule, and revoked without touching OfficeGest — and if it leaks, the blast
+ * radius is this API's read endpoints, not the client's ERP. Sharing one secret
+ * for both would throw that away.
  *
- * The guard is optional: with `BACKEND_API_KEYS` unset it does nothing, which
- * suits a service reachable only from inside a private network. When it *is*
- * set, a request without a valid key never reaches a controller.
+ * WHY IT IS A VERIFIER AND NOT A GUARD
+ * ------------------------------------
+ * A key is one of two ways to be allowed in; a signed-in user with a session
+ * cookie is the other, and the browser can only ever use the second — anything
+ * compiled into the bundle is public, so the front end cannot hold a key at all.
+ * Making this a predicate lets `access.middleware.ts` state that choice once,
+ * rather than having two guards race to reject the request the other would have
+ * accepted.
+ *
+ * The key is optional: with `BACKEND_API_KEYS` unset there is nothing to
+ * present, which suits a deployment where the only caller is the browser.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { Request } from 'express';
 
 import { config } from '../config/index.js';
-import { UnauthorizedError } from '../shared/errors/index.js';
 
 const API_KEY_HEADER = 'x-api-key';
 
@@ -32,41 +39,38 @@ function digest(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();
 }
 
-function matchesAny(candidate: string, allowed: readonly Buffer[]): boolean {
-  const candidateDigest = digest(candidate);
-  let matched = false;
-
-  // Every entry is compared — no early exit — so the number of comparisons does
-  // not reveal the position of the matching key.
-  for (const entry of allowed) {
-    if (timingSafeEqual(candidateDigest, entry)) {
-      matched = true;
-    }
-  }
-
-  return matched;
+export interface ApiKeyVerifier {
+  /** `false` when `BACKEND_API_KEYS` is unset — there is then no key to offer. */
+  readonly configured: boolean;
+  /** Whether this request carries one of the configured keys. */
+  matches(req: Request): boolean;
 }
 
-export function requireApiKey(): RequestHandler {
-  const allowed = config.apiKeys.map(digest);
+export function createApiKeyVerifier(keys: readonly string[] = config.apiKeys): ApiKeyVerifier {
+  const allowed = keys.map(digest);
 
-  if (allowed.length === 0) {
-    return (_req: Request, _res: Response, next: NextFunction): void => next();
-  }
+  return {
+    configured: allowed.length > 0,
 
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    const provided = req.headers[API_KEY_HEADER];
+    matches(req: Request): boolean {
+      const provided = req.headers[API_KEY_HEADER];
 
-    if (typeof provided !== 'string' || !matchesAny(provided, allowed)) {
-      // The log records the failure, never the key that was offered.
-      req.log.warn('rejected request with a missing or invalid API key', {
-        path: req.path,
-        hasHeader: typeof provided === 'string',
-      });
-      next(new UnauthorizedError('A valid x-api-key header is required.'));
-      return;
-    }
+      if (allowed.length === 0 || typeof provided !== 'string') {
+        return false;
+      }
 
-    next();
+      const candidate = digest(provided);
+      let matched = false;
+
+      // Every entry is compared — no early exit — so the number of comparisons
+      // does not reveal the position of the matching key.
+      for (const entry of allowed) {
+        if (timingSafeEqual(candidate, entry)) {
+          matched = true;
+        }
+      }
+
+      return matched;
+    },
   };
 }

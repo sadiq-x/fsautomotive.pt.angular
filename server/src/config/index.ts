@@ -6,6 +6,7 @@
  * source of a value — a file, a secrets manager — stays a change inside this
  * folder.
  */
+import { loadAuthConfig, type AuthConfig } from './auth.config.js';
 import { env } from './env.js';
 import { officeGestConfig, type OfficeGestConfig } from './officegest.config.js';
 
@@ -19,6 +20,8 @@ export interface AppConfig {
   readonly apiKeys: readonly string[];
   readonly rateLimit: { readonly windowMs: number; readonly maxRequests: number };
   readonly officegest: OfficeGestConfig;
+  /** Sign-in for the private area. `enabled` is false when no accounts are set. */
+  readonly auth: AuthConfig;
 }
 
 export const config: AppConfig = {
@@ -30,8 +33,19 @@ export const config: AppConfig = {
   apiKeys: env.BACKEND_API_KEYS,
   rateLimit: { windowMs: env.RATE_LIMIT_WINDOW_MS, maxRequests: env.RATE_LIMIT_MAX_REQUESTS },
   officegest: officeGestConfig,
+  /**
+   * A getter, because the account list is read from disk and may be rejected.
+   * Building it here, while this module is evaluated, would put that failure
+   * beyond the reach of `server.ts`'s error handling — see `loadAuthConfig`.
+   * It is memoised, so this is one call, not one file read per access.
+   */
+  get auth(): AuthConfig {
+    return loadAuthConfig();
+  },
 };
 
 export { EnvValidationError, parseEnv, OFFICEGEST_AUTH_MODES } from './env.js';
 export type { Env, OfficeGestAuthMode } from './env.js';
+export { AuthConfigError } from './auth.config.js';
+export type { AuthConfig, AuthCookieConfig } from './auth.config.js';
 export type { OfficeGestConfig, OfficeGestCredentials } from './officegest.config.js';

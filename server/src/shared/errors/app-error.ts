@@ -68,6 +68,26 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+/**
+ * A refused sign-in.
+ *
+ * Separate from `UnauthorizedError` because the two mean different things to a
+ * client: this one says "those credentials are wrong", where the other says
+ * "this request carried no usable session". The browser shows the first beside
+ * the password field and the second by sending the user back to the login page,
+ * so collapsing them would make one of the two behave wrongly.
+ *
+ * The message is the caller's to choose, but it must not distinguish an unknown
+ * account from a wrong password — see `auth.service.ts`.
+ */
+export class InvalidCredentialsError extends AppError {
+  override readonly name = 'InvalidCredentialsError';
+
+  constructor(message: string) {
+    super(401, ERROR_CODES.INVALID_CREDENTIALS, message);
+  }
+}
+
 export class ForbiddenError extends AppError {
   override readonly name = 'ForbiddenError';
 

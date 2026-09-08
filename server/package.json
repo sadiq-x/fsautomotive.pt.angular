@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "probe": "node --env-file-if-exists=../.env --env-file-if-exists=../.env.local --env-file-if-exists=.env --env-file-if-exists=.env.local ./node_modules/.bin/tsx scripts/probe.ts",
-    "verify": "npm run typecheck && npm run test"
+    "verify": "npm run typecheck && npm run test",
+    "hash:password": "./node_modules/.bin/tsx scripts/hash-password.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

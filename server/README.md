@@ -8,7 +8,7 @@ a browser can safely call.
 - **Language** — TypeScript, `strict`, ESM, Node 20.19+ / 22.12+ / 24+
 - **Framework** — Express 5
 - **Validation** — Zod 4, on inbound requests _and_ upstream responses
-- **Tests** — Vitest, 97 tests, no network access, no real credential
+- **Tests** — Vitest, 205 tests, no network access, no real credential
 
 ---
 
@@ -95,7 +95,7 @@ value is the credential.
 
 ---
 
-## 4. Authentication — and one thing you should verify
+## 4. Authenticating to OfficeGest — and one thing you should verify
 
 OfficeGest publishes exactly two authentication mechanisms:
 
@@ -133,10 +133,169 @@ is wrong, not stale.
 
 ---
 
-## 5. Endpoints
+## 5. Signing in to the private area
 
-Everything is under `/api/officegest`, guarded by `x-api-key` when
-`BACKEND_API_KEYS` is set. `/health` is deliberately outside the guard.
+Section 4 is about how _this service_ authenticates to OfficeGest. This one is
+about how _a person_ signs in to the site's private area at `/private/login`.
+
+The two are unrelated on purpose. The OfficeGest credential is one secret shared
+by the whole integration; a sign-in identifies an individual, and what that
+individual may see is decided here, per request.
+
+### Turning it on
+
+```bash
+npm run hash:password            # prompts, echo off; prints an account to paste
+cp users.example.json users.json # then paste it in
+```
+
+```ini
+# server/.env
+AUTH_USERS_FILE=./users.json
+AUTH_SESSION_SECRET=<openssl rand -base64 48>
+```
+
+A relative `AUTH_USERS_FILE` is resolved against the process's working
+directory, which is always `server/` — every entry point runs it from there, and
+`scripts/dev.mjs` starts the API with that `cwd` too. So `./users.json` means
+`server/users.json`, whichever `.env` you set it in. An absolute path always
+works; if the file cannot be read, the startup error names the full path it
+tried.
+
+Restart. The startup line then reads `signIn: enabled (1 accounts)`, and
+`/private/login` works.
+
+Until both variables are set, the sign-in routes are **not mounted at all** — an
+endpoint that can only ever answer 401 invites attempts, costs a password
+derivation each time, and tells anyone scanning that this service has accounts
+somewhere. For front-end work without a backend, use `DEV_AUTH_STUB=true` in the
+repository-root `.env` instead; a production build refuses that flag outright.
+
+### The endpoints
+
+| Method | Path                | Answers                                                                 |
+| ------ | ------------------- | ----------------------------------------------------------------------- |
+| `POST` | `/api/auth/login`   | `200` + `Set-Cookie` · `401 INVALID_CREDENTIALS` · `429 ACCOUNT_LOCKED` |
+| `GET`  | `/api/auth/session` | `200` the signed-in user · `401` nobody is signed in                    |
+| `POST` | `/api/auth/logout`  | `204`, always                                                           |
+
+They match [`src/app/core/auth/auth.contract.ts`](../src/app/core/auth/auth.contract.ts)
+in the Angular application, which is the single written statement of what the
+two sides agree on.
+
+### Accounts
+
+`AUTH_USERS_FILE` points at a JSON array; `AUTH_USERS` holds the same JSON
+inline, for a platform that offers only environment variables. Set one, never
+both — the whole point is that there is no question about which list is live.
+
+```json
+[
+  {
+    "email": "miguel@fsautomotive.pt",
+    "name": "Miguel Faria",
+    "role": "ADMIN",
+    "passwordHash": "scrypt$32768$8$1$…"
+  }
+]
+```
+
+`role` sets a default permission set — `ADMIN` everything, `MANAGER` reads plus
+new bookings and staff, `USER` read-only OfficeGest. An explicit `permissions`
+array overrides it. `"disabled": true` suspends an account without deleting it,
+and takes effect for sessions already open.
+
+Passwords are stored as **scrypt** hashes and nothing else; the plain password
+exists only in the browser and in the request that carries it. There is no
+"forgot password" flow — with a handful of staff, the answer is to run
+`hash:password` again and replace one line.
+
+### What actually protects the data
+
+A signed-in browser and a service holding an `x-api-key` are the two ways in.
+The browser can only ever use the first, because everything compiled into the
+bundle is public.
+
+- The session is an **`HttpOnly`, `SameSite=Lax`** cookie, `Secure` in
+  production, named `__Host-fsa_session` wherever that prefix is possible. It is
+  a random 256-bit id signed with `AUTH_SESSION_SECRET`; the session itself lives
+  server-side, so signing out revokes it immediately.
+- Two clocks: an **idle** timeout (`AUTH_SESSION_IDLE_MINUTES`, default 60) ends
+  a session left open on an unattended terminal, and an **absolute** one
+  (`AUTH_SESSION_TTL_MINUTES`, default 480) bounds how long a stolen cookie is
+  worth stealing.
+- **Per-permission guards** on every OfficeGest route, in
+  [`src/routes/index.ts`](src/routes/index.ts). The Angular route guards decide
+  which screen to show; these decide which data leaves the building.
+- **Brute force**: failures are counted per account _and_ per client address, so
+  neither guessing one password nor spraying many accounts gets far — and
+  because the account counter is scoped to the address, nobody can lock a
+  colleague out of their own account from elsewhere.
+- **Enumeration**: an unknown address and a wrong password produce the same
+  status, the same code and the same message, and take the same time — a
+  password is verified even when no account matched.
+
+Rotating `AUTH_SESSION_SECRET` invalidates every session at once. That is the
+emergency stop for "someone has a cookie they should not have".
+
+### In production
+
+There is no default account and no default password. Nothing can sign in until
+you create someone — which is the only safe way to ship an authentication
+system, because a seeded `admin/admin` outlives every intention to change it.
+
+```bash
+# On a machine you trust, once per person:
+npm --prefix server run hash:password
+```
+
+Put the resulting accounts in the file named by `AUTH_USERS_FILE`, or inline in
+`AUTH_USERS` if your platform offers only environment variables. The plain
+password is never stored anywhere — you hand it to the person directly, and if
+it is lost you generate a new hash rather than recovering the old one.
+
+Required in production, beyond §3:
+
+| Variable                       | Value                                                 |
+| ------------------------------ | ----------------------------------------------------- |
+| `AUTH_USERS_FILE`/`AUTH_USERS` | the accounts                                          |
+| `AUTH_SESSION_SECRET`          | `openssl rand -base64 48` — a real secret, not a word |
+| `CORS_ALLOWED_ORIGINS`         | exactly the site's origin                             |
+| `NODE_ENV`                     | `production` — forces the cookie to `Secure`          |
+
+**The one that catches people: is the site same-site with the API?**
+
+The session cookie is `SameSite=Lax`, which a browser sends only on requests
+within the same registrable domain. That covers `fsautomotive.pt` calling
+`api.fsautomotive.pt`, and it is the arrangement to aim for.
+
+It does **not** cover a site on `sadiq-x.github.io` calling an API on some other
+domain — which is what `npm run deploy` produces today. There the browser
+silently declines to send the cookie, and the symptom is a sign-in that returns
+200 and a session that never exists. If the site must stay cross-site:
+
+```ini
+AUTH_COOKIE_SAMESITE=none   # requires https on both sides; refused without Secure
+```
+
+Both origins must then be HTTPS. Serving the site from the client's own domain
+is the better answer — it keeps `SameSite=Lax`, which is a real defence rather
+than a setting to switch off.
+
+---
+
+## 6. Endpoints
+
+Everything is under `/api/officegest`. Each namespace requires the permission
+named beside it in [`src/routes/index.ts`](src/routes/index.ts) when the caller
+is a signed-in person; a caller holding an `x-api-key` is a trusted service and
+is not subject to them. `/health` is outside every guard, because a platform
+probe cannot present a credential.
+
+With neither `AUTH_USERS` nor `BACKEND_API_KEYS` configured the API is open —
+which is what makes a fresh checkout against a sandbox tenant usable. Configure
+either one and anonymous access ends immediately; the startup log says loudly
+when neither is set.
 
 | Method | Path                                    | Query / body                                                      |
 | ------ | --------------------------------------- | ----------------------------------------------------------------- |
@@ -199,7 +358,7 @@ for that request.
 
 ---
 
-## 6. Error handling
+## 7. Error handling
 
 All errors funnel through
 [`src/middleware/error.middleware.ts`](src/middleware/error.middleware.ts).
@@ -223,7 +382,7 @@ message and stack are logged server-side and never serialised in production.
 
 ---
 
-## 7. Resilience
+## 8. Resilience
 
 - **Timeout** on every attempt (`OFFICEGEST_TIMEOUT_MS`); nothing can hang.
 - **Retries** (`OFFICEGEST_MAX_RETRIES`) with exponential backoff and full
@@ -239,7 +398,7 @@ message and stack are logged server-side and never serialised in production.
 
 ---
 
-## 8. The unknowns, and how to close them
+## 9. The unknowns, and how to close them
 
 OfficeGest documents its base URL, authentication, envelope (`{ data, meta }`)
 and endpoint paths. It does **not** publish the field names inside a record, nor
@@ -266,7 +425,7 @@ names into the matching `FIELDS` map and delete the alternatives.
 
 ---
 
-## 9. Architecture
+## 10. Architecture
 
 ```
 server/src/
@@ -334,7 +493,7 @@ worth the file.
 
 ---
 
-## 10. Security
+## 11. Security
 
 - The credential is read from the environment only, never hardcoded, never
   logged, never in a response, never sent to the browser. `server/.env` is
@@ -352,6 +511,18 @@ worth the file.
 - This service's own `x-api-key` guard is **separate** from the OfficeGest
   credential, compared with a timing-safe digest comparison. A leak there
   exposes these read endpoints, never the ERP.
+- User passwords are stored only as salted **scrypt** hashes, with the cost
+  parameters carried in the hash so they can be raised later without
+  invalidating existing accounts. Verification is a constant-time comparison,
+  and an unknown address costs the same derivation as a known one.
+- The session cookie is `HttpOnly`, `SameSite=Lax` and `Secure` in production,
+  with the `__Host-` prefix wherever the deployment allows it. Nothing is
+  written to `localStorage`, so there is no session for an XSS flaw to read.
+- State-changing requests are additionally checked against `Origin`, so CSRF
+  does not depend on `SameSite` alone — which a genuinely cross-site deployment
+  has to relax.
+- Every response about a user goes through one mapping function, so a password
+  hash cannot reach a response by being added to a type. It is enforced by test.
 - `helmet`, `x-powered-by` off, `trust proxy 1` (not `true`, which would let any
   caller spoof `X-Forwarded-For` and evade the rate limit), 64 kB body cap,
   CORS closed by default, and `https` enforced on the upstream URL in
@@ -359,7 +530,7 @@ worth the file.
 
 ---
 
-## 11. Testing
+## 12. Testing
 
 ```bash
 npm test
@@ -385,7 +556,7 @@ application — every layer under test is the real one.
 
 ---
 
-## 12. Deploying
+## 13. Deploying
 
 This service cannot run on GitHub Pages, which serves static files only. It
 needs a Node host — Railway, Render, Fly.io, a VPS, or any container platform.
@@ -395,9 +566,17 @@ needs a Node host — Railway, Render, Fly.io, a VPS, or any container platform.
    them into an image.
 3. `npm start`
 4. Point the site at it: set `CORS_ALLOWED_ORIGINS` to the site's origin, and
-   give the front end a `BACKEND_API_KEYS` value to send as `x-api-key`.
+   build the front end with `API_BASE_URL` set to this service's URL.
+
+   **Do not try to give the browser a `BACKEND_API_KEYS` value.** Everything
+   compiled into the bundle is public, so a key shipped to the front end is a
+   published key. The browser authenticates with a session cookie — that is what
+   §5 is for. `BACKEND_API_KEYS` is for server-to-server callers only.
+
 5. Health probe: `GET /health` — it does not call OfficeGest, so an upstream
    incident cannot turn into a restart loop.
+6. Create at least one account, or the private area cannot be used by anyone —
+   see the production checklist in §5.
 
 Behind a proxy or CDN, keep `trust proxy` in step with the number of hops
 in front of the service.

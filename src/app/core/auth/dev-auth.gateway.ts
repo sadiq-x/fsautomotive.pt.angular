@@ -31,7 +31,7 @@ const STUB_LATENCY_MS = 350;
 export const STUB_REJECTED_PASSWORD = 'wrong';
 
 const STUB_USER: SessionUser = {
-  id: 'dev-1',
+  id: 'beta',
   name: 'Miguel Faria',
   email: 'miguel@fsautomotive.pt',
   role: 'ADMIN',

@@ -16,12 +16,14 @@
  * decorator vocabulary and a class of runtime resolution errors, to replace
  * fifteen lines whose wiring the compiler already checks.
  */
+import { config } from './config/index.js';
 import {
   createOfficeGestIntegration,
   type OfficeGestClientDeps,
   type OfficeGestIntegration,
 } from './integrations/officegest/index.js';
 import { AppointmentsService } from './modules/appointments/appointments.service.js';
+import { AuthService } from './modules/auth/auth.service.js';
 import { CustomersService } from './modules/customers/customers.service.js';
 import { EmployeesService } from './modules/employees/employees.service.js';
 import { ServiceOrdersService } from './modules/service-orders/service-orders.service.js';
@@ -29,6 +31,13 @@ import { VehiclesService } from './modules/vehicles/vehicles.service.js';
 
 export interface Container {
   readonly officegest: OfficeGestIntegration;
+  /**
+   * Sign-in. Present even when no accounts are configured — it then reports
+   * `enabled: false`, which is what `routes/index.ts` reads to decide whether
+   * to mount `/api/auth` at all. An absent service would push that same check
+   * into every caller as a null test.
+   */
+  readonly auth: AuthService;
   readonly customers: CustomersService;
   readonly employees: EmployeesService;
   readonly vehicles: VehiclesService;
@@ -44,14 +53,22 @@ export interface Container {
  */
 export function createContainer(deps: OfficeGestClientDeps = {}): Container {
   const officegest = createOfficeGestIntegration(deps);
+  const auth = new AuthService(config.auth);
 
   return {
     officegest,
+    auth,
     customers: new CustomersService(officegest.customers),
     employees: new EmployeesService(officegest.employees),
     vehicles: new VehiclesService(officegest.vehicles),
     serviceOrders: new ServiceOrdersService(officegest.serviceOrders),
     appointments: new AppointmentsService(officegest.appointments),
-    shutdown: () => officegest.client.dispose(),
+    shutdown: async () => {
+      // Both hold interval timers. Disposing them is what lets a test build
+      // dozens of applications without leaking a handle each time, and what
+      // lets the process exit promptly on SIGTERM.
+      auth.dispose();
+      await officegest.client.dispose();
+    },
   };
 }

@@ -1,4 +1,12 @@
-export { requireApiKey } from './api-key.middleware.js';
+export {
+  enforceOrigin,
+  identify,
+  requireAccess,
+  requirePermission,
+  startupWarnings,
+} from './access.middleware.js';
+export { createApiKeyVerifier } from './api-key.middleware.js';
+export type { ApiKeyVerifier } from './api-key.middleware.js';
 export { errorHandler } from './error.middleware.js';
 export { notFound } from './not-found.middleware.js';
 export { rateLimit } from './rate-limit.middleware.js';

@@ -60,7 +60,14 @@ Thumbs.db
 /server/.env.local
 /server/.env.example
 
+# The account list for the private area. Holds password hashes, so it is a
+# credential file — the committed `server/users.example.json` is the template.
+/server/users.json
+/server/users.*.json
+/server/users.example.json
+
 # Deliberately tracked (placeholders only):
 #   .env.example
 #   /server/.env.example
+#   /server/users.example.json
 

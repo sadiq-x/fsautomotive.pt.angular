@@ -170,6 +170,31 @@ describe('Login', () => {
     expect(field().type).toBe('password');
   });
 
+  /**
+   * A lock-out is neither "wrong password" nor "something broke": the user must
+   * be told to wait, or they will keep trying and keep extending it. The
+   * backend writes that sentence, including how long, so it is shown as-is.
+   */
+  it('shows the backend wording for a locked account', async () => {
+    const { fixture } = setup({
+      login: () =>
+        throwError(
+          () =>
+            new ApiError(
+              429,
+              'ACCOUNT_LOCKED',
+              'Demasiadas tentativas. Aguarde alguns minutos antes de tentar novamente.',
+            ),
+        ),
+    });
+    fixture.detectChanges();
+
+    await signIn(fixture);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Demasiadas tentativas');
+  });
+
   it('reports a server failure differently from a rejected password', async () => {
     const { fixture } = setup({
       login: () => throwError(() => new ApiError(502, 'OFFICEGEST_UNAVAILABLE', 'down')),

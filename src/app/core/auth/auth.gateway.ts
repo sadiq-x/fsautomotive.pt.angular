@@ -15,7 +15,7 @@ import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
-import { EXPECTS_UNAUTHORIZED } from '../interceptors/api.interceptor';
+import { EXPECTS_UNAUTHORIZED, REPORTS_OWN_ERRORS } from '../interceptors/api.interceptor';
 import type { ApiSuccess } from '../models/api.model';
 import { AUTH_ROUTES } from './auth.contract';
 import type { Credentials, SessionUser } from './auth.models';
@@ -40,8 +40,16 @@ export class HttpAuthGateway extends AuthGateway {
   private readonly http = inject(HttpClient);
 
   override login(credentials: Credentials): Observable<SessionUser> {
+    // The login page renders every failure itself, beside the fields and tied
+    // to them for a screen reader. Without this flag a lock-out (429) would
+    // *also* raise a toast, because the shared handler announces every 429 —
+    // so the one message the user must read would arrive twice, in two places,
+    // one of which disappears on a timer.
     return this.http
-      .post<ApiSuccess<SessionUser>>(AUTH_ROUTES.login, credentials, { withCredentials: true })
+      .post<ApiSuccess<SessionUser>>(AUTH_ROUTES.login, credentials, {
+        withCredentials: true,
+        context: new HttpContext().set(REPORTS_OWN_ERRORS, true),
+      })
       .pipe(map((response) => response.data));
   }
 

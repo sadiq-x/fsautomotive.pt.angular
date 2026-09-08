@@ -7,14 +7,40 @@
  * See `scripts/lib/env-templates.mjs` for why this exists as a check rather
  * than as a comment in the templates.
  */
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { findTemplateSecrets } from './lib/env-templates.mjs';
 
 const TEMPLATES = ['.env.example', 'server/.env.example'];
 
+/**
+ * Whether git is tracking a path.
+ *
+ * The check is about what gets *published*, so an untracked template is out of
+ * scope: `server/.env.example` is deliberately gitignored, and flagging a local
+ * scratch file as "a committed template contains a real value" would be both
+ * wrong and the kind of false alarm that teaches people to ignore the guard.
+ *
+ * If git is unavailable the answer is "yes" — checking a file that turns out not
+ * to be committed is a harmless extra check; skipping one that is, is not.
+ */
+function isTracked(file) {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', file], { stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return error.code === 'ENOENT';
+  }
+}
+
 const issues = [];
 
 for (const file of TEMPLATES) {
+  if (!isTracked(file)) {
+    console.log(`[env-templates] ${file} is not tracked by git — skipped.`);
+    continue;
+  }
+
   let contents;
 
   try {

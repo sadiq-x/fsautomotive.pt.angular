@@ -25,6 +25,12 @@ export const SECRET_TEMPLATE_VARS = [
   'OFFICEGEST_USERNAME',
   'OFFICEGEST_BASE_URL',
   'BACKEND_API_KEYS',
+  // Signs the session cookie for the private area. Committing one would let
+  // anyone who reads the repository mint a session for any account.
+  'AUTH_SESSION_SECRET',
+  // The inline account list: e-mail addresses and password hashes, which is a
+  // credential file however it is spelled.
+  'AUTH_USERS',
 ];
 
 /**

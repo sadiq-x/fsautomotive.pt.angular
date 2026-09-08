@@ -474,10 +474,20 @@ nunca sai desse processo.
 Angular  ──▶  server/  ──▶  api.officegest.com
 ```
 
-**Autenticação.** O backend ainda não tem endpoints de sessão. O contrato que a
-aplicação espera está declarado — e assinalado — em
+**Autenticação.** O início de sessão em `/private/login` é servido pelo backend
+em `server/`: sessão em cookie `HttpOnly`, palavras-passe em `scrypt`,
+permissões verificadas em cada pedido. O contrato entre os dois lados está
+declarado em
 [`src/app/core/auth/auth.contract.ts`](src/app/core/auth/auth.contract.ts).
-Para desenvolver entretanto, ative o stub:
+
+Para o ativar, crie uma conta e defina duas variáveis em `server/.env` —
+instruções em [`server/README.md`](server/README.md#5-signing-in-to-the-private-area):
+
+```bash
+npm --prefix server run hash:password
+```
+
+Para trabalhar no `front-end` sem backend nenhum, ative o stub:
 
 ```bash
 # .env

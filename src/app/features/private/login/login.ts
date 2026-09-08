@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { AuthService, STUB_REJECTED_PASSWORD } from '../../../core/auth';
+import { AUTH_ERROR_CODES, AuthService, STUB_REJECTED_PASSWORD } from '../../../core/auth';
 import { isDevAuthStubActive } from '../../../core/config/auth.config';
 import { PRIVATE_ROUTES } from '../../../core/config/private-routes.config';
 import { SITE, WORKSHOP_GALLERY } from '../../../core/data';
@@ -121,11 +121,35 @@ export class Login {
       await this.auth.login({ email: this.email().trim(), password: this.password() });
       await this.router.navigateByUrl(PRIVATE_ROUTES.dashboard);
     } catch (error) {
-      this.errorMessage.set(
-        error instanceof ApiError && error.status === 401
-          ? 'E-mail ou palavra-passe incorretos.'
-          : 'Não foi possível iniciar sessão. Tente novamente dentro de momentos.',
-      );
+      this.errorMessage.set(this.describe(error));
     }
+  }
+
+  /**
+   * Turns a failed sign-in into the one sentence to show beside the form.
+   *
+   * The three cases are genuinely different to the person reading them: one
+   * says try again more carefully, one says wait, and one says the problem is
+   * not you. Collapsing them into "sign-in failed" is what makes someone
+   * hammer a locked account for ten minutes.
+   *
+   * What it deliberately does *not* do is distinguish an unknown e-mail from a
+   * wrong password — the backend does not tell it, precisely so that this form
+   * cannot become a way to discover who has an account here.
+   */
+  private describe(error: unknown): string {
+    if (!(error instanceof ApiError)) {
+      return 'Não foi possível iniciar sessão. Tente novamente dentro de momentos.';
+    }
+
+    if (error.code === AUTH_ERROR_CODES.accountLocked) {
+      // The backend's own message carries the wait, and it is written in
+      // Portuguese for this audience — see `auth.service.ts` in `server/`.
+      return error.message;
+    }
+
+    return error.status === 401
+      ? 'E-mail ou palavra-passe incorretos.'
+      : 'Não foi possível iniciar sessão. Tente novamente dentro de momentos.';
   }
 }

@@ -20,8 +20,9 @@
 import type { Server } from 'node:http';
 
 import { createApp } from './app.js';
-import { config, EnvValidationError } from './config/index.js';
+import { AuthConfigError, config, EnvValidationError } from './config/index.js';
 import { createContainer, type Container } from './container.js';
+import { startupWarnings } from './middleware/access.middleware.js';
 import { logger } from './shared/logger.js';
 
 /** How long in-flight requests get once the listener is closed. */
@@ -40,8 +41,16 @@ function start(): void {
       // Named `authGuard`, not `apiKeyGuard`: the redactor blanks any field
       // whose name looks like a key, and this one is a status worth reading.
       authGuard: config.apiKeys.length > 0 ? 'enabled' : 'disabled',
+      // How many people may sign in — never who they are.
+      signIn: config.auth.enabled ? `enabled (${config.auth.users.length} accounts)` : 'disabled',
       corsOrigins: config.cors.allowedOrigins.length,
     });
+
+    // After the listening line, so the last thing on screen is what is wrong
+    // rather than what is fine.
+    for (const warning of startupWarnings(container.auth)) {
+      logger.warn(warning);
+    }
   });
 
   installShutdownHandlers(server, container);
@@ -112,7 +121,7 @@ function installCrashHandlers(): void {
 try {
   start();
 } catch (error) {
-  if (error instanceof EnvValidationError) {
+  if (error instanceof EnvValidationError || error instanceof AuthConfigError) {
     // Printed rather than logged: this happens before the logger's own
     // configuration is trustworthy, and a human is reading it.
     process.stderr.write(`\n${error.message}\n\n`);

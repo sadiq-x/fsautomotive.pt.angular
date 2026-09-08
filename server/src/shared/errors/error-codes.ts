@@ -10,6 +10,13 @@ export const ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   BAD_REQUEST: 'BAD_REQUEST',
   UNAUTHORIZED: 'UNAUTHORIZED',
+  /**
+   * Sign-in refused. Deliberately one code for "no such account" and "wrong
+   * password": two codes would tell an attacker which addresses are registered.
+   */
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  /** Too many failed attempts for this account, from this address. */
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   RATE_LIMITED: 'RATE_LIMITED',
