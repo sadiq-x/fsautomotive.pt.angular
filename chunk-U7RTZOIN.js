@@ -1,1 +1,0 @@
-var e=class extends Error{constructor(o,t,r,s,i){super(r);this.status=o;this.code=t;this.message=r;this.details=s;this.requestId=i}status;code;message;details;requestId;name="ApiError";get retryable(){return this.status===0||this.status===429||this.status>=500}};export{e as a};
