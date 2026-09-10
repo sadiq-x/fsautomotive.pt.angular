@@ -50,9 +50,20 @@ export class FeatureCard {
     ['mt-6 text-h3 font-bold', this.tone() === 'dark' ? 'text-white' : 'text-ink-950'].join(' '),
   );
 
+  /**
+   * The watermark index sits on the card's own content box — `top-7 right-7`
+   * are the same 1.75rem as the card's `p-7`, so it lines up with the title and
+   * body text rather than floating at an offset of its own.
+   *
+   * It must stay *inside* that box: the card is `overflow-hidden` for its
+   * rounded corners, so any negative offset does not bleed past the edge, it
+   * gets cut off — which is what a `-top-2` here used to do to the digits at
+   * every breakpoint. `leading-none` pins the line box to the font size so the
+   * placement stays put if the type scale is ever retuned.
+   */
   protected readonly indexClasses = computed(() =>
     [
-      'pointer-events-none absolute -top-2 right-4 text-6xl font-black tabular-nums',
+      'pointer-events-none absolute top-7 right-7 text-6xl leading-none font-black tabular-nums select-none',
       this.tone() === 'dark' ? 'text-white/8' : 'text-ink-950/5',
     ].join(' '),
   );

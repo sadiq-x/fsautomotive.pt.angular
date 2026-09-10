@@ -31,10 +31,28 @@ export class LightboxService {
   }
 
   next(): void {
-    this.index.update((i) => (i + 1) % this.total());
+    this.step(1);
   }
 
   previous(): void {
-    this.index.update((i) => (i - 1 + this.total()) % this.total());
+    this.step(-1);
+  }
+
+  /**
+   * Moves by one, wrapping at either end.
+   *
+   * The empty guard is not theoretical: these are public methods on a root
+   * service, and `% 0` is `NaN` — which would stick in `index` and leave
+   * `current()` null for the rest of the session, including after a later
+   * `open()` that set a perfectly valid index.
+   */
+  private step(delta: number): void {
+    const total = this.total();
+
+    if (total === 0) {
+      return;
+    }
+
+    this.index.update((i) => (i + delta + total) % total);
   }
 }

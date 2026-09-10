@@ -1,10 +1,23 @@
 <ul class="divide-y" [class]="rowClasses()">
   @for (entry of entries; track entry.days) {
-    <li class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 py-3.5">
-      <span class="text-body font-semibold" [class]="dayClasses()">{{ entry.days }}</span>
+    <!--
+      The two row shapes wrap differently on purpose.
+
+      An open day's hours are a long string ("08:30 – 13:00 | 14:30 – 18:30")
+      that is better off dropping to its own full-width line in a narrow column,
+      so those rows wrap.
+
+      A closed day's badge is short, and wrapping it looks like a mistake: alone
+      on the second line, `justify-between` parks it at the *left*, so it no
+      longer lines up with the badge on the row above. Those rows therefore do
+      not wrap — the day name shrinks and re-flows instead (`min-w-0`), and the
+      badge holds the right edge (`shrink-0`) at every width.
+    -->
+    <li class="flex items-center justify-between gap-x-6 gap-y-1.5 py-3.5" [class.flex-wrap]="!entry.closed">
+      <span class="min-w-0 text-body font-semibold" [class]="dayClasses()">{{ entry.days }}</span>
 
       @if (entry.closed) {
-        <span [class]="closedBadgeClasses()">Fechado</span>
+        <span class="shrink-0" [class]="closedBadgeClasses()">Fechado</span>
       } @else {
         <span
           class="flex flex-wrap items-center gap-x-2 gap-y-1 text-body tabular-nums"

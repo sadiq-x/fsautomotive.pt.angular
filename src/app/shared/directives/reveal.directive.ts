@@ -1,4 +1,4 @@
-import { Directive, ElementRef, afterNextRender, inject, input } from '@angular/core';
+import { DestroyRef, Directive, ElementRef, afterNextRender, inject, input } from '@angular/core';
 
 /**
  * Fades an element in the first time it scrolls into view.
@@ -17,6 +17,7 @@ export class RevealDirective {
   readonly revealDelay = input(0);
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     afterNextRender(() => this.observe());
@@ -49,5 +50,12 @@ export class RevealDirective {
     );
 
     observer.observe(element);
+
+    // Disconnecting in the callback above only covers elements that are
+    // actually reached. Leaving a page before scrolling to the bottom is the
+    // ordinary case — the public pages carry twenty of these — and every
+    // element still above the fold would otherwise leave a live observer
+    // holding its now-detached node for the lifetime of the tab.
+    this.destroyRef.onDestroy(() => observer.disconnect());
   }
 }

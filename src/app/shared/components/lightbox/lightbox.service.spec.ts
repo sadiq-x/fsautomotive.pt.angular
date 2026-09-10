@@ -54,6 +54,16 @@ describe('LightboxService', () => {
     expect(lightbox.current()?.src).toBe('c.jpg');
   });
 
+  it('survives stepping before anything has been opened', () => {
+    lightbox.next();
+    lightbox.previous();
+
+    // A `% 0` here would leave `index` at NaN, which no later `open()` clears.
+    lightbox.open(IMAGES, 1);
+    expect(lightbox.current()?.src).toBe('b.jpg');
+    expect(lightbox.position()).toBe(2);
+  });
+
   it('closes without discarding the current collection', () => {
     lightbox.open(IMAGES, 1);
     lightbox.close();

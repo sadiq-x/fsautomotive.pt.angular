@@ -90,11 +90,6 @@ export interface GaEventParams {
 /** The parameter type for one event name. */
 export type EventParamsFor<T extends GaEventName> = GaEventParams[T];
 
-/** A name paired with its own parameters — the two can never drift apart. */
-export type AnalyticsEvent = {
-  [K in GaEventName]: { readonly name: K; readonly params: EventParamsFor<K> };
-}[GaEventName];
-
 /** A GA4 user property value. Objects and arrays are not supported by gtag. */
 export type UserPropertyValue = string | number | boolean;
 

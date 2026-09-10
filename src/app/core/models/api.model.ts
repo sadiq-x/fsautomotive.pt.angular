@@ -40,8 +40,6 @@ export interface ApiFailure {
   readonly requestId: string;
 }
 
-export type ApiEnvelope<T> = ApiSuccess<T> | ApiFailure;
-
 /** A list plus the pagination that produced it — what every list page renders. */
 export interface Paged<T> {
   readonly items: readonly T[];
@@ -77,26 +75,4 @@ export class ApiError extends Error {
   get retryable(): boolean {
     return this.status === 0 || this.status === 429 || this.status >= 500;
   }
-}
-
-/** Field-level validation problems, as the backend's 422 reports them. */
-export interface ApiValidationIssue {
-  readonly source: 'params' | 'query' | 'body';
-  readonly field: string;
-  readonly message: string;
-}
-
-/** Narrows the opaque `details` of a validation failure. */
-export function toValidationIssues(details: unknown): readonly ApiValidationIssue[] {
-  if (!Array.isArray(details)) {
-    return [];
-  }
-
-  return details.filter(
-    (issue): issue is ApiValidationIssue =>
-      typeof issue === 'object' &&
-      issue !== null &&
-      typeof (issue as ApiValidationIssue).field === 'string' &&
-      typeof (issue as ApiValidationIssue).message === 'string',
-  );
 }

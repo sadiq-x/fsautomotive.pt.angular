@@ -49,6 +49,12 @@ describe('ResponsiveImage', () => {
     expect(img.getAttribute('sizes')).toBeNull();
   });
 
+  it('omits srcset when the file name carries no extension to build on', () => {
+    const img = render({ src: 'a/logo', alt: 'Logo', width: 200, height: 100, widths: [100] });
+    expect(img.getAttribute('srcset')).toBeNull();
+    expect(img.getAttribute('src')).toBe('a/logo');
+  });
+
   it('passes the slot hint through to sizes', () => {
     expect(render(PHOTO, '(min-width: 64rem) 30vw, 100vw').getAttribute('sizes')).toBe(
       '(min-width: 64rem) 30vw, 100vw',

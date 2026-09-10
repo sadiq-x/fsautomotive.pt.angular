@@ -3,8 +3,25 @@
   <div class="absolute inset-0">
     <app-carousel class="h-full" [slides]="slides" [interval]="6000" [showControls]="false" [eager]="true" />
   </div>
+  <!--
+    Scrim over the carousel. Its job is legibility, not mood, so it is only as
+    dark as the text needs and no darker.
+
+    On wide screens the ramp is held further right (62%) than the copy extends
+    (~55%) and then falls to fully clear, rather than levelling off over the
+    photograph. That keeps the same cover under the text while letting the
+    right-hand side of the image show through properly.
+
+    The stops are contrast-bound against the brightest slide, not chosen by eye:
+    white headline 5.7:1, `bone-100` lead 4.7:1, `bone-200` captions 4.9:1 —
+    all past WCAG AA, with little room left. The copy below is deliberately a
+    shade brighter than the rest of the site for that reason: at this scrim the
+    old `bone-200` lead and `bone-400` captions measured 4.3:1 and 3.3:1, so
+    lifting the text is what paid for lifting the scrim. Darkening the text
+    again means darkening these stops to match.
+  -->
   <div
-    class="absolute inset-0 bg-ink-950/78 lg:bg-transparent lg:bg-linear-to-r lg:from-ink-950 lg:from-6% lg:via-ink-950/80 lg:via-46% lg:to-ink-950/25"
+    class="absolute inset-0 bg-ink-950/62 lg:bg-transparent lg:bg-linear-to-r lg:from-ink-950/75 lg:from-10% lg:via-ink-950/55 lg:via-62% lg:to-ink-950/0"
     aria-hidden="true"
   ></div>
   <span class="absolute inset-x-0 bottom-0 h-1 bg-brand-600" aria-hidden="true"></span>
@@ -23,7 +40,7 @@
         <span class="text-brand-500">como se fosse nosso.</span>
       </h1>
 
-      <p class="mt-7 max-w-2xl text-lead text-bone-200">
+      <p class="mt-7 max-w-2xl text-lead text-bone-100">
         Está à procura de um serviço automóvel de confiança? A {{ site.name }} garante-lhe
         <strong class="font-bold text-white">qualidade</strong>,
         <strong class="font-bold text-white">eficiência</strong> e um
@@ -41,17 +58,17 @@
         <div>
           <dt class="sr-only">Serviços disponíveis</dt>
           <dd class="text-h2 font-extrabold text-white tabular-nums">{{ totalServices }}</dd>
-          <p class="mt-1 text-meta font-medium text-bone-400">Serviços especializados</p>
+          <p class="mt-1 text-meta font-medium text-bone-200">Serviços especializados</p>
         </div>
         <div>
           <dt class="sr-only">Tipos de veículos</dt>
           <dd class="text-h2 font-extrabold text-white tabular-nums">{{ vehicles.length }}</dd>
-          <p class="mt-1 text-meta font-medium text-bone-400">Tipos de veículo</p>
+          <p class="mt-1 text-meta font-medium text-bone-200">Tipos de veículo</p>
         </div>
         <div>
           <dt class="sr-only">Abordagem</dt>
           <dd class="text-h2 font-extrabold text-white">100%</dd>
-          <p class="mt-1 text-meta font-medium text-bone-400">Multimarca</p>
+          <p class="mt-1 text-meta font-medium text-bone-200">Multimarca</p>
         </div>
       </dl>
     </div>

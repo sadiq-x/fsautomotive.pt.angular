@@ -1,6 +1,7 @@
 import type { Routes } from '@angular/router';
 
 import { LEGACY_PRIVATE_ROUTES } from './core/config/private-routes.config';
+import { SITE } from './core/data';
 import type { PageMeta } from './core/models';
 
 /**
@@ -57,9 +58,12 @@ export const routes: Routes = [
     data: {
       meta: {
         title: 'Contactos',
+        // Built from `SITE` rather than retyped: this description repeats the
+        // address, phone and e-mail, and a second copy of a contact detail is
+        // one that goes stale the next time the first one changes.
         description:
-          'Rua do Olival Santo 16b, 2625-585 Vialonga. Telefone (+351) 933 678 865 · ' +
-          'fsautomotive.servicos@gmail.com. Veja o horário e como chegar.',
+          `${SITE.address.street}, ${SITE.address.postalCode} ${SITE.address.city}. ` +
+          `Telefone ${SITE.phone.display} · ${SITE.email}. Veja o horário e como chegar.`,
         path: '/contactos',
       } satisfies PageMeta,
     },

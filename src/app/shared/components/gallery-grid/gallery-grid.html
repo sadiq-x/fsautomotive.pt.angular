@@ -12,8 +12,14 @@
           [sizes]="sizes()"
           imgClass="aspect-4/3 w-full object-cover transition duration-500 ease-out group-hover:scale-105"
         />
+        <!--
+          Hover affordance only. This used to be a permanent scrim carrying a
+          caption; with the caption gone it would be a dark band framing
+          nothing, so it rests fully clear and the photograph is shown as taken.
+          Each image's caption is still read out on the enlarged view.
+        -->
         <span
-          class="absolute inset-0 bg-linear-to-t from-ink-950/80 via-ink-950/10 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-95"
+          class="absolute inset-0 bg-linear-to-t from-ink-950/55 via-ink-950/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           aria-hidden="true"
         ></span>
         <span
@@ -22,11 +28,6 @@
         >
           <app-icon name="external-link" [size]="16" />
         </span>
-        @if (image.caption) {
-          <span class="absolute inset-x-0 bottom-0 px-4 pb-4 text-left text-sm font-semibold text-white">{{
-            image.caption
-          }}</span>
-        }
       </button>
     </li>
   }

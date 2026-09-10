@@ -77,12 +77,29 @@ export class App {
     });
   }
 
+  /**
+   * The `meta` of the deepest route that declares one.
+   *
+   * Carrying the last one seen down the tree, rather than reading only the leaf,
+   * is what stops a page inheriting the *previous* page's head. The effect above
+   * skips `undefined`, so a child route added later without `meta` would
+   * otherwise keep whatever the last navigation left in the document — its
+   * title, its canonical URL, and the absence of its `robots` tag.
+   *
+   * Angular does not inherit `data` from a parent route unless
+   * `paramsInheritanceStrategy: 'always'` is set, which would change how every
+   * route's params resolve; doing it here keeps the effect local to the head.
+   */
   private deepestMeta(): PageMeta | undefined {
     let route = this.router.routerState.snapshot.root;
+    let meta = route.data['meta'] as PageMeta | undefined;
+
     while (route.firstChild) {
       route = route.firstChild;
+      meta = (route.data['meta'] as PageMeta | undefined) ?? meta;
     }
-    return route.data['meta'] as PageMeta | undefined;
+
+    return meta;
   }
 }
 

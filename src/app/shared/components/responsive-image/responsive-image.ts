@@ -33,7 +33,15 @@ export class ResponsiveImage {
       return null;
     }
 
+    // A name with no extension has no rendition convention to follow. Without
+    // this guard `lastIndexOf` returns -1, and the slices below would quietly
+    // split the name one character from the end — emitting a srcset of files
+    // that do not exist rather than falling back to the original.
     const dot = src.lastIndexOf('.');
+    if (dot <= 0) {
+      return null;
+    }
+
     const base = src.slice(0, dot);
     const extension = src.slice(dot);
 

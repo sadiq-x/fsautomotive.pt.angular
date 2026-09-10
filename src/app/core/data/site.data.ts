@@ -18,7 +18,15 @@ export const SITE: SiteConfig = {
   logo: 'images/brand/logo-fs-automotive.png',
   squareLogo: 'images/brand/logo-fs-automotive-square.png',
   phone: {
-    display: '(+351) 933 678 865',
+    /**
+     * How the number is written on screen. National format: the visitors who
+     * ring this workshop are local, and the country code is noise to them.
+     *
+     * It is only the *display* that drops it — `href` and `e164` below keep
+     * the full international form, so the tap-to-call link still works from
+     * abroad and the schema.org `telephone` stays valid for search engines.
+     */
+    display: '933 678 865',
     href: 'tel:+351933678865',
     e164: '+351933678865',
   },
