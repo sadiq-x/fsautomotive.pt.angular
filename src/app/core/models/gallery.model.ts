@@ -3,7 +3,6 @@ export interface GalleryImage {
   /** Full-size source, also the `src` fallback for browsers without `srcset`. */
   readonly src: string;
   readonly alt: string;
-  readonly caption?: string;
   /** Intrinsic size of `src`, used to reserve layout space and avoid CLS. */
   readonly width: number;
   readonly height: number;

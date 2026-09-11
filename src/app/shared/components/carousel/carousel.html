@@ -26,13 +26,6 @@
           sizes="100vw"
           imgClass="h-full w-full object-cover"
         />
-        @if (showCaptions() && slide.caption) {
-          <figcaption
-            class="absolute inset-x-0 bottom-0 bg-linear-to-t from-ink-950/90 to-transparent px-6 pt-16 pb-6 text-sm font-medium text-white"
-          >
-            {{ slide.caption }}
-          </figcaption>
-        }
       </figure>
     }
   </div>

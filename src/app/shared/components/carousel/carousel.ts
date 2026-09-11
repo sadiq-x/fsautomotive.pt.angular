@@ -33,7 +33,6 @@ export class Carousel {
   readonly interval = input(5000);
   readonly autoplay = input(true);
   readonly showControls = input(true);
-  readonly showCaptions = input(false);
   /** Marks the first slide as LCP-critical so it is fetched eagerly. */
   readonly eager = input(true);
 

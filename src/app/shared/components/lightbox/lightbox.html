@@ -41,14 +41,19 @@
           sizes="(min-width: 64rem) 62vw, 92vw"
           imgClass="mx-auto max-h-[78svh] w-auto rounded-lg object-contain shadow-2xl"
         />
-        <figcaption class="mt-4 flex items-center justify-center gap-3 text-sm text-bone-300">
-          @if (image.caption) {
-            <span>{{ image.caption }}</span>
-          }
-          @if (lightbox.total() > 1) {
-            <span class="text-bone-400 tabular-nums">{{ lightbox.position() }} / {{ lightbox.total() }}</span>
-          }
-        </figcaption>
+        <!--
+          Position counter only. The photograph is shown as taken, with no
+          caption written under it; `alt` on the image carries the description
+          for assistive technology, so nothing is lost by not printing one.
+
+          A single-image lightbox has no position to report, so the whole
+          element is dropped rather than rendered empty.
+        -->
+        @if (lightbox.total() > 1) {
+          <figcaption class="mt-4 text-center text-sm text-bone-400 tabular-nums">
+            {{ lightbox.position() }} / {{ lightbox.total() }}
+          </figcaption>
+        }
       </figure>
     }
   </div>
