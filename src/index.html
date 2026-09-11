@@ -5,7 +5,17 @@
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>FS Automotive | Oficina automóvel multimarca em Vialonga</title>
+    <!--
+      The company name comes first on the home page, and what the workshop does
+      follows it. The name Google prints above the result URL is taken from the
+      `WebSite` node below, not from here — this title is read on its own terms.
+
+      Keep this in step with the home route's `meta` in `app.routes.ts`:
+      `SeoService` rewrites the title to exactly this string once Angular boots,
+      and a crawler that renders the page must not see the name change under it.
+      `seo.service.spec.ts` pins the string the route produces.
+    -->
+    <title>FS Automotive | Oficina Automóvel</title>
     <meta
       name="description"
       content="Oficina automóvel multimarca em Vialonga. Mecânica especializada, diagnóstico computorizado, pintura e carroçaria, pneus e pré-inspeção."
@@ -14,6 +24,44 @@
     <meta name="author" content="FS Automotive" />
     <meta name="robots" content="index, follow" />
     <meta name="format-detection" content="telephone=no" />
+
+    <!--
+      Served statically, although `SeoService` sets this tag per route as well.
+      This is one of the signals Google reads to name the site above the result
+      URL, and the crawler should find it in the HTML as delivered rather than
+      only after it has run the bundle.
+    -->
+    <meta property="og:site_name" content="FS Automotive" />
+
+    <!--
+      The site's name, for the line Google prints above the result URL.
+
+      Without it Google has nothing to go on and falls back to the bare domain,
+      "fsautomotive.pt". `name` and `url` are the two properties it requires;
+      `alternateName` offers the spelling used on the social accounts.
+
+      WHY THIS IS NOT IN `StructuredDataService`
+      ------------------------------------------
+      The rest of the graph — the workshop, its address, hours and services — is
+      published from there, because it is assembled from `SITE` and the data
+      files. This node is four constants, and it has to survive being read
+      without JavaScript: site names are only ever taken from the home page, so
+      there is one chance to present it and no route to re-apply it on.
+
+      The site is a single page application served from this one file, so the
+      markup is delivered on every route. That is harmless — Google extracts the
+      site name from the home page alone — and it is the price of having it in
+      the static HTML at all.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "FS Automotive",
+        "alternateName": "FSautomotive",
+        "url": "https://fsautomotive.pt/"
+      }
+    </script>
 
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png" />

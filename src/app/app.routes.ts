@@ -15,7 +15,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home').then((m) => m.Home),
     data: {
       meta: {
-        title: 'Oficina automóvel multimarca em Vialonga',
+        // `SeoService` puts the company name in front of this one, so the home
+        // page title reads "FS Automotive | Oficina Automóvel". The longer
+        // description below is what carries the rest of the search terms.
+        title: 'Oficina Automóvel',
         description:
           'FS Automotive — oficina multimarca em Vialonga. Mecânica, diagnóstico ' +
           'computorizado, pintura, pneus e pré-inspeção com atendimento personalizado.',

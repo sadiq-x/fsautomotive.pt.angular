@@ -1,7 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
 
+import { routes } from '../../app.routes';
 import { SITE } from '../data';
+import type { PageMeta } from '../models';
 import { SeoService } from './seo.service';
 
 describe('SeoService', () => {
@@ -21,6 +23,26 @@ describe('SeoService', () => {
   it('suffixes the document title with the company name', () => {
     seo.apply({ title: 'Serviços', description: 'Os nossos serviços.', path: '/servicos' });
     expect(title.getTitle()).toBe(`Serviços | ${SITE.name}`);
+  });
+
+  // The home page is the site, not a section of it, so it is named first and
+  // described second. The bare name Google prints above the result URL comes
+  // from the `WebSite` node in index.html, which is why this title can keep
+  // carrying the search terms as well.
+  it('leads the home page title with the company name instead', () => {
+    seo.apply({ title: 'Oficina Automóvel', description: 'x', path: '/' });
+    expect(title.getTitle()).toBe(`${SITE.name} | Oficina Automóvel`);
+  });
+
+  // `index.html` hard-codes this same string, so that the name is already right
+  // for a crawler that does not run the bundle. The spec cannot read that file —
+  // `node:fs` is not in the browser tsconfig — so it pins the string the real
+  // home route produces, and index.html points back here.
+  it('titles the real home route exactly as index.html does', () => {
+    const home = routes.find((route) => route.path === '');
+    const meta = home?.data?.['meta'] as PageMeta;
+
+    expect(seo.documentTitle(meta)).toBe('FS Automotive | Oficina Automóvel');
   });
 
   it('writes the description to both the meta tag and Open Graph', () => {

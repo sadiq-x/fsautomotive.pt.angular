@@ -24,9 +24,17 @@ export class SeoService {
    * and it cannot read `document.title`: the title is applied from an `effect`,
    * which flushes *after* the router event analytics reacts to, so reading the
    * DOM there would report the previous page.
+   *
+   * The home page leads with the company name; every other page ends with it.
+   * The name Google prints above the result URL comes from the `WebSite` node
+   * in `index.html`, not from here, so the title is free to keep describing the
+   * workshop — it just does so *after* the name on the one page that is the
+   * site rather than a section of it.
    */
   documentTitle(page: PageMeta): string {
-    return `${page.title} | ${SITE.name}`;
+    return this.isHomePage(page.path)
+      ? `${SITE.name} | ${page.title}`
+      : `${page.title} | ${SITE.name}`;
   }
 
   apply(page: PageMeta): void {
@@ -69,6 +77,11 @@ export class SeoService {
     }
 
     this.meta.removeTag('name="robots"');
+  }
+
+  /** The site root, whose title names the site rather than a section of it. */
+  private isHomePage(path: string): boolean {
+    return path === '/' || path === '';
   }
 
   private upsertName(name: string, content: string): void {

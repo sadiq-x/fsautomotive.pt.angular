@@ -265,7 +265,8 @@ describe('AnalyticsService', () => {
       await router.navigateByUrl('/servicos');
 
       const views = eventsNamed('page_view');
-      expect(views[0]['page_title']).toBe('Início | FS Automotive');
+      // This fixture's home route is at '/', which `SeoService` names first.
+      expect(views[0]['page_title']).toBe('FS Automotive | Início');
       expect(views[1]['page_title']).toBe('Serviços | FS Automotive');
     });
 
