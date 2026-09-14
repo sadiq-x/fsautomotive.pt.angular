@@ -5,7 +5,7 @@
 <ng-template #content>
   @if (resolvedIcon(); as name) {
     @if (iconPosition() === 'left') {
-      <app-icon [name]="name" [size]="iconSize()" />
+      <app-icon [name]="name" [size]="iconSize()" [class.animate-spin]="loading()" />
     }
   }
   <span
@@ -13,10 +13,16 @@
   >
   @if (resolvedIcon(); as name) {
     @if (iconPosition() === 'right') {
+      <!--
+        The nudge-on-hover is suppressed while loading: a glyph both turning
+        and sliding reads as a glitch rather than as progress.
+      -->
       <app-icon
         [name]="name"
         [size]="iconSize()"
-        class="transition-transform duration-200 group-hover/btn:translate-x-0.5"
+        [class]="
+          loading() ? 'animate-spin' : 'transition-transform duration-200 group-hover/btn:translate-x-0.5'
+        "
       />
     }
   }
@@ -37,7 +43,13 @@
     <ng-container [ngTemplateOutlet]="content" />
   </a>
 } @else {
-  <button [type]="type()" [class]="classes()" [disabled]="disabled()" [attr.aria-label]="resolvedAriaLabel()">
+  <button
+    [type]="type()"
+    [class]="classes()"
+    [disabled]="isDisabled()"
+    [attr.aria-busy]="loading() ? 'true' : null"
+    [attr.aria-label]="resolvedAriaLabel()"
+  >
     <ng-container [ngTemplateOutlet]="content" />
   </button>
 }

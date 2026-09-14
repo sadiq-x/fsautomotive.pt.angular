@@ -11,6 +11,20 @@
  * full page of data and the list rendered "Ainda não há registos", which is
  * precisely the silent failure the candidate-list approach exists to avoid.
  *
+ * THE ONE THAT MATTERED AFTER THAT
+ * --------------------------------
+ * `closedAt` read `closed_at`, `data_fecho` and `finished_at`, and the record
+ * carries none of them — CONFIRMED against the real payload, which has 24
+ * fields and no completion timestamp of any kind. The field was therefore
+ * `undefined` on every work order ever mapped, and the detail page's "Fecho"
+ * row never rendered. It is gone rather than left as a permanent blank.
+ *
+ * The consequence is worth stating plainly, because it bounds what this API can
+ * answer: **OfficeGest does not publish when a job finished**, so the real
+ * duration of a completed repair cannot be derived from it. Only a job that is
+ * currently open has a measurable time, and that comes from the monitor's
+ * `start_time`, not from here.
+ *
  * THE ONE THAT MATTERED NEXT
  * --------------------------
  * Eight fields the record carries were never read: the customer's name, the
@@ -41,7 +55,6 @@ const FIELDS = {
   description: ['observations', 'description', 'descricao', 'observacoes', 'notes'],
   mechanicNotes: ['mechanic_observations', 'observacoes_mecanico'],
   openedAt: ['date', 'opened_at', 'data_abertura', 'created_at'],
-  closedAt: ['closed_at', 'data_fecho', 'finished_at'],
   registeredAt: ['system_entry_date', 'created_at'],
   expectedDeliveryAt: ['expected_delivery_date', 'data_entrega_prevista'],
   mileage: ['km_counter', 'kms', 'mileage'],
@@ -50,13 +63,26 @@ const FIELDS = {
   total: ['total', 'valor_total', 'amount', 'net_total'],
 } as const;
 
-/** Line-item fields, shared by `lines` and `extra_lines`. */
+/**
+ * Line-item fields, shared by `lines` and `extra_lines`.
+ *
+ * CONFIRMED 2026-09-13 against 158 real lines. Note the absence of `total`:
+ * upstream does not send one, which is what made the old
+ * `total: ['total', 'total_without_vat']` silently publish the net figure under
+ * a gross label. The gross is computed in `readLines` instead.
+ */
 const LINE_FIELDS = {
   id: ['id'],
+  lineNumber: ['line_number'],
+  articleId: ['article_id'],
   description: ['description', 'descricao'],
   quantity: ['quantity', 'quantidade'],
   unitPrice: ['unit_price', 'preco_unitario'],
-  total: ['total', 'total_without_vat'],
+  unitPriceWithVat: ['unit_price_with_vat'],
+  vatPercentage: ['vat_percentage'],
+  discountPercentage: ['discount_percentage'],
+  totalWithoutVat: ['total_without_vat'],
+  vatValue: ['vat_value'],
 } as const;
 
 /**
@@ -97,7 +123,6 @@ export function toServiceOrder(record: UpstreamRecord): ServiceOrder | undefined
     description: readString(record, FIELDS.description),
     mechanicNotes: readString(record, FIELDS.mechanicNotes),
     openedAt: readIsoDate(record, FIELDS.openedAt),
-    closedAt: readIsoDate(record, FIELDS.closedAt),
     registeredAt: readIsoDate(record, FIELDS.registeredAt),
     expectedDeliveryAt: readIsoDate(record, FIELDS.expectedDeliveryAt),
     mileage: readNumber(record, FIELDS.mileage),
@@ -133,13 +158,27 @@ function readLines(record: UpstreamRecord, key: string): ServiceOrderLine[] {
 
   return raw
     .filter((entry): entry is UpstreamRecord => typeof entry === 'object' && entry !== null)
-    .map((entry) => ({
-      id: readIdentifier(entry, LINE_FIELDS.id),
-      description: readString(entry, LINE_FIELDS.description),
-      quantity: readNumber(entry, LINE_FIELDS.quantity),
-      unitPrice: readNumber(entry, LINE_FIELDS.unitPrice),
-      total: readNumber(entry, LINE_FIELDS.total),
-    }));
+    .map((entry) => {
+      const totalWithoutVat = readNumber(entry, LINE_FIELDS.totalWithoutVat);
+      const vatValue = readNumber(entry, LINE_FIELDS.vatValue);
+
+      return {
+        id: readIdentifier(entry, LINE_FIELDS.id),
+        lineNumber: readNumber(entry, LINE_FIELDS.lineNumber),
+        articleId: readIdentifier(entry, LINE_FIELDS.articleId),
+        description: readString(entry, LINE_FIELDS.description),
+        quantity: readNumber(entry, LINE_FIELDS.quantity),
+        unitPrice: readNumber(entry, LINE_FIELDS.unitPrice),
+        unitPriceWithVat: readNumber(entry, LINE_FIELDS.unitPriceWithVat),
+        vatPercentage: readNumber(entry, LINE_FIELDS.vatPercentage),
+        discountPercentage: readNumber(entry, LINE_FIELDS.discountPercentage),
+        totalWithoutVat,
+        vatValue,
+        // Missing VAT is read as zero — a zero-rated line is a real thing — but
+        // a missing *net* leaves the gross absent rather than inventing one.
+        total: totalWithoutVat === undefined ? undefined : totalWithoutVat + (vatValue ?? 0),
+      };
+    });
 }
 
 export function toServiceOrders(records: readonly UpstreamRecord[]): ServiceOrder[] {

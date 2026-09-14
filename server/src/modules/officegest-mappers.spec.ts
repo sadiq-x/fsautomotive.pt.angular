@@ -192,19 +192,80 @@ describe('service order mapping', () => {
     expect(mapped?.expectedDeliveryAt).toMatch(/^2026-09-12/);
   });
 
+  /**
+   * The fields here are the ones the tenant really sends — CONFIRMED across 158
+   * lines on 2026-09-13. The previous version of this test invented a `total`
+   * key, which upstream has never sent, and that is precisely why the net/gross
+   * bug below survived: the mapper read `total_without_vat` and published it as
+   * `total`, a field documented as including VAT.
+   */
   it('maps the billed lines, and leaves them absent on a list row', () => {
     expect(toServiceOrder(record)?.lines).toBeUndefined();
 
     const mapped = toServiceOrder({
       ...record,
-      lines: [{ id: 1, description: 'Pastilhas', quantity: 4, unit_price: 12.5, total: 61.5 }],
+      lines: [
+        {
+          id: 1,
+          line_number: 1,
+          article_id: 55,
+          description: 'Pastilhas',
+          quantity: 4,
+          unit_price: 12.5,
+          unit_price_with_vat: 15.375,
+          vat_percentage: 23,
+          discount_percentage: 0,
+          total_without_vat: 50,
+          vat_value: 11.5,
+        },
+      ],
       extra_lines: [{ id: 2, description: 'Mão de obra', quantity: 1, unit_price: 40 }],
     });
 
-    expect(mapped?.lines).toEqual([
-      { id: '1', description: 'Pastilhas', quantity: 4, unitPrice: 12.5, total: 61.5 },
-      { id: '2', description: 'Mão de obra', quantity: 1, unitPrice: 40, total: undefined },
-    ]);
+    expect(mapped?.lines?.[0]).toMatchObject({
+      id: '1',
+      lineNumber: 1,
+      articleId: '55',
+      description: 'Pastilhas',
+      quantity: 4,
+      unitPrice: 12.5,
+      unitPriceWithVat: 15.375,
+      vatPercentage: 23,
+      discountPercentage: 0,
+      totalWithoutVat: 50,
+      vatValue: 11.5,
+      // Net plus VAT. The old mapper published 50 here and called it gross.
+      total: 61.5,
+    });
+  });
+
+  /** A zero-rated line is a real thing; a line with no net is not a zero one. */
+  it('treats missing VAT as zero but leaves a line with no net total absent', () => {
+    const mapped = toServiceOrder({
+      ...record,
+      lines: [
+        { id: 1, description: 'Isento', total_without_vat: 40 },
+        { id: 2, description: 'Sem total' },
+      ],
+    });
+
+    expect(mapped?.lines?.[0]?.total).toBe(40);
+    expect(mapped?.lines?.[1]?.total).toBeUndefined();
+  });
+
+  /**
+   * OfficeGest publishes no completion timestamp of any kind, so the real
+   * duration of a finished repair cannot be derived from this record. The field
+   * that claimed to carry it read three keys that do not exist.
+   */
+  it('publishes no completion date, because the record carries none', () => {
+    const mapped = toServiceOrder({
+      ...record,
+      closed_at: '2026-09-01',
+      finished_at: '2026-09-01',
+    });
+
+    expect(mapped).not.toHaveProperty('closedAt');
   });
 
   it('skips a malformed line rather than losing the whole job', () => {

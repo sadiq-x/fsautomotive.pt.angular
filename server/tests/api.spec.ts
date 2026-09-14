@@ -243,3 +243,109 @@ describe('routing and error shape', () => {
     expect(response.headers['x-powered-by']).toBeUndefined();
   });
 });
+
+describe('GET /api/officegest/workshop-monitor', () => {
+  /** One active job, in the shape the monitor endpoint actually returns. */
+  const BOARD_PAGE: CannedResponse = {
+    body: {
+      data: [
+        {
+          number: 4821,
+          document_number: 'OSV BF2026/12',
+          status: 'EXE',
+          date: '2026-09-13',
+          vehicle_plate: '61-SQ-64',
+          vehicle: { plate: '61-SQ-64', brand_name: 'Renault', model_name: 'Clio' },
+          completion_percentage: 40,
+          interventions: [{ sequence_number: 1, intervention: 'Travões', completed: true }],
+          mechanics: [{ employee_code: 7, name: 'João', start_time: '2026-09-13 08:15:00' }],
+        },
+      ],
+      meta: { current_page: 1, per_page: 250, has_more: false },
+    },
+  };
+
+  it('returns the board, with the clock-on the whole feature depends on', async () => {
+    const { app } = appWith([LOGIN_OK, BOARD_PAGE]);
+
+    const response = await request(app).get('/api/officegest/workshop-monitor').expect(200);
+
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.activeMechanicCount).toBe(1);
+    expect(response.body.data.observedAt).toEqual(expect.any(String));
+    expect(response.body.data.serviceOrders).toHaveLength(1);
+    expect(response.body.data.serviceOrders[0]).toMatchObject({
+      id: '4821',
+      documentNumber: 'OSV BF2026/12',
+      status: 'EXE',
+      // Normalised here, hyphenated upstream — see the mapper.
+      plate: '61SQ64',
+      completionPercentage: 0.4,
+      mechanics: [{ employeeCode: '7', name: 'João' }],
+    });
+  });
+
+  /**
+   * No `meta` on this response. A board is not a page of a list, and a
+   * pagination envelope here would describe something that does not exist.
+   */
+  it('sends no pagination envelope', async () => {
+    const { app } = appWith([LOGIN_OK, BOARD_PAGE]);
+
+    const response = await request(app).get('/api/officegest/workshop-monitor').expect(200);
+
+    expect(response.body.meta).toBeUndefined();
+  });
+
+  /** A cached board in a browser would show a timer that had silently stopped. */
+  it('forbids the browser from caching a live board', async () => {
+    const { app } = appWith([LOGIN_OK, BOARD_PAGE]);
+
+    const response = await request(app).get('/api/officegest/workshop-monitor').expect(200);
+
+    expect(response.headers['cache-control']).toBe('no-store');
+  });
+
+  it('sends the plate hyphenated and the shop calendar upstream', async () => {
+    const { app, http } = appWith([LOGIN_OK, BOARD_PAGE]);
+
+    await request(app)
+      .get('/api/officegest/workshop-monitor?plate=61sq64&startHour=08:30&skipWeekends=true')
+      .expect(200);
+
+    // Found by path, not by position: a board request also fetches the mechanic
+    // roster, and the two are issued concurrently, so which lands last is not
+    // something this test should depend on.
+    const url = http.calls.find((call) => call.url.includes('/workshop/monitor'))?.url ?? '';
+
+    expect(url).toContain('/workshop/monitor/service-orders');
+    expect(url).toContain('vehicle_plate=61-SQ-64');
+    expect(url).toContain('start_hour=08%3A30');
+    expect(url).toContain('skip_weekends=1');
+  });
+
+  /**
+   * The other half of "who is working on what": the people who are not at a
+   * car. The mapping itself is covered in the service spec — the canned
+   * upstream here is sequential, so the body this call receives is not
+   * meaningful. What matters at this layer is that the request is made at all.
+   */
+  it('reads the mechanic roster alongside the board', async () => {
+    const { app, http } = appWith([LOGIN_OK, BOARD_PAGE]);
+
+    await request(app).get('/api/officegest/workshop-monitor').expect(200);
+
+    expect(http.calls.some((call) => call.url.includes('/workshop/mechanics'))).toBe(true);
+  });
+
+  it('rejects a nonsensical working hour before calling upstream', async () => {
+    const { app, http } = appWith([]);
+
+    const response = await request(app)
+      .get('/api/officegest/workshop-monitor?startHour=25:99')
+      .expect(422);
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(http.calls).toHaveLength(0);
+  });
+});

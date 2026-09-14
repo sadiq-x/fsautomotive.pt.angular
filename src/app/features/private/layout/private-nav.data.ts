@@ -47,6 +47,16 @@ export const PRIVATE_NAV: readonly PrivateNavItem[] = [
     description: 'Procurar por matrícula, marca ou modelo.',
   },
   {
+    // Above "Folhas de obra" deliberately: this is the screen someone opens to
+    // see what is happening now, and the list is where they go to look
+    // something up. Most-used first.
+    label: 'Oficina agora',
+    path: PRIVATE_ROUTES.monitor,
+    icon: 'gauge',
+    permission: 'officegest.service-orders.read',
+    description: 'Ver as viaturas em curso e quem está a trabalhar nelas.',
+  },
+  {
     label: 'Folhas de obra',
     path: PRIVATE_ROUTES.serviceOrders,
     icon: 'clipboard-list',

@@ -14,6 +14,7 @@ import { EmployeesResource } from './resources/employees.resource.js';
 import { ServiceOrdersResource } from './resources/service-orders.resource.js';
 import { VehicleCatalogueResource } from './resources/vehicle-catalogue.resource.js';
 import { VehiclesResource } from './resources/vehicles.resource.js';
+import { WorkshopMonitorResource } from './resources/workshop-monitor.resource.js';
 
 export interface OfficeGestIntegration {
   readonly client: OfficeGestClient;
@@ -24,6 +25,8 @@ export interface OfficeGestIntegration {
   readonly serviceOrders: ServiceOrdersResource;
   readonly appointments: AppointmentsResource;
   readonly employees: EmployeesResource;
+  /** The live board — the only source of mechanic clock-on in the API. */
+  readonly workshopMonitor: WorkshopMonitorResource;
 }
 
 export function createOfficeGestIntegration(
@@ -39,6 +42,7 @@ export function createOfficeGestIntegration(
     vehicleCatalogue: new VehicleCatalogueResource(client),
     serviceOrders: new ServiceOrdersResource(client),
     appointments: new AppointmentsResource(client),
+    workshopMonitor: new WorkshopMonitorResource(client),
   };
 }
 
@@ -55,5 +59,7 @@ export { CustomersResource } from './resources/customers.resource.js';
 export { ServiceOrdersResource, nextCursor } from './resources/service-orders.resource.js';
 export { VehicleCatalogueResource } from './resources/vehicle-catalogue.resource.js';
 export { VehiclesResource } from './resources/vehicles.resource.js';
+export { WorkshopMonitorResource } from './resources/workshop-monitor.resource.js';
+export type { ListMonitorParams, MonitorSchedule } from './resources/workshop-monitor.resource.js';
 export type { OfficeGestListResult } from './officegest.types.js';
 export type { UpstreamRecord } from './officegest.record-readers.js';

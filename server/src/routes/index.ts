@@ -30,6 +30,7 @@ import { createCustomersRouter } from '../modules/customers/customers.routes.js'
 import { createEmployeesRouter } from '../modules/employees/employees.routes.js';
 import { createServiceOrdersRouter } from '../modules/service-orders/service-orders.routes.js';
 import { createVehiclesRouter } from '../modules/vehicles/vehicles.routes.js';
+import { createWorkshopMonitorRouter } from '../modules/workshop-monitor/workshop-monitor.routes.js';
 import { createHealthRouter } from './health.routes.js';
 
 /** Everything OfficeGest-backed lives under this prefix. */
@@ -95,6 +96,19 @@ export function createApiRouter(container: Container): Router {
     '/appointments',
     requirePermission('officegest.appointments.read'),
     createAppointmentsRouter(container.appointments),
+  );
+
+  // Guarded by the service-order grant rather than one of its own. The board is
+  // a live view of service orders — the same records, the same customers, the
+  // same plates, narrowed to those in progress — so anyone who may read the
+  // list may read the board, and nobody gains anything new by reaching it. A
+  // separate `officegest.monitor.read` would have meant every existing account
+  // losing access until its grants were edited, to draw a boundary that does
+  // not correspond to a difference in the data.
+  officegest.use(
+    '/workshop-monitor',
+    requirePermission('officegest.service-orders.read'),
+    createWorkshopMonitorRouter(container.workshopMonitor),
   );
 
   router.use(OFFICEGEST_ROUTE_PREFIX, officegest);

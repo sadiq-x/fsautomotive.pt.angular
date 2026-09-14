@@ -43,6 +43,14 @@ export interface ServiceOrderListQuery extends ListQuery {
   readonly to?: string;
   /** Matched against number, plate, customer and description. */
   readonly search?: string;
+  /**
+   * Restricts the list to the jobs assigned to one mechanic.
+   *
+   * The mechanic a job is *assigned* to, which is not the same claim as "did
+   * the work" — and it is sparse, carried by 69 of 1 000 jobs on this tenant.
+   * Applied by the backend, since upstream ignores every mechanic filter.
+   */
+  readonly mechanicId?: string;
 }
 
 export interface AppointmentListQuery extends ListQuery {

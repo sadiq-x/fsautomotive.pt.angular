@@ -1,0 +1,241 @@
+<header class="flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <h1 class="text-h2 text-ink-950">Oficina agora</h1>
+    <p class="mt-1 text-body text-ink-500">As viaturas em curso e quem está a trabalhar nelas.</p>
+  </div>
+
+  <div class="flex items-center gap-4">
+    <app-last-updated [since]="lastSuccessAt()" />
+    <app-button variant="secondary" size="sm" icon="refresh" [loading]="loading()" (click)="retry()">
+      Atualizar
+    </app-button>
+  </div>
+</header>
+
+@if (error(); as message) {
+  <!--
+    A warning, not a replacement. The cards below are the last board that
+    arrived and they stay exactly where they were — the freshness dot beside
+    the heading is what says how old they now are.
+  -->
+  <p
+    class="mt-4 flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-meta text-amber-900 ring-1 ring-amber-700/20"
+    role="status"
+  >
+    <app-icon name="alert-triangle" [size]="16" class="mt-0.5 shrink-0" />
+    <span>
+      {{ message }}
+      @if (board()) {
+        Os dados abaixo são os últimos recebidos.
+      }
+    </span>
+  </p>
+}
+
+@if (nobodyClockedOn()) {
+  <!--
+    The finding that explains an otherwise baffling screen: cars on the board,
+    not one timer running. It is a process gap, not a fault, and saying so is
+    the difference between a board that looks broken and one that explains
+    itself. Delete this block once picagem is in routine use.
+  -->
+  <p
+    class="mt-4 flex items-start gap-3 rounded-xl bg-sky-50 px-4 py-3 text-meta text-sky-900 ring-1 ring-sky-700/20"
+    role="status"
+  >
+    <app-icon name="info" [size]="16" class="mt-0.5 shrink-0" />
+    <span>
+      Nenhum mecânico tem picagem aberta. Os tempos aparecem aqui automaticamente assim que a equipa começar a
+      picar as intervenções na aplicação OG Oficinas Colaborador.
+    </span>
+  </p>
+}
+
+@if (hasMechanics()) {
+  <!--
+    The board read by mechanic rather than by car: "where is João", as opposed
+    to "who is on this car". Both come from the same payload, so the two views
+    can never disagree with each other.
+  -->
+  <section class="mt-6" aria-labelledby="mecanicos">
+    <h2 id="mecanicos" class="text-h3 text-ink-900">Mecânicos</h2>
+
+    <ul class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      @for (mechanic of mechanics(); track mechanic.employeeCode) {
+        <li>
+          <!--
+            The whole row is the target, not just the name: it is tapped on a
+            workshop tablet, where a text-sized hit area is a missed tap.
+          -->
+          <a
+            class="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-card ring-1 ring-ink-950/6 transition-colors hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            [routerLink]="mechanicLink(mechanic)"
+          >
+            <span class="flex min-w-0 items-center gap-2">
+              <app-icon name="user" [size]="16" class="shrink-0 text-ink-400" />
+              <span class="truncate text-body font-semibold text-ink-900">{{ mechanic.name }}</span>
+            </span>
+
+            @if (mechanic.cars.length > 0) {
+              <span class="flex min-w-0 flex-col items-end gap-0.5 text-right">
+                @for (car of mechanic.cars; track car.serviceOrderId) {
+                  <span class="flex items-baseline gap-2">
+                    <span class="truncate text-meta text-ink-600" [title]="car.vehicle ?? ''">
+                      {{ carLabel(car) }}
+                    </span>
+
+                    @if (car.startedAt) {
+                      <app-elapsed-time
+                        class="shrink-0 text-body font-semibold text-emerald-700"
+                        [startedAt]="car.startedAt"
+                        [observedAt]="observedAt()"
+                        [receivedAt]="receivedAt()"
+                      />
+                    } @else {
+                      <span class="shrink-0 text-meta text-ink-400">sem picagem</span>
+                    }
+                  </span>
+                }
+              </span>
+            } @else {
+              <span class="shrink-0 text-meta text-ink-400">Livre</span>
+            }
+          </a>
+        </li>
+      }
+    </ul>
+  </section>
+}
+
+@if (panel(); as state) {
+  <app-state-panel
+    class="mt-6"
+    [state]="state"
+    [skeletonRows]="4"
+    [title]="state === 'empty' ? 'Nenhuma viatura em curso' : null"
+    [message]="
+      state === 'empty' ? 'Não há folhas de obra em espera, em execução ou marcadas neste momento.' : null
+    "
+    [actionLabel]="state === 'error' ? 'Tentar novamente' : null"
+    (action)="retry()"
+  />
+} @else {
+  <section class="mt-6" aria-labelledby="quadro">
+    <h2 id="quadro" class="sr-only">Quadro da oficina</h2>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      @for (card of cards(); track card.id) {
+        <!--
+          The whole card is the link, not a "ver mais" at the bottom of it:
+          this is read on a tablet in a workshop, where a text-sized target is
+          a missed tap. An `a` rather than a click handler so it middle-clicks,
+          opens in a new tab and reads as a link to a screen reader.
+        -->
+        <a
+          class="flex flex-col rounded-xl bg-white p-5 shadow-card ring-1 ring-ink-950/6 transition-colors hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          [class.opacity-70]="card.awaitingParts"
+          [routerLink]="orderLink(card)"
+          [attr.aria-label]="'Ver a folha de obra ' + (plate(card) ?? card.id)"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-h3 text-ink-950 tabular-nums">
+                {{ plate(card) ?? card.documentNumber ?? card.id }}
+              </p>
+              @if (vehicleLine(card); as vehicle) {
+                <p class="mt-0.5 truncate text-meta text-ink-500" [title]="vehicle">
+                  {{ vehicle }}
+                </p>
+              }
+            </div>
+
+            @if (card.status; as status) {
+              <span
+                class="shrink-0 rounded-full bg-ink-100 px-2.5 py-1 text-meta font-semibold text-ink-700"
+                >{{ status }}</span
+              >
+            }
+          </div>
+
+          @if (card.customerName; as customer) {
+            <p class="mt-3 truncate text-meta text-ink-600" [title]="customer">{{ customer }}</p>
+          }
+
+          <!-- Mechanics: the reason this screen exists. -->
+          <div class="mt-4">
+            @if (card.mechanics.length > 0) {
+              <ul class="flex flex-col gap-2">
+                @for (mechanic of card.mechanics; track mechanic.employeeCode) {
+                  <li class="flex items-center justify-between gap-3 text-body">
+                    <span class="flex min-w-0 items-center gap-2 text-ink-800">
+                      <app-icon name="user" [size]="16" class="shrink-0 text-ink-400" />
+                      <span class="truncate">{{ mechanic.name ?? mechanic.employeeCode }}</span>
+                    </span>
+
+                    @if (mechanic.startedAt) {
+                      <app-elapsed-time
+                        class="shrink-0 font-semibold text-emerald-700"
+                        [startedAt]="mechanic.startedAt"
+                        [observedAt]="observedAt()"
+                        [receivedAt]="receivedAt()"
+                      />
+                    } @else {
+                      <!-- Assigned but not started: a name with no timer. -->
+                      <span class="shrink-0 text-meta text-ink-400">Sem picagem</span>
+                    }
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="text-meta text-ink-400">Sem mecânico atribuído</p>
+            }
+          </div>
+
+          @if (progress(card); as percent) {
+            <div class="mt-4">
+              <div class="flex items-baseline justify-between text-meta text-ink-500">
+                <span>Progresso</span>
+                <span class="tabular-nums">{{ percent }}%</span>
+              </div>
+              <!--
+                `progressbar` rather than a bare div: the width alone conveys
+                the value to a sighted reader and nothing at all to anyone else.
+              -->
+              <div
+                class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100"
+                role="progressbar"
+                [attr.aria-valuenow]="percent"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-label]="'Progresso da folha de obra ' + card.id"
+              >
+                <div class="h-full rounded-full bg-brand-600" [style.width.%]="percent"></div>
+              </div>
+            </div>
+          }
+
+          @if (card.interventions.length > 0) {
+            <p class="mt-4 text-meta text-ink-500">
+              {{ completedCount(card) }} de {{ card.interventions.length }} intervenções concluídas
+            </p>
+          }
+
+          <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-ink-500">
+            @if (mileage(card); as km) {
+              <span>{{ km }}</span>
+            }
+            @if (estimate(card); as eta) {
+              <span class="flex items-center gap-1.5">
+                <app-icon name="clock" [size]="14" class="shrink-0" />
+                {{ eta }}
+              </span>
+            }
+            @if (card.awaitingParts) {
+              <span class="font-semibold text-amber-700">A aguardar peças</span>
+            }
+          </div>
+        </a>
+      }
+    </div>
+  </section>
+}

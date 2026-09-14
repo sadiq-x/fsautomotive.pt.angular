@@ -69,7 +69,10 @@ export class ServiceOrdersService {
 
     const window = await this.collectWindow(query, context);
     // `filter` returns a fresh array, so sorting it in place is safe.
-    const ordered = window.filter((order) => matchesSearch(order, query.search)).sort(byMostRecent);
+    const ordered = window
+      .filter((order) => matchesMechanic(order, query.mechanicId))
+      .filter((order) => matchesSearch(order, query.search))
+      .sort(byMostRecent);
 
     const offset = (query.page - 1) * query.perPage;
     const page = ordered.slice(offset, offset + query.perPage);
@@ -146,6 +149,24 @@ export class ServiceOrdersService {
 
     return collected;
   }
+}
+
+/**
+ * The jobs assigned to one mechanic.
+ *
+ * Applied here because upstream has no mechanic filter — `mechanic_id`,
+ * `mechanic` and `funcionario` are all accepted and ignored, answering 200 with
+ * an unfiltered page, which would have shown every mechanic the whole workshop's
+ * work under their own name.
+ *
+ * Note what this filters on: `mechanic_id` is the mechanic the job is
+ * *assigned* to, which is not the same claim as "did the work". The screen says
+ * "atribuídas" for that reason. It is also sparse — 69 of 1 000 jobs carry one —
+ * so an empty history usually means nobody filled the field in, not that the
+ * mechanic has done nothing.
+ */
+function matchesMechanic(order: ServiceOrder, mechanicId: string | undefined): boolean {
+  return mechanicId === undefined || order.mechanicId === mechanicId;
 }
 
 /** Upstream's date filters take `YYYY-MM-DD`; the API speaks ISO instants. */

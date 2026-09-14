@@ -1,0 +1,279 @@
+<app-detail-page
+  [status]="status()"
+  [title]="title()"
+  [subtitle]="isWorking() ? 'A trabalhar agora' : hasWork() ? 'Com folha atribuída' : 'Sem trabalho em curso'"
+  [backLink]="backLink"
+  backLabel="Oficina agora"
+  [errorMessage]="errorMessage()"
+  missingMessage="Este mecânico não consta do quadro da oficina."
+>
+  <section aria-labelledby="identificacao">
+    <h2 id="identificacao" class="text-h3 text-ink-900">Identificação</h2>
+    <div class="mt-3 rounded-xl bg-white p-6 shadow-card ring-1 ring-ink-950/6">
+      <app-detail-list [fields]="identity()" />
+    </div>
+  </section>
+
+  <section aria-labelledby="trabalho">
+    <h2 id="trabalho" class="text-h3 text-ink-900">
+      @if (hasWork()) {
+        Viaturas em reparação
+      } @else {
+        Trabalho atual
+      }
+    </h2>
+
+    @if (!hasWork()) {
+      <!--
+        Not an error and not an empty table: this mechanic simply has no job
+        open. Saying which of the two it is, in words, is the whole point.
+      -->
+      <p class="mt-3 rounded-xl bg-white px-6 py-5 text-body text-ink-500 shadow-card ring-1 ring-ink-950/6">
+        Sem picagem aberta e sem folha de obra em curso atribuída. Assim que iniciar uma intervenção na
+        aplicação OG Oficinas Colaborador, a viatura e o tempo aparecem aqui.
+      </p>
+    }
+
+    <!--
+      Cars assigned to this mechanic that are open on the board but carry no
+      picagem. A different fact from a clock-on, and the only one this workshop
+      actually records — 86 assignments against 0 clock-ons — so it is shown,
+      clearly labelled, rather than leaving the page blank about a car that is
+      plainly theirs.
+    -->
+    @for (assigned of assignedActive(); track assigned.id) {
+      <article class="mt-3 rounded-xl bg-white p-6 shadow-card ring-1 ring-ink-950/6">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+          <div>
+            <p class="text-h3 text-ink-950 tabular-nums">{{ plateOf(assigned) }}</p>
+            @if (assigned.vehicle?.description; as description) {
+              <p class="mt-0.5 text-meta text-ink-500">{{ description }}</p>
+            }
+          </div>
+
+          <div class="text-right">
+            <p class="text-meta font-semibold tracking-wide text-ink-500 uppercase">Estado</p>
+            <p class="text-body font-semibold text-ink-700">{{ assigned.status ?? '—' }} · atribuída</p>
+          </div>
+        </div>
+
+        @if (progressOf(assigned); as percent) {
+          <div class="mt-4">
+            <div class="flex items-baseline justify-between text-meta text-ink-500">
+              <span>Progresso</span>
+              <span class="tabular-nums">{{ percent }}%</span>
+            </div>
+            <div
+              class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100"
+              role="progressbar"
+              [attr.aria-valuenow]="percent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              [attr.aria-label]="'Progresso da folha de obra ' + assigned.id"
+            >
+              <div class="h-full rounded-full bg-brand-600" [style.width.%]="percent"></div>
+            </div>
+          </div>
+        }
+
+        @if (assigned.interventions.length > 0) {
+          <div class="mt-5">
+            <h3 class="text-meta font-semibold tracking-wide text-ink-500 uppercase">
+              Serviços ({{ completedCount(assigned) }} de {{ assigned.interventions.length }} concluídos)
+            </h3>
+            <ul class="mt-2 flex flex-col gap-1.5">
+              @for (intervention of assigned.interventions; track $index) {
+                <li class="flex items-start gap-2.5 text-body">
+                  <span
+                    class="mt-0.5 shrink-0 text-meta font-semibold"
+                    [class]="intervention.completed ? 'text-emerald-600' : 'text-ink-300'"
+                    aria-hidden="true"
+                    >{{ intervention.completed ? '✓' : '○' }}</span
+                  >
+                  <span [class]="intervention.completed ? 'text-ink-400 line-through' : 'text-ink-800'">
+                    {{ intervention.name ?? 'Intervenção sem descrição' }}
+                    <span class="sr-only">
+                      — {{ intervention.completed ? 'concluída' : 'por concluir' }}
+                    </span>
+                  </span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <p class="mt-5">
+          <a
+            class="text-meta font-semibold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            [routerLink]="orderLinkFor(assigned.id)"
+            >Ver a folha de obra completa</a
+          >
+        </p>
+      </article>
+    }
+
+    @for (car of cars(); track car.serviceOrderId) {
+      <article class="mt-3 rounded-xl bg-white p-6 shadow-card ring-1 ring-ink-950/6">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+          <div>
+            <p class="text-h3 text-ink-950 tabular-nums">
+              {{ carLabelOf(car) }}
+            </p>
+            @if (car.vehicle) {
+              <p class="mt-0.5 text-meta text-ink-500">{{ car.vehicle }}</p>
+            }
+          </div>
+
+          <!-- The number this page exists to show. -->
+          <div class="text-right">
+            <p class="text-meta font-semibold tracking-wide text-ink-500 uppercase">Tempo nesta viatura</p>
+            @if (car.startedAt) {
+              <app-elapsed-time
+                class="text-h2 font-semibold text-emerald-700"
+                [startedAt]="car.startedAt"
+                [observedAt]="observedAt()"
+                [receivedAt]="receivedAt()"
+              />
+            } @else {
+              <p class="text-h3 text-ink-300" title="Atribuída sem picagem de início">—</p>
+            }
+          </div>
+        </div>
+
+        @if (awaitingPartsFor(car)) {
+          <p class="mt-4 text-meta font-semibold text-amber-700">Esta folha de obra está a aguardar peças.</p>
+        }
+
+        @if (progressFor(car); as percent) {
+          <div class="mt-4">
+            <div class="flex items-baseline justify-between text-meta text-ink-500">
+              <span>Progresso</span>
+              <span class="tabular-nums">{{ percent }}%</span>
+            </div>
+            <div
+              class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100"
+              role="progressbar"
+              [attr.aria-valuenow]="percent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              [attr.aria-label]="'Progresso da folha de obra ' + car.serviceOrderId"
+            >
+              <div class="h-full rounded-full bg-brand-600" [style.width.%]="percent"></div>
+            </div>
+          </div>
+        }
+
+        <div class="mt-6">
+          <app-detail-list [fields]="carFields(car)" />
+        </div>
+
+        @if (interventionsFor(car).length > 0) {
+          <div class="mt-6">
+            <h3 class="text-meta font-semibold tracking-wide text-ink-500 uppercase">
+              Intervenções ({{ completedFor(car) }} de {{ interventionsFor(car).length }}
+              concluídas)
+            </h3>
+            <ul class="mt-2 flex flex-col gap-1.5">
+              @for (intervention of interventionsFor(car); track $index) {
+                <li class="flex items-start gap-2.5 text-body">
+                  <!--
+                    The state is spelled out for assistive technology; the
+                    strike-through and the colour are the sighted shorthand for
+                    the same fact, never the only carrier of it.
+                  -->
+                  <span
+                    class="mt-0.5 shrink-0 text-meta font-semibold"
+                    [class]="intervention.completed ? 'text-emerald-600' : 'text-ink-300'"
+                    aria-hidden="true"
+                    >{{ intervention.completed ? '✓' : '○' }}</span
+                  >
+                  <span [class]="intervention.completed ? 'text-ink-400 line-through' : 'text-ink-800'">
+                    {{ intervention.name ?? 'Intervenção sem descrição' }}
+                    <span class="sr-only">
+                      — {{ intervention.completed ? 'concluída' : 'por concluir' }}
+                    </span>
+                  </span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <p class="mt-6">
+          <a
+            class="text-meta font-semibold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            [routerLink]="orderLink(car)"
+            >Ver a folha de obra completa</a
+          >
+        </p>
+      </article>
+    }
+  </section>
+  <section aria-labelledby="historico">
+    <h2 id="historico" class="text-h3 text-ink-900">Folhas de obra atribuídas</h2>
+
+    @if (historyFailed()) {
+      <p
+        class="mt-3 rounded-xl bg-amber-50 px-6 py-4 text-meta text-amber-900 ring-1 ring-amber-700/20"
+        role="status"
+      >
+        Não foi possível carregar as folhas de obra deste mecânico.
+      </p>
+    } @else if (historyRows().length === 0) {
+      <!--
+        Sparse by nature: 69 of 1 000 jobs carry a mechanic at all, so an empty
+        list here almost always means the field was left blank in OfficeGest,
+        not that this person has done nothing. Saying which keeps the screen
+        from quietly accusing somebody of idleness.
+      -->
+      <p class="mt-3 rounded-xl bg-white px-6 py-5 text-body text-ink-500 shadow-card ring-1 ring-ink-950/6">
+        Nenhuma folha de obra tem este mecânico atribuído. O campo é preenchido no OfficeGest e está em branco
+        na maioria das folhas.
+      </p>
+    } @else {
+      <div class="mt-3 rounded-xl bg-white p-6 shadow-card ring-1 ring-ink-950/6">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-lg border-collapse text-body">
+            <caption class="sr-only">
+              Folhas de obra atribuídas a este mecânico
+            </caption>
+            <thead>
+              <tr class="border-b border-ink-950/8 text-meta text-ink-500">
+                <th scope="col" class="py-2 text-left font-semibold">Folha</th>
+                <th scope="col" class="py-2 text-left font-semibold">Matrícula</th>
+                <th scope="col" class="py-2 text-left font-semibold">Abertura</th>
+                <th scope="col" class="py-2 text-left font-semibold">Estado</th>
+                <th scope="col" class="py-2 text-right font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of historyRows(); track row.id) {
+                <tr class="border-b border-ink-950/6 last:border-0">
+                  <td class="py-2 pr-4">
+                    <a
+                      class="rounded-sm font-semibold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition-colors hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                      [routerLink]="row.link"
+                      >{{ row.number }}</a
+                    >
+                  </td>
+                  <td class="py-2 pr-4 text-ink-900 tabular-nums">{{ row.plate }}</td>
+                  <td class="py-2 pr-4 text-ink-700">{{ row.opened }}</td>
+                  <td class="py-2 pr-4 text-ink-700">{{ row.status }}</td>
+                  <td class="py-2 text-right text-ink-900 tabular-nums">{{ row.total }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <p class="mt-5 border-t border-ink-950/6 pt-4 text-meta text-ink-400">
+          @if (historyTotal(); as total) {
+            {{ historyRows().length }} de {{ total }} folhas atribuídas.
+          }
+          O OfficeGest não guarda o tempo gasto em cada reparação — só o início da picagem, enquanto o
+          trabalho está aberto — por isso esta lista mostra as viaturas, não as horas.
+        </p>
+      </div>
+    }
+  </section>
+</app-detail-page>

@@ -38,6 +38,21 @@ export const listServiceOrdersQuerySchema = paginationQuerySchema.extend({
     .refine(isPlausiblePlate, 'must be a registration plate, e.g. AA-00-BB')
     .optional(),
   status: z.string().trim().min(1).max(40).optional(),
+  /**
+   * Restricts the list to the jobs assigned to one mechanic.
+   *
+   * Applied by this service, not upstream. `mechanic_id`, `mechanic` and
+   * `funcionario` were all tried against the tenant on 2026-09-13 and are
+   * silently ignored — each returned the unfiltered first page — which is the
+   * same trap `search` documents.
+   */
+  mechanicId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(32)
+    .regex(/^[A-Za-z0-9_-]+$/, 'must be an employee code')
+    .optional(),
 });
 
 export type ListServiceOrdersQuery = z.infer<typeof listServiceOrdersQuerySchema>;

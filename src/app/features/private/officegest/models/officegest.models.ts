@@ -58,12 +58,29 @@ export interface Vehicle {
 }
 
 /** One billed line on a work order — a part, a fluid, or a piece of labour. */
+/**
+ * One billed line. Mirrors the backend model field for field.
+ *
+ * `total` used to be documented as gross and was in fact the net figure —
+ * upstream sends no `total` at all, so the mapper was reading
+ * `total_without_vat`. Both are now published under names that say which is
+ * which, and the gross is computed from net + VAT.
+ */
 export interface ServiceOrderLine {
   readonly id?: string;
+  readonly lineNumber?: number;
+  readonly articleId?: string;
   readonly description?: string;
   readonly quantity?: number;
+  /** Net unit price, before VAT. */
   readonly unitPrice?: number;
-  /** Gross, i.e. with VAT — the figure a customer recognises. */
+  readonly unitPriceWithVat?: number;
+  readonly vatPercentage?: number;
+  readonly discountPercentage?: number;
+  /** Net line total, before VAT. */
+  readonly totalWithoutVat?: number;
+  readonly vatValue?: number;
+  /** Gross line total — net plus VAT, the figure a customer recognises. */
   readonly total?: number;
 }
 
@@ -91,7 +108,6 @@ export interface ServiceOrder {
   readonly description?: string;
   readonly mechanicNotes?: string;
   readonly openedAt?: string;
-  readonly closedAt?: string;
   readonly registeredAt?: string;
   readonly expectedDeliveryAt?: string;
   readonly mileage?: number;
@@ -110,6 +126,115 @@ export interface ServiceOrder {
  * and it is the only staff resource the API publishes — it carries both HR
  * facts and login facts, so it answers both readings of "worker".
  */
+/* -------------------------------------------------------------------------- */
+/* The live workshop board                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A mechanic currently stood at the car.
+ *
+ * Mirrors the backend model field for field. Note what is absent: no elapsed
+ * time. It is a function of when you ask, so the board computes it from
+ * `startedAt` against `MonitorBoard.observedAt` and ticks it in the browser —
+ * see `ElapsedTime`.
+ */
+export interface MonitorMechanic {
+  readonly employeeCode: string;
+  readonly name?: string;
+  /** When they clocked on, ISO-8601. Absent means assigned but not started. */
+  readonly startedAt?: string;
+  readonly showInMonitor?: boolean;
+}
+
+/** One job of work booked on the order. */
+export interface MonitorIntervention {
+  readonly sequenceNumber?: number;
+  readonly name?: string;
+  readonly completed: boolean;
+  /**
+   * Upstream's `duration`, verbatim.
+   *
+   * Named for what is known about it. The API documents the type and not the
+   * unit, and no record has ever carried one, so the board does not render it
+   * as a time — it would have to pick minutes or hours to do that, and either
+   * choice would be a guess shown to a mechanic as fact.
+   */
+  readonly durationRaw?: number;
+  /**
+   * The standard time for this job, in minutes, from the price list.
+   *
+   * Absent for most: only 38 of the 218 catalogue entries carry a non-zero
+   * time, so on this tenant exactly one of 49 live intervention lines has one.
+   * The join is by name — the ids on a work order's interventions are document
+   * references and match nothing in the catalogue.
+   */
+  readonly estimatedMinutes?: number;
+}
+
+/** The vehicle, expanded on the row so no second request is needed. */
+export interface MonitorVehicle {
+  readonly plate?: string;
+  readonly description?: string;
+  readonly manufacturingYear?: number;
+  readonly mileage?: number;
+  readonly brand?: string;
+  readonly model?: string;
+  readonly version?: string;
+  readonly fuel?: string;
+}
+
+/** One card on the board. */
+export interface MonitorServiceOrder {
+  readonly id: string;
+  readonly documentNumber?: string;
+  readonly status?: string;
+  readonly openedAt?: string;
+  readonly customerId?: string;
+  readonly customerName?: string;
+  readonly plate?: string;
+  readonly vehicle?: MonitorVehicle;
+  readonly awaitingParts?: boolean;
+  readonly priority?: number;
+  /** A fraction from 0 to 1, already normalised by the backend. */
+  readonly completionPercentage?: number;
+  readonly estimatedCompletionAt?: string;
+  readonly expectedDeliveryAt?: string;
+  readonly badgeColor?: string;
+  readonly interventions: readonly MonitorIntervention[];
+  readonly mechanics: readonly MonitorMechanic[];
+}
+
+/**
+ * A mechanic on the workshop's roster, whether or not they are at a car.
+ *
+ * Distinct from `MonitorMechanic`, which is an *assignment* — a person at a
+ * particular car since a particular time. `employeeCode` is what joins the two.
+ */
+export interface MonitorRosterEntry {
+  readonly employeeCode: string;
+  readonly name?: string;
+  readonly departmentId?: string;
+  /**
+   * The department's name, resolved by the backend from `departmentId`.
+   *
+   * Absent when the mechanic has no department, or when the table could not be
+   * read — the id is published either way, so "no department" stays
+   * distinguishable from "name unavailable".
+   */
+  readonly department?: string;
+}
+
+/** The board, and the server clock every elapsed time is measured from. */
+export interface MonitorBoard {
+  readonly serviceOrders: readonly MonitorServiceOrder[];
+  /** Everyone who could be at a car, so the screen can also show who is free. */
+  readonly roster: readonly MonitorRosterEntry[];
+  /** The server's own "now" when the snapshot was taken, ISO-8601. */
+  readonly observedAt: string;
+  /** How many jobs have somebody clocked on. Zero means nobody is recording. */
+  readonly activeMechanicCount: number;
+}
+
 export interface Employee {
   readonly id: string;
   readonly name: string;

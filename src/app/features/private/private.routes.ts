@@ -104,6 +104,29 @@ export const privateRoutes: Routes = [
         data: { meta: privateMeta('Veículo', '/private/vehicles') },
       },
 
+      /**
+       * The live board.
+       *
+       * Guarded by the service-order permission rather than one of its own, and
+       * the backend guards the endpoint with the same grant — the board is the
+       * same records narrowed to those in progress, so anyone who may read the
+       * list may read the board.
+       */
+      {
+        path: 'monitor',
+        canActivate: [permissionGuard('officegest.service-orders.read')],
+        loadComponent: () => import('./officegest/pages/monitor/monitor').then((m) => m.Monitor),
+        data: { meta: privateMeta('Oficina agora', '/private/monitor') },
+      },
+      {
+        // `:employeeCode` is bound as a component input by `withComponentInputBinding`.
+        path: 'monitor/:employeeCode',
+        canActivate: [permissionGuard('officegest.service-orders.read')],
+        loadComponent: () =>
+          import('./officegest/pages/monitor/mechanic-detail').then((m) => m.MechanicDetail),
+        data: { meta: privateMeta('Mecânico', '/private/monitor') },
+      },
+
       {
         path: 'service-orders',
         canActivate: [permissionGuard('officegest.service-orders.read')],

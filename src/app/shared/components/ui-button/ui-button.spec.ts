@@ -81,3 +81,71 @@ describe('UiButton', () => {
     expect((hosts[2].firstElementChild as HTMLElement).className).toContain('w-full');
   });
 });
+
+/**
+ * The busy state.
+ *
+ * This is the design system's answer to "something is loading", and every
+ * refresh control in the private area depends on it. Before it existed, three
+ * pages hand-rolled a raw button with the pill's utility classes copied out,
+ * purely to get a spinning icon.
+ */
+describe('UiButton loading', () => {
+  beforeEach(() => TestBed.configureTestingModule({ providers: [provideRouter([])] }));
+
+  function setup(inputs: Record<string, unknown> = {}) {
+    const fixture = TestBed.createComponent(UiButton);
+
+    for (const [key, value] of Object.entries({ icon: 'refresh', ...inputs })) {
+      fixture.componentRef.setInput(key, value);
+    }
+
+    fixture.detectChanges();
+
+    return fixture;
+  }
+
+  const button = (fixture: ReturnType<typeof setup>) =>
+    fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+
+  const icon = (fixture: ReturnType<typeof setup>) =>
+    fixture.nativeElement.querySelector('app-icon') as HTMLElement;
+
+  it('does not spin or disable when idle', () => {
+    const fixture = setup();
+
+    expect(icon(fixture).className).not.toContain('animate-spin');
+    expect(button(fixture).disabled).toBe(false);
+    expect(button(fixture).getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('turns the icon while loading', () => {
+    expect(icon(setup({ loading: true })).className).toContain('animate-spin');
+  });
+
+  /**
+   * Loading implies disabled, so no caller has to bind both — and a refresh
+   * already in flight has nothing to do with a second press.
+   */
+  it('stops accepting presses while loading', () => {
+    expect(button(setup({ loading: true })).disabled).toBe(true);
+  });
+
+  it('announces that it is busy', () => {
+    expect(button(setup({ loading: true })).getAttribute('aria-busy')).toBe('true');
+  });
+
+  /** Disabled is not busy: the icon must not imply work is happening. */
+  it('disables without spinning when disabled for its own reasons', () => {
+    expect(button(setup({ disabled: true })).disabled).toBe(true);
+    expect(icon(setup({ disabled: true })).className).not.toContain('animate-spin');
+  });
+
+  /** A glyph both turning and sliding reads as a glitch rather than progress. */
+  it('suppresses the hover nudge on a right-hand icon while loading', () => {
+    const fixture = setup({ loading: true, iconPosition: 'right' });
+
+    expect(icon(fixture).className).toContain('animate-spin');
+    expect(icon(fixture).className).not.toContain('group-hover/btn:translate-x-0.5');
+  });
+});

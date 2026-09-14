@@ -85,3 +85,14 @@ function parse(iso: string | undefined): Date | null {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+
+/**
+ * A percentage, or `null` when there is none to show.
+ *
+ * Zero is rendered rather than dropped: a line with a 0 % discount is a
+ * different statement from a line whose discount nobody recorded, and on an
+ * invoice the difference is worth keeping.
+ */
+export function formatPercent(value: number | undefined): string | null {
+  return value === undefined ? null : `${value.toLocaleString('pt-PT')} %`;
+}

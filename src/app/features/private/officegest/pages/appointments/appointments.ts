@@ -4,9 +4,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { tap } from 'rxjs';
 
 import { PRIVATE_ROUTES } from '../../../../../core/config/private-routes.config';
-import { Icon } from '../../../../../shared/components/icon/icon';
 import type { TableColumn } from '../../components/data-table/data-table.model';
 import { LastUpdated } from '../../components/last-updated/last-updated';
+import { UiButton } from '../../../../../shared/components/ui-button/ui-button';
 import { ResourcePage } from '../../components/resource-page/resource-page';
 import type { Appointment } from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
@@ -55,7 +55,7 @@ interface AppointmentFilters {
 @Component({
   selector: 'app-appointments',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, Icon, LastUpdated, ResourcePage],
+  imports: [FormsModule, LastUpdated, ResourcePage, UiButton],
   template: `
     <app-resource-page
       title="Marcações"
@@ -76,20 +76,21 @@ interface AppointmentFilters {
         <app-last-updated [since]="lastUpdated()" />
 
         <!--
-          Disabled while a request is in flight, which is what makes it safe to
-          press repeatedly: the store would cancel and restart cleanly, but a
-          button that visibly does nothing on the second press is the clearer
-          contract.
+          The loading flag turns the icon and stops the button accepting
+          presses. The
+          store would cancel and restart cleanly on a second press, but a
+          control that visibly ignores you is the clearer contract.
         -->
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-body font-semibold text-ink-900 shadow-btn ring-1 ring-ink-950/8 transition-colors ring-inset hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-          [disabled]="isBusy()"
+        <app-button
+          variant="secondary"
+          size="sm"
+          icon="refresh"
+          iconPosition="left"
+          [loading]="isBusy()"
           (click)="store.reload()"
         >
-          <app-icon name="refresh" [class.animate-spin]="isBusy()" />
           Atualizar
-        </button>
+        </app-button>
       </div>
 
       <div slot="filters" class="flex flex-wrap items-center gap-3">

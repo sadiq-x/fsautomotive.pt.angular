@@ -64,7 +64,13 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h2 id="backend" class="text-h3 text-ink-900">Backend</h2>
 
-    <app-button variant="ghost" size="sm" icon="refresh" (click)="recheck()">
+    <app-button
+      variant="ghost"
+      size="sm"
+      icon="refresh"
+      [loading]="probe().kind === 'checking'"
+      (click)="recheck()"
+    >
       Verificar novamente
     </app-button>
   </div>

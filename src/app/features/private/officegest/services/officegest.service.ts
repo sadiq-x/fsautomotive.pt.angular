@@ -27,6 +27,7 @@ import type {
   Appointment,
   Customer,
   Employee,
+  MonitorBoard,
   ResourceCount,
   ServiceOrder,
   Vehicle,
@@ -65,8 +66,8 @@ function toParams(source: Readonly<Record<string, QueryValue>>): HttpParams {
 export class OfficeGestService {
   private readonly http = inject(HttpClient);
 
-  /** Built on first use by `employeeNames()`, then shared. */
-  private employeeNamesCache: Observable<ReadonlyMap<string, string>> | null = null;
+  /** Built on first use by `employeesById()`, then shared. */
+  private employeesCache: Observable<ReadonlyMap<string, Employee>> | null = null;
 
   /* ------------------------------------------------------------------ */
   /* Customers                                                           */
@@ -114,6 +115,7 @@ export class OfficeGestService {
       from: query.from,
       to: query.to,
       search: query.search,
+      mechanicId: query.mechanicId,
     });
   }
 
@@ -139,6 +141,26 @@ export class OfficeGestService {
 
   getAppointment(id: string): Observable<Appointment> {
     return this.one<Appointment>(API_ROUTES.officegest.appointment(id));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The live workshop board                                             */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The whole board in one request.
+   *
+   * Not a `Paged<T>`: the backend returns a `MonitorBoard` carrying its own
+   * `observedAt` and `activeMechanicCount`, and there is no page to ask for.
+   * A board that paginated would be a board you could not read at a glance,
+   * which is the only thing a board is for.
+   *
+   * The response is deliberately not cached or shared here. It is polled on a
+   * timer by the page that shows it, and a `shareReplay` would hand the second
+   * poll the first poll's answer — freezing every timer on the screen.
+   */
+  getWorkshopBoard(): Observable<MonitorBoard> {
+    return this.one<MonitorBoard>(API_ROUTES.officegest.workshopMonitor);
   }
 
   /* ------------------------------------------------------------------ */
@@ -181,13 +203,33 @@ export class OfficeGestService {
    * empty map and the column falls back to nothing.
    */
   employeeNames(): Observable<ReadonlyMap<string, string>> {
-    this.employeeNamesCache ??= this.listEmployees({ page: 1, perPage: 100 }).pipe(
-      map((paged) => new Map(paged.items.map((employee) => [employee.id, employee.name]))),
-      catchError(() => of(new Map<string, string>())),
+    return this.employeesById().pipe(
+      map((byId) => new Map([...byId].map(([id, employee]) => [id, employee.name]))),
+    );
+  }
+
+  /**
+   * The whole roster by id, fetched once per session.
+   *
+   * The cache the name lookup above is built on, exposed because the mechanic
+   * page needs more than the name: a mechanic's `employeeCode` is an employee
+   * `id` on this tenant — CONFIRMED 2026-09-13, all five matched by id *and*
+   * by name — so the contact details are one lookup away rather than a second
+   * endpoint.
+   *
+   * A failure resolves to an empty map, for the reason given above: this is
+   * guarded by `workers.read`, which the monitor's own permission does not
+   * imply. Someone who may watch the board but not read the staff list gets the
+   * board, the timers and no contact details — not an error page.
+   */
+  employeesById(): Observable<ReadonlyMap<string, Employee>> {
+    this.employeesCache ??= this.listEmployees({ page: 1, perPage: 100 }).pipe(
+      map((paged) => new Map(paged.items.map((employee) => [employee.id, employee]))),
+      catchError(() => of(new Map<string, Employee>())),
       shareReplay({ bufferSize: 1, refCount: false }),
     );
 
-    return this.employeeNamesCache;
+    return this.employeesCache;
   }
 
   /* ------------------------------------------------------------------ */

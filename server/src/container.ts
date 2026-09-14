@@ -29,6 +29,8 @@ import { EmployeesService } from './modules/employees/employees.service.js';
 import { ServiceOrdersService } from './modules/service-orders/service-orders.service.js';
 import { VehicleCatalogue } from './modules/vehicles/vehicle-catalogue.js';
 import { VehiclesService } from './modules/vehicles/vehicles.service.js';
+import { WorkshopMonitorService } from './modules/workshop-monitor/workshop-monitor.service.js';
+import { logger } from './shared/logger.js';
 
 export interface Container {
   readonly officegest: OfficeGestIntegration;
@@ -44,6 +46,7 @@ export interface Container {
   readonly vehicles: VehiclesService;
   readonly serviceOrders: ServiceOrdersService;
   readonly appointments: AppointmentsService;
+  readonly workshopMonitor: WorkshopMonitorService;
   /** Releases upstream resources. Called on shutdown. */
   shutdown(): Promise<void>;
 }
@@ -67,6 +70,13 @@ export function createContainer(deps: OfficeGestClientDeps = {}): Container {
     ),
     serviceOrders: new ServiceOrdersService(officegest.serviceOrders),
     appointments: new AppointmentsService(officegest.appointments),
+    // Takes a logger of its own because its cache refreshes outside any
+    // request: the shared board is fetched once for every screen watching it,
+    // so there is no one caller's logger that could own that work.
+    workshopMonitor: new WorkshopMonitorService(
+      officegest.workshopMonitor,
+      logger.child({ component: 'workshop-monitor' }),
+    ),
     shutdown: async () => {
       // Both hold interval timers. Disposing them is what lets a test build
       // dozens of applications without leaking a handle each time, and what

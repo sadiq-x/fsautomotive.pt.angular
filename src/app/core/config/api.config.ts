@@ -55,5 +55,13 @@ export const API_ROUTES = {
     serviceOrder: (id: string) => `/api/officegest/service-orders/${encodeURIComponent(id)}`,
     appointments: '/api/officegest/appointments',
     appointment: (id: string) => `/api/officegest/appointments/${encodeURIComponent(id)}`,
+    /**
+     * The live workshop board.
+     *
+     * Not under `serviceOrders`, although it reads the same records: this one
+     * returns a whole board rather than a page of a list, and it is the only
+     * path here that is polled on a timer.
+     */
+    workshopMonitor: '/api/officegest/workshop-monitor',
   },
 } as const;

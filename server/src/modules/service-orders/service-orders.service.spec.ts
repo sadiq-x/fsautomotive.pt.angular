@@ -149,6 +149,58 @@ describe('ServiceOrdersService.list', () => {
     expect(resource.list).not.toHaveBeenCalled();
   });
 
+  describe('filtering by mechanic, which upstream also cannot do', () => {
+    /**
+     * The trap this pins: `mechanic_id`, `mechanic` and `funcionario` are all
+     * accepted upstream and ignored, each answering 200 with an unfiltered
+     * page. Forwarding one would have shown every mechanic the whole
+     * workshop's work under their own name.
+     */
+    it('keeps only the jobs assigned to that mechanic', async () => {
+      const result = await service(
+        oneBatch(
+          record(1, '2025-01-01', { mechanic_id: 8 }),
+          record(2, '2025-01-02', { mechanic_id: 1 }),
+          record(3, '2025-01-03', { mechanic_id: 8 }),
+          record(4, '2025-01-04'),
+        ),
+      ).list({ ...BASE, mechanicId: '8' }, context);
+
+      expect(result.serviceOrders.map((order) => order.id)).toEqual(['3', '1']);
+    });
+
+    it('does not send the mechanic upstream, where it would be ignored', async () => {
+      const resource = oneBatch(record(1, '2025-01-01', { mechanic_id: 8 }));
+
+      await service(resource).list({ ...BASE, mechanicId: '8' }, context);
+
+      const filters = (resource.list as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.filters ?? {};
+
+      expect(Object.keys(filters)).not.toContain('mechanic_id');
+    });
+
+    it('reports the total for that mechanic, not for the window', async () => {
+      const result = await service(
+        oneBatch(
+          record(1, '2025-01-01', { mechanic_id: 8 }),
+          record(2, '2025-01-02', { mechanic_id: 1 }),
+        ),
+      ).list({ ...BASE, mechanicId: '8' }, context);
+
+      expect(result.meta.total).toBe(1);
+    });
+
+    /** Sparse data: an empty history usually means nobody filled the field in. */
+    it('returns nothing for a mechanic with no jobs assigned', async () => {
+      const result = await service(oneBatch(record(1, '2025-01-01'))).list(
+        { ...BASE, mechanicId: '8' },
+        context,
+      );
+
+      expect(result.serviceOrders).toEqual([]);
+    });
+  });
+
   describe('search, which upstream cannot do', () => {
     const resource = () =>
       oneBatch(

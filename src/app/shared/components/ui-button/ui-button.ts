@@ -108,6 +108,23 @@ export class UiButton {
   readonly disabled = input(false);
   readonly block = input(false);
   readonly ariaLabel = input<string | null>(null);
+  /**
+   * Work is in flight: the icon turns, the button stops accepting presses, and
+   * assistive technology is told the control is busy.
+   *
+   * WHY THIS BELONGS ON THE BUTTON
+   * ------------------------------
+   * Without it, three list pages each hand-rolled a raw `<button>` with the
+   * pill's forty-odd utility classes copied out, purely to get a spinning
+   * refresh icon — the design system's own button could not express "busy", so
+   * they went around it. Three copies of a class string is three chances for
+   * the refresh control to drift from every other button on the site.
+   *
+   * It implies `disabled`. A refresh that is already running has nothing to do
+   * with a second press: the stores cancel and restart cleanly, but a control
+   * that visibly ignores you is the clearer contract.
+   */
+  readonly loading = input(false);
 
   protected readonly resolvedLabel = computed(() => this.action()?.label ?? '');
   protected readonly resolvedIcon = computed(() => this.icon() ?? this.action()?.icon ?? null);
@@ -122,6 +139,9 @@ export class UiButton {
     () => this.ariaLabel() ?? this.action()?.ariaLabel ?? null,
   );
   protected readonly iconSize = computed(() => ICON_SIZES[this.size()]);
+
+  /** Loading implies disabled, so a caller never has to bind both. */
+  protected readonly isDisabled = computed(() => this.disabled() || this.loading());
 
   protected readonly classes = computed(() => {
     const variant = this.variant();

@@ -36,6 +36,10 @@ export const PRIVATE_ROUTES = {
   customer: (id: string) => `${PRIVATE_BASE}/customers/${encodeURIComponent(id)}`,
   vehicles: `${PRIVATE_BASE}/vehicles`,
   vehicle: (plate: string) => `${PRIVATE_BASE}/vehicles/${encodeURIComponent(plate)}`,
+  /** The live board. Named for what it shows, not for the endpoint behind it. */
+  monitor: `${PRIVATE_BASE}/monitor`,
+  /** One mechanic: which car, since when, and what is left to do. */
+  mechanic: (employeeCode: string) => `${PRIVATE_BASE}/monitor/${encodeURIComponent(employeeCode)}`,
   serviceOrders: `${PRIVATE_BASE}/service-orders`,
   serviceOrder: (id: string) => `${PRIVATE_BASE}/service-orders/${encodeURIComponent(id)}`,
   appointments: `${PRIVATE_BASE}/appointments`,

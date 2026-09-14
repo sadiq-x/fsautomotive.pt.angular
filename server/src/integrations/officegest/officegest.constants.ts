@@ -48,13 +48,16 @@ export const AUTH_TOKEN_FIELDS = ['access_token', 'token'] as const;
  * 403 is positive evidence that the route exists and that only the API user's
  * permissions stand between this service and the data.
  *
- * What that does **not** establish is the response *shape*: no request has ever
- * returned 200, so the field names the mappers read are still inferred. See
- * `officegest.record-readers.ts`, and run `npm run probe -- <path>` once the
- * permissions are granted.
+ * The permissions have since been granted: every path below now answers 200,
+ * and the field names the mappers read were re-probed against real payloads on
+ * 2026-09-08 and 2026-09-13 rather than inferred. Use `npm run probe -- <path>`
+ * to re-check one after an upstream change; it prints key names and types only,
+ * never values.
  *
- * Also confirmed to exist, though unused here: `/entities/suppliers`,
- * `/entities/employees`, `/workshop/interventions`, `/sales/documents`.
+ * Also confirmed to exist: `/entities/suppliers` and `/sales/documents`
+ * (unused), and `/workshop/interventions` — which is a *catalogue* of job types
+ * carrying a standard `estimated_time`, not a record of work performed. The
+ * data on work actually performed is on the monitor paths below.
  */
 
 export const OFFICEGEST_PATHS = {
@@ -88,8 +91,106 @@ export const OFFICEGEST_PATHS = {
   brands: '/workshop/brands',
   versionById: (version: string) => `/workshop/versions/${encodeURIComponent(version)}`,
 
+  /**
+   * The live workshop board. CONFIRMED 2026-09-13, documented upstream at
+   * `/docs/officegest-api/v2/workshop/monitor`.
+   *
+   * This is the only place in the API that publishes who is working on a car
+   * *now*: a monitor row carries a `mechanics` array whose entries have an
+   * `employee_code`, a `name` and a `start_time`. Nothing under
+   * `/workshop/service-orders` carries any of that, which is why the board is
+   * its own resource rather than a flag on the service-order one.
+   *
+   * The two differ in what they cover, and both are needed:
+   *
+   *  - `monitorServiceOrders` returns only the *active* states (ESP/EXE/MAR) —
+   *    29 rows on this tenant against 1 200 — and adds `document_number`,
+   *    `badge_color` and `budgets`. It is what the board reads.
+   *  - `monitor` returns every job in every state, so it is the one to read for
+   *    anything historical.
+   */
+  workshopMonitor: '/workshop/monitor',
+  monitorServiceOrders: '/workshop/monitor/service-orders',
+
+  /**
+   * The workshop's own mechanics — `id`, `name`, `department_id`. CONFIRMED
+   * 2026-09-13; five records on this tenant.
+   *
+   * A monitor row already names its mechanics, so this is not needed to render
+   * the board. It is the roster to reconcile `employee_code` against when a
+   * name is missing, and it is deliberately not `/entities/employees`: that one
+   * lists all twelve staff, including those who never touch a car.
+   */
+  mechanics: '/workshop/mechanics',
+
+  /**
+   * The workshop's departments — `id`, `name`, `responsible_id`. CONFIRMED
+   * 2026-09-13; four records on this tenant.
+   *
+   * A mechanic carries a `department_id` and no name to go with it, exactly as
+   * a vehicle carries `fuel_id`. Without this table the field is an unusable
+   * number, which is the whole reason it is read.
+   */
+  departments: '/tables/departments',
+
+  /**
+   * The catalogue of job types — `id`, `description`, `estimated_time`,
+   * `value_without_vat`. CONFIRMED 2026-09-13; 218 records on this tenant.
+   *
+   * This is a price list, not a record of work performed. It is read for one
+   * thing: the standard time a job is expected to take, which is the only
+   * estimate anywhere in this API.
+   *
+   * ⚠️ IT DOES NOT JOIN BY ID. A work order's nested `interventions` carry ids
+   * in the 202400008–202400050 range — document references for that year's
+   * sheets — while catalogue ids run 1–226. Zero of 85 order lines matched, and
+   * their `estimated_time` is 0 on every one. The join that *does* work is the
+   * monitor's intervention **name** against this table's `description`: 23 of
+   * 23 matched exactly. See `workshop-monitor.service.ts`.
+   */
+  interventionCatalogue: '/workshop/interventions',
+
   appointments: '/crm/appointments',
   appointmentById: (id: string) => `/crm/appointments/${encodeURIComponent(id)}`,
+} as const;
+
+/* -------------------------------------------------------------------------- */
+/* Workshop monitor — VERIFIED against the tenant and the docs, 2026-09-13     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The shop calendar the monitor computes `estimated_completion_date` against.
+ *
+ * Without these the API assumes 09:00–18:30 with lunch 13:00–14:30, which is
+ * not this workshop's day. They are sent on every board request so the estimate
+ * the screen shows is measured in the shop's own working hours rather than in
+ * wall-clock time that includes nights and Sundays.
+ *
+ * Sent as documented names; `skip_weekends` takes 1/0 rather than true/false.
+ */
+export const MONITOR_SCHEDULE_PARAMS = {
+  startHour: 'start_hour',
+  endHour: 'end_hour',
+  lunchStart: 'start_hour_lunch',
+  lunchEnd: 'end_hour_lunch',
+  skipWeekends: 'skip_weekends',
+} as const;
+
+/**
+ * The states the monitor treats as active, in the order a board reads them.
+ *
+ * Documented as ESP/EXE/MAR. Observed on this tenant: ESP 28, MAR 1, EXE 0 —
+ * see `workshop-monitor.service.ts` for why EXE being empty is a finding rather
+ * than a bug.
+ */
+export const MONITOR_ACTIVE_STATUSES = ['EXE', 'ESP', 'MAR'] as const;
+
+/** Filter parameter names the monitor accepts. CONFIRMED against the docs. */
+export const MONITOR_FILTER_PARAMS = {
+  status: 'status',
+  plate: 'vehicle_plate',
+  department: 'department',
+  awaitingParts: 'awaiting_parts',
 } as const;
 
 /* -------------------------------------------------------------------------- */
