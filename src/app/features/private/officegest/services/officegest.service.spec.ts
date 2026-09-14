@@ -11,23 +11,52 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
+import { AuthGateway, AuthService } from '../../../../core/auth';
+import { provideAuthStub, StubAuthGateway } from '../../../../core/auth/auth.testing';
 import type { ApiSuccess } from '../../../../core/models';
-import type { Customer } from '../models';
+import type { Customer, Employee } from '../models';
 import { OfficeGestService } from './officegest.service';
 
 const CUSTOMER: Customer = { id: '42', name: 'Ana Silva', taxId: '123456789' };
 
+/** Everything `workers.read` exists to gate, on one record. */
+const EMPLOYEE: Employee = {
+  id: '7',
+  name: 'Rui Martins',
+  email: 'rui@fsautomotive.pt',
+  phone: '912345678',
+  login: 'rui',
+};
+
+const MANAGER = {
+  id: 'user-1',
+  name: 'Ana',
+  role: 'MANAGER',
+  permissions: ['workers.read'],
+} as const;
+
+const OPERATOR = {
+  id: 'user-2',
+  name: 'Bruno',
+  role: 'USER',
+  permissions: ['officegest.service-orders.read'],
+} as const;
+
 describe('OfficeGestService', () => {
   let service: OfficeGestService;
   let http: HttpTestingController;
+  let auth: AuthService;
+  let gateway: StubAuthGateway;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), ...provideAuthStub()],
     });
 
     service = TestBed.inject(OfficeGestService);
     http = TestBed.inject(HttpTestingController);
+    auth = TestBed.inject(AuthService);
+    gateway = TestBed.inject(AuthGateway) as StubAuthGateway;
   });
 
   afterEach(() => http.verify());
@@ -121,5 +150,78 @@ describe('OfficeGestService', () => {
       );
 
     await expect(pending).rejects.toBeTruthy();
+  });
+  describe('the roster cache is scoped to the signed-in account', () => {
+    const ROSTER = { success: true, data: [EMPLOYEE], meta: null } as const;
+
+    /** Signs an account in through the real service, as the login page does. */
+    async function signIn(user: typeof MANAGER | typeof OPERATOR): Promise<void> {
+      gateway.nextUser = { ...user };
+      await auth.login({ email: `${user.name}@fsautomotive.pt`, password: 'x' });
+    }
+
+    function expectRosterRequest() {
+      return http.expectOne((candidate) => candidate.url.endsWith('/api/officegest/employees'));
+    }
+
+    it('serves one request to the same account twice — the cache still works', async () => {
+      await signIn(MANAGER);
+
+      const first = firstValueFrom(service.employeesById());
+      expectRosterRequest().flush(ROSTER);
+      await first;
+
+      // No second request: `expectNone` is the assertion, and `http.verify()`
+      // in afterEach would fail if one were outstanding.
+      const second = await firstValueFrom(service.employeesById());
+
+      http.expectNone((candidate) => candidate.url.endsWith('/api/officegest/employees'));
+      expect(second.get('7')?.email).toBe('rui@fsautomotive.pt');
+    });
+
+    /**
+     * The regression this pair exists for.
+     *
+     * `OfficeGestService` is `providedIn: 'root'` and signing out does not
+     * reload the page, so before the cache was keyed on the account the roster
+     * one person fetched stayed in memory for whoever signed in next on the
+     * same terminal — contact details included, and past the backend's 403.
+     */
+    it('does not serve a second account the roster the first one fetched', async () => {
+      await signIn(MANAGER);
+
+      const managerView = firstValueFrom(service.employeesById());
+      expectRosterRequest().flush(ROSTER);
+      expect((await managerView).size).toBe(1);
+
+      await auth.logout();
+      await signIn(OPERATOR);
+
+      const operatorView = firstValueFrom(service.employeesById());
+
+      // The assertion: a *new* request, rather than the previous account's map
+      // replayed out of memory. The backend answers this one with a 403.
+      expectRosterRequest().flush(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Sem permissão.' } },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+      await expect(operatorView).resolves.toEqual(new Map());
+    });
+
+    it('drops the cache on sign-out even when nobody signs in after', async () => {
+      await signIn(MANAGER);
+
+      const view = firstValueFrom(service.employeesById());
+      expectRosterRequest().flush(ROSTER);
+      await view;
+
+      await auth.logout();
+
+      const afterSignOut = firstValueFrom(service.employeesById());
+      expectRosterRequest().flush({ success: true, data: [], meta: null });
+
+      await expect(afterSignOut).resolves.toEqual(new Map());
+    });
   });
 });

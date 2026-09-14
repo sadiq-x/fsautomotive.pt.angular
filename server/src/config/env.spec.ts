@@ -155,4 +155,58 @@ describe('parseEnv', () => {
   it('rejects an out-of-range port instead of falling back to a default', () => {
     expect(() => parseEnv({ ...VALID, PORT: '70000' })).toThrow(EnvValidationError);
   });
+
+  /**
+   * The fail-open default, and the line drawn around it.
+   *
+   * `identify` lets requests through when no access control is configured, so
+   * that a fresh checkout works. The audit of 2026-09-14 showed that default
+   * also applied in production, where every endpoint answered anonymous
+   * callers and spent the OfficeGest credential for them. These tests pin both
+   * halves: the convenience survives in development, and it cannot reach
+   * production.
+   */
+  describe('an unguarded production deployment', () => {
+    const PROD = { ...VALID, NODE_ENV: 'production' } satisfies NodeJS.ProcessEnv;
+
+    it('is refused when neither accounts nor API keys are configured', () => {
+      expect(() => parseEnv({ ...PROD })).toThrow(EnvValidationError);
+    });
+
+    it('names both mechanisms, so the message says how to fix it', () => {
+      try {
+        parseEnv({ ...PROD });
+        expect.unreachable('should have thrown');
+      } catch (error) {
+        const issues = (error as EnvValidationError).issues;
+        const issue = issues.find((entry) => entry.startsWith('BACKEND_API_KEYS'));
+
+        expect(issue).toBeDefined();
+        expect(issue).toContain('AUTH_USERS');
+      }
+    });
+
+    it('is accepted when API keys alone are configured', () => {
+      expect(() => parseEnv({ ...PROD, BACKEND_API_KEYS: 'a-service-key' })).not.toThrow();
+    });
+
+    it('is accepted when accounts alone are configured', () => {
+      expect(() =>
+        parseEnv({
+          ...PROD,
+          AUTH_USERS: '[]',
+          AUTH_SESSION_SECRET: 'x'.repeat(48),
+        }),
+      ).not.toThrow();
+    });
+
+    it('ignores a BACKEND_API_KEYS that is only commas and spaces', () => {
+      expect(() => parseEnv({ ...PROD, BACKEND_API_KEYS: ' , , ' })).toThrow(EnvValidationError);
+    });
+
+    it('leaves development open, which is the whole point of the default', () => {
+      expect(() => parseEnv({ ...VALID })).not.toThrow();
+      expect(() => parseEnv({ ...VALID, NODE_ENV: 'test' })).not.toThrow();
+    });
+  });
 });

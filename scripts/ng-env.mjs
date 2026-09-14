@@ -35,14 +35,17 @@
  * only those two builders accept `--define`.
  */
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import {
   COMMANDS_ACCEPTING_DEFINE,
   buildDefineArgs,
+  checkApiOriginAllowed,
   checkDevAuthStub,
   checkMeasurementId,
   isProductionBuild,
+  isPublishedBuild,
 } from './lib/env.mjs';
 
 const argv = process.argv.slice(2);
@@ -58,9 +61,16 @@ if (COMMANDS_ACCEPTING_DEFINE.has(command)) {
 
   const checks = [
     checkMeasurementId(process.env['GOOGLE_ANALYTICS_ID'], isProduction),
-    // The authentication stub accepts any password; a production build that
-    // included it would leave /private open to anyone.
-    checkDevAuthStub(process.env['DEV_AUTH_STUB'], isProduction),
+    // The authentication stub accepts any password, so the test is "will anyone
+    // but this developer load it?" — not "was it optimised?". A deploy build
+    // published from the development configuration is the case that matters:
+    // it is unoptimised, so `isProductionBuild` says no, and it still lands on
+    // a public URL.
+    checkDevAuthStub(process.env['DEV_AUTH_STUB'], isProduction || isPublishedBuild(argv)),
+    // The Content Security Policy is written in the HTML, and the backend origin
+    // in `.env`. They have to agree, and the failure when they do not is silent
+    // in the browser — so it is caught here instead.
+    checkApiOriginAllowed(process.env['API_BASE_URL'], readIndexHtml()),
   ];
 
   for (const check of checks) {
@@ -71,6 +81,18 @@ if (COMMANDS_ACCEPTING_DEFINE.has(command)) {
     if (check.level === 'warn') {
       console.warn(`\n[ng-env] ${check.message}\n`);
     }
+  }
+}
+
+/** `src/index.html`, or an empty string if it cannot be read. */
+function readIndexHtml() {
+  try {
+    return readFileSync(new URL('../src/index.html', import.meta.url), 'utf8');
+  } catch {
+    // The check downgrades itself to a warning on an empty document, which is
+    // the right outcome: a missing index.html fails the build moments later,
+    // with a far better message than anything this could produce.
+    return '';
   }
 }
 

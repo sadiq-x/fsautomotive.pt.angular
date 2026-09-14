@@ -8,14 +8,22 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { readFileSync } from 'node:fs';
+
 import {
   EXPOSED_ENV_VARS,
   buildDefineArgs,
+  checkApiOriginAllowed,
   checkDevAuthStub,
   checkMeasurementId,
   isDevAuthStubRequested,
   isProductionBuild,
+  isPublishedBuild,
+  readConnectSrcOrigins,
 } from './env.mjs';
+
+/** The real policy, so these tests fail if the tag is edited into a bad shape. */
+const INDEX_HTML = readFileSync(new URL('../../src/index.html', import.meta.url), 'utf8');
 
 describe('checkMeasurementId', () => {
   it('accepts a well-formed GA4 id', () => {
@@ -113,10 +121,10 @@ describe('checkDevAuthStub', () => {
     const check = checkDevAuthStub('true', true);
 
     assert.equal(check.level, 'error');
-    assert.match(check.message, /production build/);
+    assert.match(check.message, /would be shipped/);
   });
 
-  it('only warns outside production, where the stub is the point', () => {
+  it('only warns for a build nobody else will load, where the stub is the point', () => {
     assert.equal(checkDevAuthStub('true', false).level, 'warn');
   });
 
@@ -128,6 +136,115 @@ describe('checkDevAuthStub', () => {
     for (const value of ['false', 'off', 'no', '2', '']) {
       assert.equal(isDevAuthStubRequested(value), false, value);
     }
+  });
+});
+
+describe('isPublishedBuild', () => {
+  // A base href is the marker that a bundle is destined for the GitHub Pages
+  // site rather than for localhost. See `isPublishedBuild`.
+  it('recognises the deploy builds, in either flag spelling', () => {
+    assert.equal(isPublishedBuild(['build', '--base-href=/fsautomotive.pt.angular/']), true);
+    assert.equal(isPublishedBuild(['build', '--base-href', '/fsautomotive.pt.angular/']), true);
+  });
+
+  it('holds for a development configuration, which is the whole point', () => {
+    const argv = ['build', '--configuration', 'development', '--base-href=/x/'];
+
+    assert.equal(isProductionBuild(argv), false);
+    assert.equal(isPublishedBuild(argv), true);
+  });
+
+  it('is false for an ordinary local build and for serve', () => {
+    assert.equal(isPublishedBuild(['build']), false);
+    assert.equal(isPublishedBuild(['build', '--configuration', 'development']), false);
+    assert.equal(isPublishedBuild(['serve', '--base-href=/x/']), false);
+  });
+});
+
+describe('the stub cannot reach a public URL', () => {
+  /**
+   * The regression this pair exists for.
+   *
+   * `build:ghpages:stub` compiles with the development configuration and then
+   * `deploy:stub` publishes the result. Gating on `isProductionBuild` alone let
+   * that through as a warning, so a bundle accepting ANY password could be
+   * served from the public site.
+   */
+  const GHPAGES_STUB_ARGV = [
+    'build',
+    '--configuration',
+    'development',
+    '--base-href=/fsautomotive.pt.angular/',
+  ];
+
+  it('refuses the exact argv that npm run build:ghpages:stub uses', () => {
+    const isShipping = isProductionBuild(GHPAGES_STUB_ARGV) || isPublishedBuild(GHPAGES_STUB_ARGV);
+    const check = checkDevAuthStub('true', isShipping);
+
+    assert.equal(
+      isProductionBuild(GHPAGES_STUB_ARGV),
+      false,
+      'precondition: not a production build',
+    );
+    assert.equal(check.level, 'error');
+    assert.match(check.message, /shipped/);
+  });
+
+  it('still lets that build through when the stub is not requested', () => {
+    const isShipping = isProductionBuild(GHPAGES_STUB_ARGV) || isPublishedBuild(GHPAGES_STUB_ARGV);
+
+    assert.equal(checkDevAuthStub(undefined, isShipping).level, 'ok');
+  });
+});
+
+describe('readConnectSrcOrigins', () => {
+  it('reads the directive out of the real index.html', () => {
+    const origins = readConnectSrcOrigins(INDEX_HTML);
+
+    assert.ok(origins.includes("'self'"), 'the page must be allowed to call its own origin');
+    assert.ok(origins.length > 1, `expected a real list, got ${JSON.stringify(origins)}`);
+  });
+
+  it('returns nothing for a document with no policy', () => {
+    assert.deepEqual(readConnectSrcOrigins('<html><head></head></html>'), []);
+  });
+});
+
+describe('checkApiOriginAllowed', () => {
+  it('passes when API_BASE_URL is empty — that is the same origin, and self covers it', () => {
+    assert.equal(checkApiOriginAllowed('', INDEX_HTML).level, 'ok');
+    assert.equal(checkApiOriginAllowed(undefined, INDEX_HTML).level, 'ok');
+  });
+
+  it('passes for every origin the real policy already allows', () => {
+    for (const origin of readConnectSrcOrigins(INDEX_HTML).filter((o) => o.startsWith('http'))) {
+      // Wildcard entries are for Analytics, not for the backend.
+      if (origin.includes('*')) continue;
+
+      assert.equal(checkApiOriginAllowed(origin, INDEX_HTML).level, 'ok', origin);
+    }
+  });
+
+  it('fails the build when the backend origin is not in connect-src', () => {
+    const check = checkApiOriginAllowed('https://api.elsewhere.example', INDEX_HTML);
+
+    assert.equal(check.level, 'error');
+    assert.match(check.message, /connect-src/);
+    assert.match(check.message, /api\.elsewhere\.example/);
+  });
+
+  it('ignores the path, comparing origins only', () => {
+    const allowed = readConnectSrcOrigins(INDEX_HTML).find((o) => o.startsWith('http'));
+
+    assert.equal(checkApiOriginAllowed(`${allowed}/api/v2`, INDEX_HTML).level, 'ok');
+  });
+
+  it('rejects a value that is not an absolute URL', () => {
+    assert.equal(checkApiOriginAllowed('localhost:3000', INDEX_HTML).level, 'error');
+  });
+
+  it('only warns when the policy cannot be read, rather than blocking the build', () => {
+    assert.equal(checkApiOriginAllowed('https://api.fsautomotive.pt', '').level, 'warn');
   });
 });
 

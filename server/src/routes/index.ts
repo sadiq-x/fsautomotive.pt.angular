@@ -105,6 +105,31 @@ export function createApiRouter(container: Container): Router {
   // separate `officegest.monitor.read` would have meant every existing account
   // losing access until its grants were edited, to draw a boundary that does
   // not correspond to a difference in the data.
+  //
+  // STAFF NAMES ON THIS ENDPOINT ARE DELIBERATE
+  // -------------------------------------------
+  // The board publishes mechanics' names and departments, and `/employees`
+  // above requires `workers.read` — so this is, narrowly, the same class of
+  // data behind a different grant. It is intended, and the audit of 2026-09-14
+  // examined it rather than assuming:
+  //
+  //  - A service order carries the mechanic assigned to it. That is upstream's
+  //    own field on the work record, not an HR attribute, and it reaches any
+  //    caller who may read service orders whatever this route does. Stripping
+  //    `name` from the roster would not change that — `MonitorMechanic.name`
+  //    on each assignment carries it too.
+  //  - What the roster adds on top is the names of mechanics with no car, which
+  //    is the board's whole point: a workshop where nobody is clocked on still
+  //    has mechanics, and showing them as bare employee codes would make the
+  //    screen unreadable for exactly the people it is built for.
+  //  - What it does NOT add is the part `workers.read` exists to protect:
+  //    e-mail, telephone, sign-in name, start date and active flag are on
+  //    `Employee` and never on `MonitorRosterEntry`.
+  //
+  // If that trade is ever revisited, the change is to withhold names from both
+  // the roster and the assignments, and to have the board fall back to employee
+  // codes — not to move this one route behind `workers.read`, which would only
+  // hide the idle mechanics while the working ones stayed visible.
   officegest.use(
     '/workshop-monitor',
     requirePermission('officegest.service-orders.read'),

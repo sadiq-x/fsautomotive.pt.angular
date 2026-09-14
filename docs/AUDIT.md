@@ -1,484 +1,410 @@
-# Project Audit — architecture, logic, clean code, security
+# Project Audit — full-stack security, bugs, vulnerabilities
 
-**Date** 2026-09-05 · **Scope** `src/` (Angular 21 + Tailwind 4) and `server/`
-(Express 5 + TypeScript) · **Method** full read of both source trees, plus the
-build tooling, the deploy path and the git history. Every finding below was
-verified against the code, and the reproducible ones were reproduced.
+**Date** 2026-09-14 · **Scope** `src/` (Angular 21 + Tailwind 4) and `server/`
+(Express 5 + TypeScript, 13 246 LOC) · **Method** full read of both source
+trees, the build tooling, the deploy path and the git history — plus black-box
+probes that drove the real middleware stack. Read-only: no file in the project
+was modified during this audit.
+
+This supersedes the audit of 2026-09-05. Section 9 records what changed.
 
 ---
 
 ## 1. Verdict
 
-This is a well-built codebase. The layering is real and enforced, the reasoning
-behind non-obvious decisions is written down next to the decision, and the test
-suite targets the things that break silently rather than the things that are
-easy to test. Findings 1–4 are not the result of carelessness: they are the
-consequence of one unfinished piece — **user authentication** — and everything
-downstream of it.
+The codebase has improved substantially since the last pass. The largest finding
+of that audit — that the OfficeGest broker had no effective access control — is
+**resolved**: there is now a real authentication module with server-side
+sessions, scrypt hashing, per-account and per-address throttling, and permission
+guards mounted on the namespace rather than on individual routes. That was
+verified by probe, not by reading.
 
-| Area                  | State                                                                      |
-| --------------------- | -------------------------------------------------------------------------- |
-| Frontend architecture | ✅ Strong — strict layering, zero `any`, all `OnPush`, no leaks            |
-| Backend architecture  | ✅ Strong — clean vertical slices, one composition root, no framework leak |
-| Logic & correctness   | 🟡 Good, with one asymmetry (§5.1) and an unverified upstream contract     |
-| DRY                   | 🟡 Good, with one block duplicated four times (§6.1)                       |
-| **Security**          | 🔴 **Not production-ready** — see §4.1–§4.4                                |
-| Tests                 | ✅ 204 frontend + 19 tooling, no network                                   |
+Two things stop this being production-ready, and neither is a design flaw. One
+is a credential sitting in public history. The other is that the API fails
+**open** when it is misconfigured, and production does not refuse to start.
 
-**Do not deploy to production until §4.1, §4.2 and §4.4 are resolved.**
+| Area                  | State                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| Frontend architecture | ✅ Strong — strict layering, zero `any`, all `OnPush`, no secrets in bundle; §6 closed |
+| Backend architecture  | ✅ Strong — clean vertical slices, one composition root, no framework leak             |
+| Access control        | 🟡 Correct when configured; **fails open** when not (§4.1)                             |
+| Secrets hygiene       | 🔴 **A live key is on the public branch right now** (§5.1)                             |
+| Logic & correctness   | 🟡 One confirmed concurrency bug (§5.3)                                                |
+| DRY / clean code      | ✅ No `any`, no `TODO`, no empty `catch`, no dead exports found                        |
+| Tests                 | ✅ 320 backend + 398 frontend, all passing, no network                                 |
+
+**Do not deploy to production until §4.1 and §5.1 are resolved.**
 
 ---
 
 ## 2. What is genuinely good
 
-Worth recording, because an audit that lists only faults misrepresents a
-codebase.
+Recorded because an audit that lists only faults misrepresents a codebase.
 
-- **`officegest.client.ts`** is the strongest file in the project. Two separate
-  retry allowances (auth refresh vs transient), retries confined to idempotent
-  methods with 429 as the deliberate exception, exponential backoff with full
-  jitter, `Retry-After` honoured, and caller-cancellation distinguished from
-  timeout via `AbortSignal.any`. No raw `Response` escapes it.
-- **`error.middleware.ts`** handles the cases people forget: `res.headersSent`,
-  client disconnect, body-parser failures, and stacks logged but never
-  serialised.
+- **The access-control model is sound and was proven so.** Guards are applied to
+  the `/api/officegest` namespace rather than per route, so an endpoint added
+  later is protected by default instead of by remembering
+  ([`routes/index.ts`](../server/src/routes/index.ts)).
+- **`auth.service.ts` gets the hard parts right.** Every failure — unknown
+  address, wrong password, disabled account — returns one 401 with one message,
+  and a password is verified even when no account matches, using a _real_ hash
+  from the configured set so the cost cannot drift. The three cases are
+  distinguished only in the log.
+- **The session cookie is textbook**: `__Host-` prefix, `HttpOnly`, `Secure`,
+  `SameSite=Lax`, host-only, with independent idle and absolute timeouts, and a
+  server-side record so revocation is immediate.
+- **Sessions are HMAC-signed as well as random**, so a forged cookie is rejected
+  by a constant-time comparison before it can probe the store.
+- **`officegest.client.ts`** remains the strongest file in the project: two
+  separate retry allowances, retries confined to idempotent methods with 429 as
+  the deliberate exception, full-jitter backoff, `Retry-After` honoured, and
+  caller-cancellation distinguished from timeout.
 - **Redaction by key name, not by value** (`shared/logger.ts`) — a whole headers
   object logged by accident still comes out safe.
-- **Path parameters are `encodeURIComponent`-encoded** at every call site
-  (`OFFICEGEST_PATHS`), so no id can traverse or inject into an upstream URL.
-- **`x-request-id` is sanitised** before it reaches a log record — length-capped
-  and character-filtered.
-- **The frontend has no `any`, no `TODO`, no orphan subscriptions**, and only two
-  unused exports (both contract types).
-- **The dev auth stub is gated twice** — a build-time refusal and `isDevMode()` —
-  and the two are independent on purpose.
+- **No secret reaches the browser.** Verified by direct substring match: **0 of
+  3** real values from `server/.env` appear anywhere in the 610 kB production
+  bundle. There is no `environment.ts` at all, and an allow-list in
+  `scripts/lib/env.mjs` makes accidental exposure structurally impossible.
+- **No token in web storage.** The only `sessionStorage` use is the dev stub.
+- **Security headers on the API are complete** — HSTS, CSP, `nosniff`,
+  `SAMEORIGIN`, `no-referrer`, and no `X-Powered-By`.
 
 ---
 
 ## 3. How the findings are ranked
 
-| Severity    | Meaning                                                             |
-| ----------- | ------------------------------------------------------------------- |
-| 🔴 Critical | Exploitable now, or blocks production outright                      |
-| 🟠 High     | Breaks a core function in the intended deployment                   |
-| 🟡 Medium   | Real defect; degraded security or operability                       |
-| 🔵 Low      | Worth fixing, limited blast radius                                  |
-| ⚪ Info     | Currently mitigated; would become a defect if an assumption changed |
+| Grau       | Meaning                                                             |
+| ---------- | ------------------------------------------------------------------- |
+| 🔴 Crítico | Exploitable now, or blocks production outright                      |
+| 🟠 Alto    | Breaks a core protection in a plausible deployment                  |
+| 🟡 Médio   | Real defect; degraded security or operability                       |
+| 🔵 Baixo   | Worth fixing, limited blast radius                                  |
+| ⚪ Info    | Currently mitigated; would become a defect if an assumption changed |
 
 ---
 
-## 4. Security
+## 4. Access control — the central check
 
-### 4.1 🔴 OfficeGest API key is in public git history
+Verified concretely on both layers by driving the real Express stack with
+`supertest`, rather than assuming the code reads correctly.
 
-`server/.env.example` carried **two live values**, not placeholders:
+**Confirmed working.** With accounts configured, all six OfficeGest endpoints
+(`customers`, `vehicles`, `service-orders`, `employees`, `appointments`,
+`workshop-monitor`) returned **401** to an unauthenticated caller. After signing
+in, a session holding only `officegest.customers.read` passed the guard on
+`/customers` and received **403** on `/employees`. The Angular route guards are
+correctly treated as presentation only; the backend decides independently.
 
-| Variable              | Leaked                                   |
-| --------------------- | ---------------------------------------- |
-| `OFFICEGEST_API_KEY`  | ✅ yes — 42 characters, begins `8…`      |
-| `OFFICEGEST_BASE_URL` | ✅ yes — the client's real tenant URL    |
-| `OFFICEGEST_USERNAME` | ❌ no — empty in every committed version |
-| `OFFICEGEST_PASSWORD` | ❌ no — empty in every committed version |
-
-> **Correction.** An earlier revision of this document listed all four as
-> leaked. Verified against `68216dd`: username and password were always empty.
-> The severity is unchanged — `env.ts` accepts `OFFICEGEST_API_KEY` **in place
-> of** the password for both `bearer-login` and `basic`, so the leaked key alone
-> authenticates.
-
-Committed in **`d2ab20e`**, **`1644163`** and **`68216dd`**, and **the repository
-is public** (verified via the GitHub API). The key is readable by anyone right
-now, and history retains it even though the file is gitignored today.
-
-Compounding it: `.gitignore` listed `.env.example` and `/server/.env.example`.
-That is backwards — the template is the one artefact that _should_ be committed,
-carrying placeholders. Both templates say so in their own headers ("this
-template is committed, so it must never contain a real value"). Ignoring them is
-precisely what let a live key sit there unnoticed.
-
-**Fix**
-
-1. **Rotate the OfficeGest API key now.** Assume it is compromised. Nothing else
-   on this list matters until this is done — the repository is public.
-2. ✅ _Done in this pass:_ both templates reduced to placeholders, and
-   `.gitignore` corrected so the templates are tracked while the real `.env`
-   files stay ignored.
-3. Purge history with `git filter-repo`, then force-push. This rewrites public
-   history. **Rotation matters more than purging:** a purge cannot reach forks,
-   existing clones, or GitHub's cached views of old commits.
-
-### 4.2 🔴 The OfficeGest broker has no effective access control
-
-Three facts combine into one hole:
-
-- `requireApiKey()` is a **pass-through when `BACKEND_API_KEYS` is unset**
-  (`api-key.middleware.ts:53`).
-- It cannot be set in this deployment: the frontend is a browser SPA and
-  **never sends `x-api-key`** (verified — no such header anywhere in `src/`).
-  Setting it would 401 every legitimate request.
-- **CORS restrains browsers only.** `curl`, Postman and any server-side client
-  ignore it entirely.
-
-So in the intended deployment, anyone who learns the API URL can read the whole
-customer, vehicle, service-order and appointment database. The middleware's own
-docstring anticipates an environment "reachable only from inside a private
-network" — a public GitHub Pages frontend is the opposite of that.
-
-**Root cause:** there is no user authentication (§4.3). The fix is not a better
-API key; a browser cannot keep a secret.
-
-**Fix** — implement the session endpoints in §4.3, then require a session on
-`/api/officegest/*` instead of an unusable API key.
-
-### 4.3 🟠 Authentication is unimplemented; production login cannot work
-
-[`auth.contract.ts`](../src/app/core/auth/auth.contract.ts) documents
-`POST /api/auth/login`, `GET /api/auth/session` and `POST /api/auth/logout` and
-states plainly that they do not exist. Confirmed: `server/` mounts only
-`/health` and `/api/officegest/*`.
-
-Production forces the dev stub off (the build refuses otherwise), so
-`HttpAuthGateway` POSTs to a 404 and every sign-in fails with _"Não foi possível
-iniciar sessão."_ **Nobody can ever enter `/private` in production.**
-
-**Fix** — implement the three endpoints with an `HttpOnly; Secure` session
-cookie, per the contract file. This is the keystone: it also closes §4.2.
-
-### 4.4 🟠 CORS is missing `credentials`, so no authenticated request can succeed
-
-Every frontend call sets `withCredentials: true` (`api.interceptor.ts:54`,
-`auth.gateway.ts`), but [`app.ts:57-66`](../server/src/app.ts#L57-L66) never sets
-`credentials: true`. A browser rejects a cross-origin response that omits
-`Access-Control-Allow-Credentials: true` — so once the site and the API are on
-different hosts, **every** call fails, not only authentication.
-
-```ts
-origin: config.cors.allowedOrigins.length > 0 ? [...config.cors.allowedOrigins] : false,
-credentials: true,   // ← missing
-```
-
-**Related:** the contract specifies `SameSite=Lax`. That works when the site and
-API share a registrable domain (`fsautomotive.pt` + `api.fsautomotive.pt`). From
-`*.github.io` to `api.fsautomotive.pt` the request is cross-site and the cookie
-needs `SameSite=None; Secure`, or the browser will not send it.
-
-### 4.5 🟡 `/health` discloses the ERP tenant and auth mode, unauthenticated
-
-[`health.routes.ts`](../server/src/routes/health.routes.ts) returns
-`officegest.baseUrl` and `officegest.authMode` to any caller. It is
-unauthenticated by design — a platform probe cannot present a credential — and
-the file argues the base URL "is configuration, not a secret".
-
-That holds when the endpoint is reachable only by the platform. Exposed publicly
-and combined with §4.2, it hands an attacker the tenant URL and the
-authentication scheme for free.
-
-**Fix** — return only `{ status, uptimeSeconds }` publicly and move the
-diagnostic detail behind a session, or restrict `/health` at the proxy. Note the
-frontend Settings page consumes these fields; it should degrade gracefully.
-
-### 4.6 🟡 Log redaction stops silently below depth 6
-
-`redact()` (`shared/logger.ts:50-51`) returns the value **unchanged** once
-`depth > 6`:
-
-```ts
-if (depth > 6 || value === null || typeof value !== 'object') {
-  return value;
-}
-```
-
-A credential nested deeper than six levels is written to the log in clear. The
-guard exists to bound recursion, which is right — but the safe failure mode is
-to _redact_ what it will not walk, not to emit it.
-
-Separately, `Error` values are reduced to `{ name, message }` and the **message
-is never scrubbed**. An upstream error carrying a URL with a token in its message
-would be logged verbatim.
-
-**Fix** — return a marker such as `'[TRUNCATED]'` at the depth limit, and run
-`message` through the same key/value scrub.
-
-### 4.7 🟡 Vulnerable `qs` in the backend's production dependency tree
-
-`npm audit --omit=dev` in `server/` reports **`qs@6.15.3`**, carrying two
-moderate advisories:
-
-| Advisory                                                                 | Impact                                               |
-| ------------------------------------------------------------------------ | ---------------------------------------------------- |
-| [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) | Denial of service via attacker-controlled `isBuffer` |
-| [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) | `array-limit` bypass via bracket-key comma parsing   |
-
-This is not a transitive dev-only issue: `qs` is what **Express parses every
-query string with**, and every list endpoint on this service takes query
-parameters from untrusted callers. It reaches the runtime through
-`express@5.2.1` (directly, and again via `body-parser@2.3.0`).
-
-`qs@6.16.0` is published and outside the vulnerable range. Both consumers
-declare compatible ranges — `express` wants `^6.14.0`, `body-parser` `^6.15.2` —
-so the fix is a lockfile refresh, **not** a major upgrade:
-
-```bash
-npm --prefix server audit fix     # or: npm --prefix server update qs
-npm --prefix server run verify
-```
-
-The frontend's production tree is clean (`found 0 vulnerabilities`); its own `qs`
-appears only under `supertest`, a dev dependency.
-
-### 4.8 🔵 `page` has no upper bound
-
-`paginationQuerySchema` (`shared/http/pagination.ts:17`) bounds `perPage` to 100
-but leaves `page` open above `1`. `?page=999999999` is forwarded upstream, and
-each such request spends an OfficeGest call. Cheap amplification.
-
-**Fix** — cap `page` (e.g. `.max(10_000)`).
-
-### 4.9 🔵 `x-request-id` is caller-controlled
-
-Correctly sanitised, but a caller can still choose the value — including one
-already in use. That degrades log correlation and lets a caller deliberately
-blend their trace into another. Acceptable for a trace header; worth knowing.
-
-**Fix (optional)** — keep the inbound value as `traceparent`/`upstreamRequestId`
-and always generate your own `req.id`.
-
-### 4.10 ⚪ `redirect: 'follow'` on upstream requests
-
-`officegest.client.ts:339` follows redirects while carrying the credential.
-Currently safe: all three strategies put it in the `authorization` header, and
-the fetch spec (implemented by undici) strips `Authorization` on a cross-origin
-redirect.
-
-**It stops being safe** the moment a strategy moves the credential to a custom
-header — `x-api-key`, say — because nothing strips those. If that ever changes,
-switch to `redirect: 'manual'` or assert the final URL's origin.
+| Issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Grau       | Estado       | Como corrigir                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§4.1 The API fails open when no access control is configured — including in production.** `identify` assigns `{ kind: 'unguarded' }` when neither accounts nor API keys exist ([`access.middleware.ts:52`](../server/src/middleware/access.middleware.ts#L52)), and `requireAccess` refuses only `anonymous` ([`:69`](../server/src/middleware/access.middleware.ts#L69)). `env.ts` validates everything else meticulously but never asserts that a guard exists in production. Probed with `NODE_ENV=production`, no `AUTH_USERS`, no `BACKEND_API_KEYS`: all six endpoints returned **502 from the upstream call** — the request passed both guards and spent the ERP credential — instead of 401. Only a startup `logger.warn` marks it. | 🔴 Crítico | ✅ Corrigido | Add a `superRefine` in `env.ts` failing the process when `NODE_ENV=production` and neither `AUTH_USERS`/`AUTH_USERS_FILE` nor `BACKEND_API_KEYS` is set. Promote the first entry of `startupWarnings` to a fatal error in production. Keep the open default for development only. |
 
 ---
 
-## 5. Logic and correctness
+## 5. Backend
 
-### 5.1 🟡 Three of four services silently discard malformed records
-
-`CustomersService.list` warns when the mapper drops records:
-
-```ts
-if (mapped.length !== result.items.length) {
-  context.logger.warn('discarded OfficeGest customer records without an identifier', …);
-}
-```
-
-`VehiclesService`, `ServiceOrdersService` and `AppointmentsService` perform the
-same drop with **no warning at all** (verified: 1 of 4 services contains the
-check). An upstream rename that starts silently emptying vehicle results would
-show up in the customer logs and nowhere else.
-
-This matters more than it looks, because the record readers are built on
-_guessed_ field names (§5.2) — this warning is the alarm for exactly the failure
-those guesses can cause.
-
-**Fix** — lift the check into a shared helper and call it from all four (see
-§6.1, which resolves both together).
-
-### 5.2 🟡 The upstream contract is partly inferred, and a wrong guess fails silently
-
-Three constants are explicitly marked as deductions rather than published
-contract:
-
-| Constant                                 | File                        |
-| ---------------------------------------- | --------------------------- |
-| `PAGINATION_PARAMS` (`page`, `per_page`) | `officegest.constants.ts`   |
-| `SEARCH_PARAM`                           | `officegest.constants.ts`   |
-| `UPSTREAM_FILTERS` (`plate`, `status`)   | `service-orders.service.ts` |
-
-The failure mode is the dangerous one: a wrong parameter name is **ignored** by
-the upstream, which returns an unfiltered page that this service then presents
-as filtered. The user sees plausible, wrong data — no error anywhere. The
-codebase names this risk itself ("the worst kind of bug, because nothing fails").
-
-**Fix** — confirm each name against the tenant's API before production; the
-`npm run probe` script is the right place. Until confirmed, treat filtered
-results as unverified.
-
-### 5.3 🔵 Fixed-window rate limiting allows a 2× boundary burst
-
-The limiter documents its multi-instance limitation but not this one: 120
-requests at _t_=59s and 120 more at _t_=61s is 240 in two seconds, twice the
-intended rate. Inherent to fixed windows.
-
-**Fix** — a sliding window or token bucket, if the limit is meant to be a real
-ceiling rather than a guard rail.
+| Issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Grau       | Estado    | Como corrigir                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§5.1 A live OfficeGest key is in public history — and it was re-committed after the last audit fixed it.** `server/.env.example` carried a 40-char hex value in **`d2ab20e`** (2026-08-30). `1aaf274` (2026-09-05) correctly emptied it, applying the previous audit's remediation. **`90bffa5` (2026-09-07) then introduced a second, different 86-char credential**, which `89df5b7` emptied again and `5fd2cd9` removed the file entirely. `90bffa5` **is an ancestor of `origin/main`**, so that value is readable on the public repository right now. `d2ab20e` is no longer on the main line but remains in local history and in any fork, clone or cached GitHub view. | 🔴 Crítico | 🔲 Aberto | **Rotate the OfficeGest credential in the tenant first** — assume it is compromised; nothing else on this list matters until it is done. Then purge with `git filter-repo` and force-push, or make the repository private. Add a pre-commit secret scan (`gitleaks`), because the template was emptied once already and it came back. |
+| **§5.2 `qs ≤ 6.15.3` (GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g) reaches production via Express 5.** `npm ls qs` → `express@5.2.1 → qs@6.15.3`; it parses every inbound query string, so it is genuinely on the request path.                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 🟡 Médio   | 🔲 Aberto | `npm audit fix` in `server/`, then re-run `npm run verify`.                                                                                                                                                                                                                                                                           |
+| **§5.3 One disconnecting client aborts a shared upstream login for every concurrent request.** `getToken` does `this.pendingLogin ??= this.login(signal)` ([`bearer-login.strategy.ts:122`](../server/src/integrations/officegest/auth/bearer-login.strategy.ts#L122)), capturing only the _first_ caller's `AbortSignal` — which `request-context.middleware.ts` aborts when that browser navigates away. Reproduced: two concurrent callers, only A aborted, **B — which never disconnected — also failed**. Fires on cold start and after token expiry, exactly when several requests arrive together.                                                                       | 🟡 Médio   | 🔲 Aberto | Drive the shared login from an internal signal (or none), not the first caller's. Give it the client's own timeout, and let each caller's signal cancel only its own `await`.                                                                                                                                                         |
+| **§5.4 Per-account lock-out is scoped per IP, so distributed brute force is unbounded.** `accountKey` joins the e-mail to the client address rather than keying on the e-mail alone ([`login-throttle.ts:147`](../server/src/modules/auth/login-throttle.ts#L147)). Each address therefore gets a fresh 5-attempt budget against the same account; the per-address counter (5×) never sees it. A 1 000-address botnet gets ~5 000 guesses. The trade-off it documents — not letting an attacker lock a named colleague out — is sound; the unbounded ceiling is the part that is not.                                                                                           | 🟡 Médio   | 🔲 Aberto | Keep the per-IP key, and add a global per-account counter with a much higher threshold and a short lock. Distributed guessing is then capped without handing anyone a lockout weapon.                                                                                                                                                 |
+| **§5.5 `trust proxy: 1` is unconditional, so a directly-exposed process lets `X-Forwarded-For` spoof `req.ip`.** [`app.ts:48`](../server/src/app.ts#L48). Both the rate limiter and the login throttle key on `req.ip`, so both are evadable by rotating one header if anything other than exactly one proxy fronts the service.                                                                                                                                                                                                                                                                                                                                                | 🟡 Médio   | 🔲 Aberto | Make the hop count configurable (`TRUST_PROXY_HOPS`, default `0`) and set it per deployment to the real number of proxies.                                                                                                                                                                                                            |
+| **§5.6 `..` and `.` pass the id validators and collapse the upstream path one segment.** `customerId` and `appointmentId` allow `.` ([`customer.dto.ts:37`](../server/src/modules/customers/customer.dto.ts#L37)). `encodeURIComponent` blocks slashes — so the traversal the last audit called impossible is _mostly_ impossible — but dots survive: `customerById('..')` → `/api/v2/entities/`, `serviceOrderById('..')` → `/api/v2/workshop/`. Read-only and bounded to one level, but it reaches an endpoint the route did not intend.                                                                                                                                      | 🔵 Baixo   | 🔲 Aberto | Reject ids equal to `.` or `..` (`.refine(v => v !== '.' && v !== '..')`), or require at least one alphanumeric character.                                                                                                                                                                                                            |
+| **§5.7 `/health` is unauthenticated and names the tenant.** Returns `officegest.baseUrl` and `environment` ([`health.routes.ts:28`](../server/src/routes/health.routes.ts#L28)); mounted before `identify`. Unchanged since the last audit.                                                                                                                                                                                                                                                                                                                                                                                                                                     | 🔵 Baixo   | 🔲 Aberto | Keep `{status:'ok'}` public; move `baseUrl`/`authMode` behind `requireAccess()` or onto a separate internal path.                                                                                                                                                                                                                     |
+| **§5.8 `server/users.json` is mode `0644`** — scrypt password hashes readable by any local account. `server/.env` is correctly `0600`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 🔵 Baixo   | 🔲 Aberto | `chmod 600 server/users.json`, and record it in the deploy runbook.                                                                                                                                                                                                                                                                   |
+| **§5.9 An API key bypasses every permission check.** `requirePermission` calls `next()` for any non-session principal ([`access.middleware.ts:109`](../server/src/middleware/access.middleware.ts#L109)). Deliberate and documented, but one leaked key equals full read access to every resource.                                                                                                                                                                                                                                                                                                                                                                              | 🔵 Baixo   | 🔲 Aberto | Attach a permission set to each configured key, so a machine caller is bounded by grants rather than only by existing.                                                                                                                                                                                                                |
+| **§5.10 Sessions, rate-limit windows and login throttles are per-process `Map`s.** Documented as a single-instance trade. Behind a load balancer the effective rate limit becomes N×, throttles reset per instance, and sessions break on restart.                                                                                                                                                                                                                                                                                                                                                                                                                              | ⚪ Info    | 🔲 Aberto | Before scaling past one instance, move all three to a shared store (Redis). No API change — the boundary is already isolated.                                                                                                                                                                                                         |
 
 ---
 
-## 6. DRY and clean code
+## 6. Frontend
 
-### 6.1 🟡 The malformed-record guard is duplicated four times
+| Issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Grau     | Estado       | Como corrigir                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§6.1 `npm run deploy:stub` can publish a public build in which any password signs in.** `build:ghpages:stub` passes `--configuration development`, so `isProductionBuild()` returns `false` ([`scripts/lib/env.mjs`](../scripts/lib/env.mjs)), `checkDevAuthStub` downgrades to a warning, and `isDevMode()` is `true` — both locks open, and `ng deploy` pushes it to GitHub Pages. The comment at [`auth.config.ts:12-24`](../src/app/core/config/auth.config.ts#L12-L24) claims a stubbed bundle "cannot be produced, so it cannot be deployed": true for `npm run build`, **not** for this path. Data stays protected by the backend — unless the backend is also unconfigured, at which point this chains with §4.1. | 🟡 Médio | ✅ Corrigido | Gate on _deployment_ rather than configuration: make `checkDevAuthStub` fatal whenever the target is `ghpages`, or remove `deploy:stub` entirely. Correct the comment either way — its safety argument is currently inaccurate.                                                         |
+| **§6.2 The static site ships no Content-Security-Policy.** [`src/index.html`](../src/index.html) has no CSP or `Referrer-Policy` meta tag, and GitHub Pages sets none. Helmet's strong CSP applies only to API JSON responses, which is where it matters least.                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 🟡 Médio | ✅ Corrigido | Serve CSP as a real header from the host or CDN fronting the site. If it must be static, add `<meta http-equiv="Content-Security-Policy">` with at least `default-src 'self'; object-src 'none'; frame-ancestors 'none'`, allowing the Google Maps frame and the GA origins explicitly. |
+| **§6.3 The monitor roster discloses staff names outside `workers.read`.** `MonitorRosterEntry` carries `employeeCode`, `name` and `department`, guarded by `officegest.service-orders.read` ([`routes/index.ts:110`](../server/src/routes/index.ts#L110)), while `/employees` requires `workers.read` — the boundary the code deliberately draws. Contact details and `login` are _not_ exposed, so the overlap is partial.                                                                                                                                                                                                                                                                                                 | 🔵 Baixo | ✅ Corrigido | Either drop `name` from the roster and join client-side for callers holding `workers.read`, or state explicitly in `routes/index.ts` that staff names are intentionally inside the service-order grant.                                                                                 |
+| **§6.4 The staff roster cached in the browser outlived the session that fetched it.** `OfficeGestService` is `providedIn: 'root'` and caches the roster with `shareReplay({ refCount: false })`; signing out clears auth signals but does not reload the page, so the root injector — and the cache — survived. On a shared workshop terminal the next person to sign in was served the previous account's map, contact details included, without a request ever reaching the backend to be refused. Found on the second pass, 2026-09-14.                                                                                                                                                                                  | 🟡 Médio | ✅ Corrigido | Key the cache to the signed-in account id and drop it when that changes, compared at read time rather than from an `effect` (which flushes on Angular's schedule and can lose the race with a page rendering in the same tick).                                                         |
 
-Every `getById` ends with the same block — map, test, log, throw the same
-`AppError(502, OFFICEGEST_MALFORMED_RESPONSE, 'OfficeGest returned an
-unexpected response.')`. Verified in all four services.
-
-**Fix** — one helper carries both this and the §5.1 warning:
-
-```ts
-// shared/officegest-mapping.ts
-export function requireMapped<T>(
-  value: T | undefined,
-  resource: string,
-  id: string,
-  log: Logger,
-): T {
-  if (!value) {
-    log.error(`OfficeGest ${resource} record has no usable identifier`, { id });
-    throw new AppError(
-      502,
-      ERROR_CODES.OFFICEGEST_MALFORMED_RESPONSE,
-      'OfficeGest returned an unexpected response.',
-    );
-  }
-  return value;
-}
-
-export function mapAll<R, T>(
-  items: readonly R[],
-  map: (items: readonly R[]) => readonly T[],
-  resource: string,
-  log: Logger,
-): readonly T[] {
-  const mapped = map(items);
-  if (mapped.length !== items.length) {
-    log.warn(`discarded OfficeGest ${resource} records without an identifier`, {
-      received: items.length,
-      mapped: mapped.length,
-    });
-  }
-  return mapped;
-}
-```
-
-Four call sites shrink, and the §5.1 asymmetry cannot recur.
-
-### 6.2 🔵 Four list-result interfaces differ only in one field name
-
-`CustomerList`, `VehicleList`, `ServiceOrderList` and `AppointmentList` are each
-`{ readonly <plural>: readonly T[]; readonly meta: PaginationMeta }`.
-
-**Fix (optional)** — `interface ListResult<T> { items: readonly T[]; meta: PaginationMeta }`.
-This changes the JSON field name, so it is a breaking API change; worth doing
-only alongside another breaking change.
-
-### 6.3 ⚪ Four near-identical controllers — leave them alone
-
-The controllers repeat a `list`/`getById` shape. **Recommendation: do not
-abstract this.** They are eight lines each, they read top-to-bottom, and they are
-where per-resource divergence naturally lands (the appointments controller
-already differs). A `BaseController` would trade clarity for a line count.
-Recorded so a future reviewer does not "fix" it.
-
-### 6.4 🔵 Frontend: two unused exports
-
-`ApiEnvelope<T>` (`core/models/api.model.ts`) and `AnalyticsEvent`
-(`core/models/analytics.model.ts`) are exported and never imported. Both document
-a contract, so removal is a judgement call rather than a defect.
+**Verified clean.** No `innerHTML`, no `eval`, no `document.write`. The single
+`bypassSecurityTrustResourceUrl` takes a build-time constant, not user input
+([`map-embed.ts:25`](../src/app/shared/components/map-embed/map-embed.ts#L25)).
+No source maps in `dist/`. Route guards are applied correctly to every private
+route, including the lazy and nested ones: `authGuard` on the parent, a
+`permissionGuard` on each child. The frontend's `qs` advisory is a transitive
+devDependency of `@angular/cli` and never reaches the browser — not a finding.
 
 ---
 
-## 7. Architecture and operations
+## 7. Cross-cutting
 
-### 7.1 🟡 The rate limiter counts `/health`, and can throttle the probe that keeps the process alive
+| Issue                                                                                                                                                                                                                                                                                                                                                                                                                                          | Grau     | Estado    | Como corrigir                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§7.1 `SameSite=Lax` is incompatible with the GitHub Pages deployment the repo is configured for.** The default is `lax` ([`env.ts:182`](../server/src/config/env.ts#L182)); with the site on `*.github.io` and the API on `fsautomotive.pt`, the request is cross-**site**, so the browser will not attach the session cookie and the private area silently fails to authenticate. It works only if site and API share a registrable domain. | 🟡 Médio | 🔲 Aberto | Decide the topology explicitly. Same domain (`fsautomotive.pt` + `api.fsautomotive.pt`) → keep `lax`, which is the safer answer. Genuinely cross-site → `AUTH_COOKIE_SAMESITE=none` with `AUTH_COOKIE_SECURE=true`, and note that `enforceOrigin` then becomes the only CSRF defence. |
+| **§7.2 No HTTP→HTTPS redirect originates in the app.** HSTS is set (`max-age=31536000; includeSubDomains`) and `OFFICEGEST_BASE_URL` must be `https` in production, but the first plain-HTTP request before HSTS is cached depends entirely on the proxy.                                                                                                                                                                                      | 🔵 Baixo | 🔲 Aberto | Confirm the reverse proxy or CDN 301s HTTP→HTTPS, and add `preload` to HSTS once the domain is submitted.                                                                                                                                                                             |
 
-`rateLimit()` is mounted app-wide before the router, so platform health probes
-consume the same budget as real traffic. A liveness probe at 1 Hz spends 60 of
-120 requests per minute; at 2 Hz it exhausts the budget alone, starts receiving
-429s, and the platform restarts a perfectly healthy process — a restart loop
-caused by the limiter.
-
-**Fix** — mount `/health` before `rateLimit()`, or exempt it by key.
-
-### 7.2 🔵 Bodies are parsed before the rate limiter runs
-
-Order in `app.ts` is `express.json()` (line 69) then `rateLimit()` (line 70). A
-flood of 64 kB bodies is fully parsed before being refused. Reversing the two
-makes refusal cheaper; the limiter needs nothing from the body.
-
-### 7.3 🔵 `RateLimit-Limit` is set but not exposed to browsers
-
-The middleware sets `RateLimit-Limit`, `RateLimit-Remaining` and
-`RateLimit-Reset`; CORS `exposedHeaders` lists only the last two plus
-`Retry-After`. A browser client can read how many requests remain but not the
-ceiling.
-
-**Fix** — add `RateLimit-Limit` to `exposedHeaders`.
-
-### 7.4 ⚪ In-process rate limiting does not survive horizontal scaling
-
-Already documented in the file: N instances give N × the limit. Recorded here so
-it appears in one list with everything else. Move to a shared store before
-scaling out.
+**CSRF is genuinely covered twice** — `SameSite=Lax` plus `enforceOrigin` on
+every state-changing method ([`access.middleware.ts:150`](../server/src/middleware/access.middleware.ts#L150)).
+A request carrying `Origin: https://evil.example` received **no**
+`Access-Control-Allow-Origin` header. Error responses never carry stack traces,
+and both codebases follow the same conventions — no meaningful drift.
 
 ---
 
-## 8. Already fixed during this review
-
-Both were found, reproduced and corrected in this pass; recorded for
-completeness.
-
-- **Duplicate error toasts.** The dashboard issues four requests on load; with
-  the backend unreachable all four produced the same error, filling the whole
-  `MAX_VISIBLE = 4` queue with one sentence — permanently, since errors never
-  auto-dismiss. Reproduced (4 identical entries), then fixed in
-  `NotificationService` by collapsing duplicates. A latent timer leak was fixed
-  with it: a notification dropped by the cap left its dismiss timer pending.
-- **The diagnostics page announced an outage it was already displaying.** The
-  Settings health probe raised a toast saying the backend was unreachable, on the
-  page whose purpose is to say exactly that, and again on every re-check. Fixed
-  with a `REPORTS_OWN_ERRORS` HTTP context token.
-
----
-
-## 9. Remediation order
+## 8. Remediation order
 
 **Before any production deployment**
 
-1. **Rotate the OfficeGest credentials** (§4.1) — everything else can wait; this
-   cannot.
-2. Implement the three authentication endpoints (§4.3), then require a session on
-   `/api/officegest/*` (§4.2).
-3. Add `credentials: true` to CORS and confirm the cookie's `SameSite` against
-   the real deployment topology (§4.4).
-4. Commit a placeholder `server/.env.example` and un-ignore it (§4.1).
-5. Patch `qs` in `server/` — one command, no major bump (§4.7).
+1. **Rotate the OfficeGest credential** (§5.1) — everything else can wait; this
+   cannot, because the value is on the public branch today.
+2. Make production refuse to boot unguarded (§4.1). Roughly ten lines in
+   `env.ts`, and it closes the only unauthenticated path to ERP data.
+3. Patch `qs` in `server/` (§5.2) — one command, no major bump.
+4. Settle the deployment topology and with it the cookie's `SameSite` (§7.1).
+5. Close the `deploy:stub` path, or delete it (§6.1).
 
 **Shortly after**
 
-6. Trim `/health` output, or put it behind the proxy (§4.5).
-7. Redact at the depth limit instead of emitting (§4.6).
-8. Extract the mapping helpers — closes the §5.1 asymmetry and the §6.1
-   duplication together.
-9. Move `/health` outside the rate limiter (§7.1).
+6. Fix the shared-login abort (§5.3) — a real bug, and it surfaces as
+   intermittent 502s that are hard to diagnose after the fact.
+7. Add the global per-account throttle (§5.4) and make `trust proxy`
+   configurable (§5.5).
+8. Add a CSP to the static site (§6.2).
 
 **When convenient**
 
-10. Cap `page` (§4.8); reorder body-parsing and rate limiting (§7.2); expose
-    `RateLimit-Limit` (§7.3).
-11. Confirm the inferred upstream parameter names with `npm run probe` (§5.2).
+9. Reject `.`/`..` ids (§5.6); trim `/health` (§5.7); `chmod 600 users.json`
+   (§5.8); scope API keys to permissions (§5.9); resolve the roster/`workers.read`
+   overlap (§6.3).
 
 ---
 
-## 10. Method
+## 9. What changed since the 2026-09-05 audit
 
-- Full read of `src/` and `server/`, plus `scripts/`, `angular.json`, both
-  `package.json` files, `robots.txt`, `sitemap.xml` and `deploy.ps1`.
-- Automated sweeps: layer-violation greps, `any` usage, `TODO`/`FIXME`,
-  `ChangeDetectionStrategy` coverage, `@for`/`track`, unsubscribed observables,
-  `<img>` without `alt`, and a whole-tree dead-export scan.
-- `git log -S` over the history for committed credentials.
-- `npm audit` on both projects, production and dev trees separately.
-- Production build, full test suite and formatter run to confirm baseline health:
-  **204 frontend tests + 19 tooling tests passing**, production bundle 413 kB raw
-  / 110 kB transfer, under the 500 kB budget.
-- Two findings were reproduced with throwaway tests before being fixed.
+| Previous finding                                       | State                                                                  |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| §4.2 Broker has no effective access control            | ✅ **Resolved** — real sessions, permissions, verified by probe        |
+| §4.3 Authentication unimplemented                      | ✅ **Resolved** — `login`/`session`/`logout` implemented and tested    |
+| §4.4 CORS missing `credentials`                        | ✅ **Resolved** — `credentials: true` with an explicit allow-list      |
+| §4.1 API key in public history                         | 🔴 **Regressed** — emptied in `1aaf274`, re-leaked in `90bffa5` (§5.1) |
+| §4.7 Vulnerable `qs`                                   | 🔴 **Still open** (§5.2)                                               |
+| §4.5 `/health` disclosure                              | 🔵 **Still open** (§5.7)                                               |
+| §4.6 Redaction stops below depth 6                     | ✅ Resolved — depth guard returns before emitting                      |
+| §4.9 `x-request-id` caller-controlled                  | ✅ Resolved — length-capped and character-filtered                     |
+| §5.1 / §6.1 Malformed-record asymmetry and duplication | ✅ Resolved — shared record readers                                    |
+| §6.4 Two unused frontend exports                       | ✅ Resolved — no dead exports found                                    |
+
+The one genuine regression is the credential. The remediation was applied
+correctly and then undone two days later by a commit that was not looking for
+it — which is the argument for an automated secret scan rather than a careful
+reviewer.
+
+---
+
+## 10. Fix log
+
+Findings are left above exactly as they were found; this records what has since
+been done about them.
+
+### 2026-09-14 — Frontend (§6) resolved
+
+| Finding                                                  | State                 | What changed                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §6.1 `deploy:stub` could publish an any-password build   | ✅ Fixed              | The stub gate asked `isProductionBuild`, which is a question about optimisation. It now asks whether the bundle will be **shipped** — production _or_ carrying a deploy base href — via a new `isPublishedBuild` in `scripts/lib/env.mjs`. Verified on the real command line: the exact argv of `build:ghpages:stub` now exits 1 before the CLI is spawned, so `&& ng deploy` never runs. Local development still only warns. |
+| §6.2 No Content-Security-Policy on the static site       | ✅ Fixed              | A policy is now served as a `<meta>` tag from `src/index.html`, with `script-src` free of `'unsafe-inline'`. Verified in headless Chrome across `/`, `/servicos`, `/sobre-nos`, `/contactos` and `/private/login`: **no violations**.                                                                                                                                                                                         |
+| §6.3 Roster discloses staff names outside `workers.read` | ✅ Closed as intended | Examined rather than assumed, and documented at the route. See the correction below.                                                                                                                                                                                                                                                                                                                                          |
+| §6.4 Browser roster cache outlived its session           | ✅ Fixed              | Found on a **second** frontend pass, after §6.1–§6.3 were closed. The cache is now keyed to the signed-in account id and dropped when that changes. Proven both ways: the two new regression tests fail with the guard removed and pass with it, and a third test pins that the caching itself still works (one request for the same account twice).                                                                          |
+
+### 2026-09-14 — third pass, and a gap in my own remediation
+
+**§6.2 was only half done.** The finding reads "no CSP **or `Referrer-Policy`**
+meta tag". The CSP went in; the referrer policy did not, and nothing caught it
+because the finding was already marked fixed. `src/index.html` now also carries
+`<meta name="referrer" content="strict-origin-when-cross-origin">`.
+
+It matters because the private routes are parameterised by real records, and
+every page makes cross-origin subresource requests that carry a `Referer`.
+Demonstrated with two local origins and a pixel, from
+`/private/vehicles/AA-00-BB`:
+
+| Policy                                           | Referer sent cross-origin     | Plate      |
+| ------------------------------------------------ | ----------------------------- | ---------- |
+| `strict-origin-when-cross-origin` (now shipped)  | `http://127.0.0.1:5010/`      | not leaked |
+| `no-referrer-when-downgrade` (the older default) | `…/private/vehicles/AA-00-BB` | **leaked** |
+
+Current browsers already default to the safe value, so this changes nothing
+today — it pins the behaviour for those that do not. `no-referrer` was
+deliberately not used: it would blind the public site's campaign attribution
+without protecting anything the private area has not already covered.
+
+**Checked on this pass and found clean** — recorded so a fourth pass does not
+repeat them:
+
+- **Analytics never sees a private URL.** `trackPageViews` filters on
+  `isPrivateUrl`, and the delegated contact-click listener returns early on the
+  same check — so neither a page view nor a `tel:`/`mailto:` click from a
+  customer detail page sends a record id to Google. The click path was worth
+  tracing separately: it is a document-level listener, so it would otherwise
+  have fired on every private page.
+- **`target="_blank"` links** all carry `rel`. A line-based grep suggested three
+  did not; the attribute was simply on the next line.
+- **Analytics debug logging** is `isDevMode()`, not a build flag.
+- **GA cookie deletion** filters names against a pattern before writing, so no
+  attacker-controlled string reaches `document.cookie`.
+- **Login form** uses `autocomplete="username"` / `"current-password"`.
+- **All four polling timers** are `toSignal` class fields and unsubscribe on
+  component destroy.
+- **Dead exports:** 33 exported symbols are referenced only inside their own
+  file. All are component input unions (`ButtonVariant`, `BadgeTone`) or model
+  types that form a module's public type surface — exported surface area, not
+  dead code. Deliberately not churned.
+
+---
+
+**§6.4 — why a second pass found it at all.** The first pass checked the things
+a frontend audit checklist names: XSS sinks, secrets in the bundle, token
+storage, guards, source maps. This one is none of those. It is a _lifetime_ bug:
+`providedIn: 'root'` outlives a sign-out because nothing reloads the page, and
+`shareReplay({ refCount: false })` deliberately keeps the value alive after the
+last subscriber leaves. Each half is reasonable; together they carry one
+account's staff contact details into the next account's session, on the shared
+terminal this product runs on, without a request the backend could refuse.
+
+Two design notes worth keeping. The clear happens at **read time**, not in an
+`effect`: effects flush on Angular's schedule, and a page asking for the roster
+in the same tick as a sign-in would be served the previous account's copy before
+the effect ran. And the dependency points feature → core, so the cache asks
+`AuthService` who is signed in rather than core reaching into a feature to
+invalidate it.
+
+Adding that dependency broke 13 existing tests with `NG0201: No provider found
+for AuthGateway` — test wiring, not a design fault, since only two specs build
+the real service and the other eight already use fakes. Both now share one
+double, `src/app/core/auth/auth.testing.ts`, deliberately not exported from the
+`core/auth` barrel so application code cannot reach a test stub by accident.
+
+**§6.2 — two things the fix had to account for, neither visible from a code read**
+
+- Angular's build rewrites the webfont `<link>` into `media="print"
+onload="this.media='all'"`. That handler exists only in the built file, so a
+  policy that looked correct against `src/index.html` broke every page. It is
+  covered by a `'sha256-…'` with `'unsafe-hashes'` — one exact handler body,
+  not blanket inline script. Confirmed working: the stylesheet reaches
+  `media="all"` and Montserrat resolves.
+- `connect-src` and `API_BASE_URL` are the same fact stated in two files, and a
+  disagreement between them is invisible until the private area silently cannot
+  fetch. `checkApiOriginAllowed` now fails the build on a mismatch, naming the
+  offending origin and the permitted list.
+
+`frame-ancestors` is deliberately absent: it is ignored in a meta tag, and
+listing it would read as clickjacking cover that is not there. It belongs in a
+real header if a CDN or proxy is ever put in front — see §7.
+
+**Correction to §6.3.** The fix this document originally proposed — "drop `name`
+from the roster" — would not have closed the disclosure. Mechanics' names also
+travel on every assignment as `MonitorMechanic.name`, so a caller holding only
+`officegest.service-orders.read` would still have seen the name of everyone
+actually working; only the idle mechanics would have been hidden. What the
+roster genuinely adds is that idle set, and the board exists to show it.
+
+Nothing `workers.read` protects is exposed: e-mail, telephone, sign-in name,
+start date and active flag live on `Employee` and never on
+`MonitorRosterEntry`. The reasoning, and what a future reversal would actually
+require, is now written at the route in `server/src/routes/index.ts` instead of
+resting on this document.
+
+A related near-miss worth recording: `departmentId` looked like a redundant
+field beside the resolved `department` name, and removing it would have broken
+`mechanic-detail.ts`, which falls back to it when the departments table cannot
+be read.
+
+**Still open:** everything in §4, §5 and §7 — including both Crítico findings.
+
+---
+
+### 2026-09-14 — independent re-verification of §6
+
+The four frontend fixes were re-checked from scratch rather than trusted from
+the Estado column, because a row marked corrected is a claim and not evidence.
+Each was exercised, not read:
+
+| Finding | How it was re-proved                                             | Result                                                                                                                                                                |
+| ------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §6.1    | Ran the real `build:ghpages:stub` argv with `DEV_AUTH_STUB=true` | exit 1, with the refusal naming the base href; the same flag on a local dev build still exits 0, so the stub remains usable where it is meant to be                   |
+| §6.2    | Parsed the **built** `dist/…/index.html`, not the source         | referrer meta present; CSP present with all 11 directives; hashed every inline handler the build emitted — one handler, covered, and no stale hash left in the policy |
+| §6.3    | Read the rationale block now standing in `routes/index.ts`       | present, and it states why withholding `name` from the roster alone would close nothing                                                                               |
+| §6.4    | Deleted the owner guard and re-ran the suite                     | exactly the two leak tests failed and the "cache still works" control passed; guard restored, 401 green again                                                         |
+
+The §6.2 check corrected a false alarm of my own: a line-based `grep` reported
+the CSP missing from the built file, when the attribute simply spans several
+lines. Parsing the HTML showed it intact. Worth recording because the cheap
+check said "shipped without a CSP", which is exactly the kind of result that
+gets acted on in a hurry.
+
+**Gate:** frontend `verify` exit 0 (36 files, 401 tests, 43 tooling), backend
+`verify` exit 0 (23 files, 320 tests), findings tables 17 rows and 0 malformed.
+
+**Still open:** the same 13 — all of §4, §5 and §7, including both Crítico
+findings. Nothing in §6 remains.
+
+---
+
+### 2026-09-14 — §4.1, the production fail-open, closed
+
+`env.ts` now refuses to parse a `NODE_ENV=production` configuration that has
+neither `AUTH_USERS`/`AUTH_USERS_FILE` nor `BACKEND_API_KEYS`. The open default
+in `identify` is untouched and still correct — a fresh checkout has to work
+without ceremony, or people learn to switch the guard off. What was missing is
+that nothing distinguished a fresh checkout from a live deployment.
+
+It fails during configuration rather than at first request, so the process
+never binds a port in that state. A `logger.warn` was the only previous marker,
+and a warning in a log nobody reads is not an access control.
+
+Verified by booting the real server three ways, with no `--env-file` so a local
+`.env` could not rescue the probe:
+
+| Configuration                      | Before                                                                                                        | After                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| production, nothing configured     | listened; all six endpoints returned 502 — the request passed both guards and spent the OfficeGest credential | **exit 1** at config load, message naming both mechanisms; no port bound                                                                |
+| production, `BACKEND_API_KEYS` set | —                                                                                                             | listens; `/health` 200; all six endpoints **401** anonymously; a valid `x-api-key` reaches upstream (502, the probe credential is fake) |
+| development, nothing configured    | open                                                                                                          | **unchanged** — listens, anonymous request passes the guard, which is the point of the default                                          |
+
+Six tests added in `env.spec.ts` (backend 320 → 326). Proved capable of failing:
+disabling the guard fails exactly the three negative tests and leaves the three
+positive ones passing.
+
+The rationale comment in `access.middleware.ts` claimed `startupWarnings` was
+what kept an unguarded production deployment from being silent. That is no
+longer what protects it, so the comment was rewritten rather than left to be
+believed — the same stale-comment failure §6.1 had.
+
+**Still open:** 12 — §5.2–§5.10, §5.1, §7.1, §7.2. §5.1 (rotate the leaked
+credential) remains the one item no code change can resolve.
+
+---
+
+## 11. Method
+
+- Full read of `src/` and `server/`, plus `scripts/`, `angular.json` and both
+  `package.json` files.
+- **Black-box probes against the real application**, built with `createApp` +
+  `createContainer` and driven with `supertest`: unauthenticated access to all
+  six private endpoints, permission enforcement with a narrowed grant, the
+  unconfigured-production case, security headers, CORS against a hostile origin,
+  and the `/health` body.
+- A targeted reproduction of the shared-login abort against
+  `BearerLoginStrategy` with two concurrent callers.
+- Git history swept commit-by-commit for credential values in both `.env`
+  templates, classified by length and character class. Values were never printed.
+- The production bundle checked by direct substring match against the real
+  secrets in `server/.env`.
+- `npm audit` on both projects, with `npm ls` to separate runtime from
+  development trees.
+- Both suites run to confirm baseline health: **320 backend + 398 frontend tests
+  passing**.
 
 **Not covered:** penetration testing, load testing, and the OfficeGest API
-itself.
+itself. No file in the project was modified; every probe ran from a scratch
+directory outside the repository.

@@ -6,6 +6,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!--
+      Referrer policy.
+
+      The private area's URLs are parameterised by real records —
+      `/private/vehicles/AA-00-BB`, `/private/customers/42` — so a full URL in a
+      `Referer` header is customer data leaving the site. Every page makes
+      cross-origin requests (the webfont, and Analytics on the public side), and
+      each one carries that header.
+
+      `strict-origin-when-cross-origin` sends the full URL only to this origin,
+      bare `https://fsautomotive.pt` to other origins, and nothing at all when
+      leaving https for http. It is also what current browsers already default
+      to, so this changes no behaviour today — it pins it, for the browsers that
+      do not and for anyone who later assumes the default is `no-referrer-when-
+      downgrade`. `no-referrer` would be stricter still and is deliberately not
+      used: it would blind the public site's own campaign attribution without
+      protecting anything the private area has not already covered.
+    -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!--
+      Content Security Policy.
+
+      WHY IT IS A META TAG AND NOT A HEADER
+      -------------------------------------
+      A header is the better home for this and should be preferred wherever the
+      deployment can set one. This site is served as static files from GitHub
+      Pages, which cannot, so the policy travels in the document instead. If a
+      CDN or reverse proxy is ever put in front, move this to a real header and
+      add `frame-ancestors 'none'` — that directive is *ignored* in a meta tag,
+      so clickjacking cover has to come from the header or from
+      `X-Frame-Options` at the edge. It is deliberately not listed below: a
+      directive that cannot work here would only read as protection that exists.
+
+      WHAT EACH NON-OBVIOUS ENTRY IS FOR
+      ----------------------------------
+      - `script-src` has no `'unsafe-inline'`, and must not gain one: the bundle
+        is external, and the only inline block is `application/ld+json`, which
+        browsers never execute. This is the directive that actually blunts XSS.
+      - The `'sha256-…'` beside it covers exactly one inline event handler, and
+        `'unsafe-hashes'` is what lets a hash apply to an attribute at all. The
+        Angular build rewrites the webfont <link> into
+        `media="print" onload="this.media='all'"` so it loads without blocking
+        render — that handler exists only in the built file, never in this one.
+        The hash is of the handler body `this.media='all'` and nothing else; it
+        cannot authorise any other inline code. If an Angular upgrade changes
+        that snippet the hash stops matching and Montserrat silently stays on
+        the fallback font, so recompute it then:
+          node -e "console.log(require('crypto').createHash('sha256').update(\"this.media='all'\").digest('base64'))"
+      - `style-src` does need `'unsafe-inline'`: the Angular build inlines
+        critical CSS into two <style> blocks, and components inject their styles
+        at runtime. There is no nonce to use without a server rendering the page.
+      - `frame-src` is the Google Maps embed on the contact page.
+      - `connect-src` lists every origin the app may call: itself, the backend,
+        and Analytics. Keep it in step with `API_BASE_URL` — `scripts/ng-env.mjs`
+        fails the build when that variable names an origin missing from here,
+        because the symptom otherwise is a private area that loads and then
+        silently cannot fetch anything.
+      - `upgrade-insecure-requests` is deliberately absent: it would rewrite the
+        `http://localhost:3000` backend to https and break local development.
+        Production is https end to end by configuration, not by this policy.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               base-uri 'self';
+               object-src 'none';
+               form-action 'self';
+               script-src 'self' https://www.googletagmanager.com 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc=';
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src 'self' https://fonts.gstatic.com;
+               img-src 'self' data: https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com;
+               connect-src 'self' https://api.fsautomotive.pt http://localhost:3000 https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com;
+               frame-src https://www.google.com;
+               manifest-src 'self'"
+    />
+
+    <!--
       The company name comes first on the home page, and what the workshop does
       follows it. The name Google prints above the result URL is taken from the
       `WebSite` node below, not from here — this title is read on its own terms.

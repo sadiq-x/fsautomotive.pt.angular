@@ -93,23 +93,35 @@ export function isDevAuthStubRequested(flag) {
  * is a complete authentication bypass. Failing the build means such a bundle
  * cannot be produced, so it cannot be deployed by accident.
  *
+ * WHY THE TEST IS "SHIPPING" AND NOT "PRODUCTION"
+ * ----------------------------------------------
+ * It used to be `isProductionBuild` alone, and that left a hole:
+ * `build:ghpages:stub` passes `--configuration development`, so the build was
+ * not "production", the check softened to a warning, and `deploy:stub` pushed a
+ * bundle with the stub in it to a public URL. Optimisation level is not what
+ * makes a build dangerous — publication is. Anything that will be served to
+ * strangers is refused, whichever configuration produced it.
+ *
  * @param {string | undefined} flag Raw `DEV_AUTH_STUB` value.
- * @param {boolean} isProduction Whether this build ships.
+ * @param {boolean} isShipping Whether this bundle will be served to anyone but
+ *   the developer who built it — see `isProductionBuild` and `isPublishedBuild`.
  * @returns {{ level: 'ok' | 'warn' | 'error', message?: string }}
  */
-export function checkDevAuthStub(flag, isProduction) {
+export function checkDevAuthStub(flag, isShipping) {
   if (!isDevAuthStubRequested(flag)) {
     return { level: 'ok' };
   }
 
-  if (isProduction) {
+  if (isShipping) {
     return {
       level: 'error',
       message:
-        'DEV_AUTH_STUB is enabled and this is a production build.\n' +
-        'The stub accepts ANY password — shipping it would leave the management ' +
+        'DEV_AUTH_STUB is enabled and this build would be shipped.\n' +
+        'The stub accepts ANY password — publishing it would leave the management ' +
         'area completely unprotected.\n' +
-        'Unset DEV_AUTH_STUB in .env (or .env.local) before building for production.',
+        'A development configuration does not make this safe: a bundle carrying a ' +
+        'deploy base href is served to the public whatever it was compiled with.\n' +
+        'Unset DEV_AUTH_STUB in .env (or .env.local) before building to deploy.',
     };
   }
 
@@ -156,6 +168,122 @@ export function isProductionBuild(argv) {
 
   const configuration = readConfiguration(argv);
   return configuration === undefined || configuration === 'production';
+}
+
+/**
+ * The origins `connect-src` allows, read out of `src/index.html`.
+ *
+ * The policy lives in the HTML because the site is served as static files and
+ * nothing can set a header (see the comment on the tag itself). That makes the
+ * tag the single source of truth, and this the only reader of it — rather than
+ * a second copy of the origin list kept in sync by hand.
+ *
+ * @param {string} indexHtml Contents of `src/index.html`.
+ * @returns {string[]} Origins and keywords, e.g. `["'self'", 'http://localhost:3000']`.
+ */
+export function readConnectSrcOrigins(indexHtml) {
+  const policy = /http-equiv="Content-Security-Policy"[\s\S]*?content="([\s\S]*?)"/.exec(indexHtml);
+
+  if (!policy) {
+    return [];
+  }
+
+  const directive = policy[1]
+    .split(';')
+    .map((entry) => entry.trim().replace(/\s+/g, ' '))
+    .find((entry) => entry.startsWith('connect-src '));
+
+  return directive ? directive.slice('connect-src '.length).split(' ').filter(Boolean) : [];
+}
+
+/**
+ * Refuses a build whose backend origin the page would not be allowed to call.
+ *
+ * `API_BASE_URL` and the `connect-src` list are two statements of the same
+ * fact, and they are edited in different files. When they disagree the bundle
+ * builds, deploys and loads perfectly — and then every request from the private
+ * area is blocked by the browser, with nothing in the server log to explain it.
+ * That is a bad afternoon, and it is entirely preventable here.
+ *
+ * An empty `API_BASE_URL` means "same origin as the page", which `'self'`
+ * already covers, so it needs no entry.
+ *
+ * @param {string | undefined} apiBaseUrl Raw `API_BASE_URL` value.
+ * @param {string} indexHtml Contents of `src/index.html`.
+ * @returns {{ level: 'ok' | 'warn' | 'error', message?: string }}
+ */
+export function checkApiOriginAllowed(apiBaseUrl, indexHtml) {
+  const value = (apiBaseUrl ?? '').trim();
+
+  if (value === '') {
+    return { level: 'ok' };
+  }
+
+  let origin;
+
+  try {
+    origin = new URL(value).origin;
+  } catch {
+    return {
+      level: 'error',
+      message:
+        `API_BASE_URL is not an absolute URL: ${JSON.stringify(value)}\n` +
+        'Expected something like https://api.fsautomotive.pt, or empty to call ' +
+        'the same origin the site is served from.',
+    };
+  }
+
+  const allowed = readConnectSrcOrigins(indexHtml);
+
+  if (allowed.length === 0) {
+    return {
+      level: 'warn',
+      message:
+        'Could not read connect-src from src/index.html, so the backend origin ' +
+        'was not checked against the Content Security Policy.',
+    };
+  }
+
+  if (allowed.includes(origin)) {
+    return { level: 'ok' };
+  }
+
+  return {
+    level: 'error',
+    message:
+      `API_BASE_URL points at ${origin}, which the Content Security Policy in ` +
+      'src/index.html does not allow.\n' +
+      `connect-src currently permits: ${allowed.join(' ')}\n` +
+      'The browser would block every request to the backend, so the private area ' +
+      'would load and then fail to fetch anything.\n' +
+      `Add ${origin} to the connect-src directive, or correct API_BASE_URL.`,
+  };
+}
+
+/** The flag the deploy builds carry; see `isPublishedBuild`. */
+const BASE_HREF_FLAG = '--base-href';
+
+/**
+ * Whether this build produces a bundle that will be served to the public.
+ *
+ * A base href is only needed when the app is served from somewhere other than
+ * the root of a domain, which in this project means exactly one thing: the
+ * GitHub Pages site. Both `build:ghpages` and `build:ghpages:stub` pass it, and
+ * nothing else does — so its presence is a reliable "this is going to be
+ * published" marker, available at the only moment a check can still refuse.
+ *
+ * This is deliberately independent of `--configuration`. `deploy:stub` builds
+ * with the development configuration and publishes the result, so asking only
+ * whether the build was optimised answered the wrong question.
+ *
+ * @param {string[]} argv Arguments passed to the CLI, without the node binary.
+ */
+export function isPublishedBuild(argv) {
+  if (argv[0] !== 'build') {
+    return false;
+  }
+
+  return argv.some((arg) => arg === BASE_HREF_FLAG || arg.startsWith(`${BASE_HREF_FLAG}=`));
 }
 
 /** Reads `--configuration <name>` / `--configuration=<name>` / `-c <name>`. */

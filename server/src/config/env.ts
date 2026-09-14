@@ -320,6 +320,44 @@ const envSchema = z
           'text, and anyone on the path could replay it',
       });
     }
+  })
+  /**
+   * An unguarded production deployment is refused outright.
+   *
+   * `identify` treats "no mechanism configured" as `unguarded` and lets the
+   * request through. That is deliberate and it stays — a fresh checkout has to
+   * work without ceremony, or people learn to switch the guard off (the
+   * reasoning is in `access.middleware.ts`). What was missing is that nothing
+   * distinguished a fresh checkout from a live deployment.
+   *
+   * The audit of 2026-09-14 drove the real stack with `NODE_ENV=production`,
+   * no accounts and no API keys: all six endpoints answered, spending the
+   * OfficeGest credential on behalf of an anonymous caller. The only marker
+   * was a startup `logger.warn`, and a warning in a log nobody is reading is
+   * not an access control.
+   *
+   * Refusing to boot is. It fails here, during configuration, so there is no
+   * window in which the open instance is listening on a port.
+   */
+  .superRefine((value, ctx) => {
+    if (value.NODE_ENV !== 'production') {
+      return;
+    }
+
+    const guarded =
+      Boolean(value.AUTH_USERS ?? value.AUTH_USERS_FILE) || value.BACKEND_API_KEYS.length > 0;
+
+    if (!guarded) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['BACKEND_API_KEYS'],
+        message:
+          'or AUTH_USERS (or AUTH_USERS_FILE) is required in production — with neither, ' +
+          'every endpoint answers anonymous callers and spends the OfficeGest credential ' +
+          'on their behalf. Set BACKEND_API_KEYS for service-to-service callers, and/or ' +
+          'AUTH_USERS with AUTH_SESSION_SECRET for browser sign-in.',
+      });
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;

@@ -12,6 +12,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { provideAuthStub } from '../../../../../core/auth/auth.testing';
 import type { Customer } from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
 import { createResourceList } from '../../services/resource-list.store';
@@ -60,7 +61,14 @@ describe('ResourcePage', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // Reached through OfficeGestService, which scopes its roster cache to
+        // the signed-in account.
+        ...provideAuthStub(),
+      ],
     });
 
     backend = TestBed.inject(HttpTestingController);

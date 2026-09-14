@@ -20,9 +20,15 @@
  * machine talking to a sandbox tenant, and demanding a credential nobody has
  * created yet would only teach people to disable the guard. The rule is
  * therefore not "open unless locked" but "satisfy every guard that exists":
- * configure either mechanism and anonymous access ends immediately. The
- * `startupWarnings` below exist so an unguarded *production* deployment is
- * loud rather than merely possible.
+ * configure either mechanism and anonymous access ends immediately.
+ *
+ * That default is scoped to development, and the scoping is enforced rather
+ * than intended: `env.ts` refuses to parse a `NODE_ENV=production`
+ * configuration with neither accounts nor API keys, so the process never
+ * reaches this file in that state. Until 2026-09-14 it did, and the audit
+ * found every endpoint answering anonymous callers in production with only a
+ * `startupWarnings` entry to mark it — which is why the check is now a boot
+ * failure and these warnings are a development aid, not the control.
  */
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 

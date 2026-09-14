@@ -21,6 +21,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, of, shareReplay, type Observable } from 'rxjs';
 
+import { AuthService } from '../../../../core/auth';
 import { API_ROUTES } from '../../../../core/config/api.config';
 import type { ApiSuccess, Paged } from '../../../../core/models/api.model';
 import type {
@@ -65,9 +66,26 @@ function toParams(source: Readonly<Record<string, QueryValue>>): HttpParams {
 @Injectable({ providedIn: 'root' })
 export class OfficeGestService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
 
   /** Built on first use by `employeesById()`, then shared. */
   private employeesCache: Observable<ReadonlyMap<string, Employee>> | null = null;
+
+  /**
+   * The account `employeesCache` was filled for, or `null` for nobody.
+   *
+   * This service is `providedIn: 'root'`, so it outlives a sign-out: nothing
+   * reloads the page, and the root injector survives. Without this the roster
+   * one person fetched would still be in memory for whoever signed in next on
+   * the same terminal — which is precisely the shared workshop machine this
+   * product runs on, and precisely the data `workers.read` exists to gate.
+   *
+   * Compared at read time rather than cleared from an `effect`, because an
+   * effect flushes on Angular's schedule: a page that asks for the roster
+   * during the same tick as the sign-in would be served the previous
+   * account's copy before the effect ever ran.
+   */
+  private employeesCacheOwner: string | null = null;
 
   /* ------------------------------------------------------------------ */
   /* Customers                                                           */
@@ -223,6 +241,15 @@ export class OfficeGestService {
    * board, the timers and no contact details — not an error page.
    */
   employeesById(): Observable<ReadonlyMap<string, Employee>> {
+    const owner = this.auth.user()?.id ?? null;
+
+    // A different account — including nobody, after a sign-out — gets a fresh
+    // request, and therefore a fresh 403 if it is not entitled to the roster.
+    if (owner !== this.employeesCacheOwner) {
+      this.employeesCacheOwner = owner;
+      this.employeesCache = null;
+    }
+
     this.employeesCache ??= this.listEmployees({ page: 1, perPage: 100 }).pipe(
       map((paged) => new Map(paged.items.map((employee) => [employee.id, employee]))),
       catchError(() => of(new Map<string, Employee>())),
