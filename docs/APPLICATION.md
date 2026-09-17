@@ -34,7 +34,7 @@ the code is organised, how to run it, and why it is the way it is.
 | Tests      | Vitest `^4` + jsdom                      | Angular's `@angular/build:unit-test` builder                              |
 | Formatting | Prettier + `prettier-plugin-tailwindcss` | Sorts utility classes deterministically                                   |
 | Rendering  | Client-side only                         | No SSR — `server.ts` and `main.server.ts` do not exist                    |
-| Hosting    | GitHub Pages                             | Via `angular-cli-ghpages`, served from a subpath                          |
+| Hosting    | GitHub Pages + Netlify                   | Both via `angular-cli-ghpages`, pushing a built bundle to `gh-pages` / `nf-pages` |
 
 ### 1.2 Layer model
 
@@ -65,9 +65,14 @@ fsautomotive.pt.angular/
 ├── docs/APPLICATION.md          ← this file
 ├── scripts/                     ← tooling (see §5)
 │   ├── audit-responsive.mjs
+│   ├── check-env-templates.mjs  ← fails if a committed .env.example has a real value
+│   ├── dev.mjs                  ← `npm start`: frontend + backend, one Ctrl-C stops both
 │   ├── ng-env.mjs               ← .env → build-time constants
 │   ├── lib/env.mjs              ← allow-list + validation (tested)
-│   └── deploy.ps1
+│   ├── lib/env-templates.mjs    ← secret-in-template detection (tested)
+│   ├── deploy.ps1                          ← GitHub Pages, project subpath
+│   ├── deploy-github-pages-custom-domain.ps1 ← GitHub Pages, root domain
+│   └── deploy-netlify.ps1       ← Netlify, via the nf-pages branch
 ├── public/                      ← copied verbatim to the build output
 │   ├── icons/                   favicons + apple-touch + PWA icons (5)
 │   ├── images/brand/            logos, emblem (3)
@@ -525,8 +530,10 @@ containers without Chrome. `verify:full` is the pre-release gate.
 ### 3.7 Deploy
 
 ```bash
-./scripts/deploy.ps1        # recommended — guards + confirmation (§5.2)
-npm run deploy              # raw: ng deploy --base-href=/fsautomotive.pt.angular/
+./scripts/deploy.ps1                              # GitHub Pages, project subpath (§5.2)
+./scripts/deploy-github-pages-custom-domain.ps1    # GitHub Pages, root domain (§5.3)
+./scripts/deploy-netlify.ps1                       # Netlify, via nf-pages (§5.4)
+npm run deploy                                     # raw: ng deploy --base-href=/fsautomotive.pt.angular/
 ```
 
 ### 3.8 Troubleshooting
@@ -539,7 +546,7 @@ npm run deploy              # raw: ng deploy --base-href=/fsautomotive.pt.angula
 | Fonts look wrong offline                      | Google Fonts is external; the fallback stack takes over. Layout is audited with fonts blocked     |
 | `audit:responsive` says "Chrome not found"    | Set `CHROME_PATH` to the binary                                                                   |
 | `audit:responsive` says "port already in use" | A previous run is still alive — `pkill -f audit-responsive`                                       |
-| Deep link 404s on a new host                  | The host needs an SPA fallback to `index.html` (GitHub Pages is handled via `404.html`)           |
+| Deep link 404s on a new host                  | The host needs an SPA fallback to `index.html` (GitHub Pages: `404.html`, written by `angular-cli-ghpages`; Netlify: `public/_redirects`, already committed) |
 
 ---
 
@@ -611,8 +618,8 @@ service, the list/detail shells, the table and the calendar. They are listed in
 
 ## 5. The `scripts/` folder
 
-Repository tooling that is not part of the shipped bundle. Both scripts resolve
-the repository root from their own location, so they run correctly from any
+Repository tooling that is not part of the shipped bundle. Every script resolves
+the repository root from its own location, so they run correctly from any
 working directory.
 
 ### 5.1 `audit-responsive.mjs` — responsive regression guard
@@ -647,7 +654,7 @@ overflow. Implementation notes worth knowing before editing it:
 - It uses random ports and hard timeouts on every CDP call, so a stale instance
   cannot make it hang.
 
-### 5.2 `deploy.ps1` — guarded publish to GitHub Pages
+### 5.2 `deploy.ps1` — guarded publish to GitHub Pages (project subpath)
 
 Wraps `ng deploy` with the checks a publish deserves. Requires PowerShell 5.1+
 or `pwsh` 7+.
@@ -678,7 +685,72 @@ referenced relatively, so they resolve against that `<base href>`.
 `angular-cli-ghpages` additionally writes `404.html` (a copy of `index.html`,
 which is what makes deep links work on GitHub Pages) and `.nojekyll`.
 
-### 5.3 `ng-env.mjs` — `.env` → build-time constants
+### 5.3 `deploy-github-pages-custom-domain.ps1` — guarded publish to GitHub Pages (root domain)
+
+A sibling of `deploy.ps1` for `fsautomotive.pt` served from the root path
+instead of the project subpath — the two are not interchangeable: a bundle
+built for one 404s every hashed chunk on the other. `-BaseHref` is fixed at
+`/`, not a parameter, because a wrong value here is exactly the bug this
+script exists to prevent.
+
+```powershell
+./scripts/deploy-github-pages-custom-domain.ps1 -BuildOnly   # build + validate, publish nothing
+./scripts/deploy-github-pages-custom-domain.ps1              # verify, build, validate, confirm, publish
+```
+
+What it adds over `deploy.ps1`: a `-Domain` CNAME (written into the build
+output and passed to `ng deploy --cname`), an explicit clean of `dist/` before
+building so no chunk from a previous base href survives, and a post-build gate
+that parses the emitted `index.html` and refuses to publish a bundle that would
+render blank — wrong `<base>`, a lingering project-subpath reference, a
+mismatched CNAME, or a referenced script/stylesheet that was never emitted.
+`-BuildOnly` runs that whole gate locally without touching git or GitHub.
+
+### 5.4 `deploy-netlify.ps1` — guarded publish to Netlify
+
+Builds the site and pushes the bundle to `nf-pages`, the branch the Netlify
+site is configured to serve (**Build command:** empty, **Publish directory:**
+the branch root — Netlify deploys what this script already built, and never
+runs a build of its own).
+
+```powershell
+./scripts/deploy-netlify.ps1 -BuildOnly   # build + validate, publish nothing
+./scripts/deploy-netlify.ps1              # verify, build, validate, confirm, publish
+./scripts/deploy-netlify.ps1 -Force       # publish even if nf-pages already has this commit
+```
+
+| Parameter     | Effect                                                        |
+| ------------- | -------------------------------------------------------------- |
+| `-SkipVerify` | Skip format, tests and script tests (the build and gates still run) |
+| `-AllowDirty` | Publish despite uncommitted changes                           |
+| `-Force`      | Publish even if `nf-pages` already reflects the current commit |
+| `-BuildOnly`  | Build and check, then stop — publishes nothing                |
+
+Two guards this script has that the GitHub Pages ones do not, both about *not
+publishing the wrong thing*:
+
+- **Runs only from `main`, and only when local `main` matches `origin/main`
+  exactly.** Every push force-rewrites `nf-pages`, so what ships must be
+  exactly what is on the remote — not an unreviewed local commit, and not a
+  stale checkout missing one nobody pulled.
+- **Skips a repeat publish of the same commit.** Each push stamps its commit
+  message with the `main` SHA it was built from; the script reads that back
+  off `origin/nf-pages` before doing any work, so publishing twice without a
+  change in between is a no-op instead of an identical force-push. `-Force`
+  overrides it.
+
+Its security gate runs before the build: `check:env-templates`
+(`scripts/check-env-templates.mjs`, §5.6), confirming `.env` /
+`server/.env` are actually git-ignored and not merely absent right now, and a
+non-blocking `npm audit` on production dependencies. After the build, it
+cross-checks the bundle against every secret-shaped key in `server/.env`
+(`PASSWORD`, `SECRET`, `KEY`, `TOKEN`, `CREDENTIAL`, `USERNAME`) — the same
+direct-substring check `docs/AUDIT.md` performed by hand, automated so it runs
+on every publish rather than the next manual audit. `public/_redirects` (the
+Netlify SPA fallback) ships as a normal static asset; the post-build gate only
+confirms it survived the build unmodified.
+
+### 5.5 `ng-env.mjs` — `.env` → build-time constants
 
 Not run directly; it backs `npm start`, `npm run build`, `watch` and
 `build:ghpages`. It reads `process.env` (populated by Node's
@@ -698,7 +770,24 @@ TypeScript through a `declare const NG_APP_<NAME>` plus a `typeof` guard — the
 pattern in `core/config/analytics.config.ts`. Only `build` and `serve` accept
 `--define`, so any other command is passed through untouched.
 
-### 5.4 Adding a script
+### 5.6 `check-env-templates.mjs` — fails the build on a leaked secret
+
+```bash
+npm run check:env-templates
+```
+
+Reads the committed `.env.example` files (root and `server/`) and fails if
+either carries a value that is not a placeholder. Exists because it already
+happened once: a real OfficeGest credential sat in `server/.env.example` for
+several commits (see `docs/AUDIT.md` §5.1) — a careful reviewer caught and
+emptied it, and a later commit put a different one back, unnoticed, because
+nothing but a person reading that one file line by line would have caught it.
+Run by `npm run verify` and by `deploy-netlify.ps1`'s security gate, so it
+cannot be forgotten before either a push or a publish. The detection logic
+lives in `scripts/lib/env-templates.mjs`, covered by
+`scripts/lib/env-templates.test.mjs`.
+
+### 5.7 Adding a script
 
 Put it in `scripts/`, resolve the repo root from the script's own location, exit
 non-zero on failure, and add an npm alias in `package.json`. If it is a gate that

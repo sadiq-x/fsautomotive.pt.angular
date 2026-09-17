@@ -397,18 +397,29 @@ Detalhes em [`docs/APPLICATION.md`](docs/APPLICATION.md) §2.5.
 
 ## Deployment
 
-O projeto está configurado para **GitHub Pages** através do `angular-cli-ghpages`:
+O projeto publica em dois destinos, ambos através do `angular-cli-ghpages`
+(que apesar do nome só faz uma coisa: construir, e depois `commit`/`push` do
+resultado para um branch dedicado — não é exclusivo do GitHub Pages):
+
+| Destino                       | Script                                              | Branch      |
+| ------------------------------ | ---------------------------------------------------- | ----------- |
+| GitHub Pages (subdiretório)     | `./scripts/deploy.ps1`                               | `gh-pages`  |
+| GitHub Pages (domínio próprio)  | `./scripts/deploy-github-pages-custom-domain.ps1`    | `gh-pages`  |
+| Netlify                        | `./scripts/deploy-netlify.ps1`                       | `nf-pages`  |
+
+Todos (PowerShell 5.1+ ou `pwsh` 7+) seguem o mesmo princípio: executam a
+partir da raiz do repositório independentemente de onde são invocados,
+instalam dependências em falta, **recusam publicar com alterações por
+commitar**, correm as verificações (formatação, testes, build) antes de
+qualquer publicação e pedem confirmação. Como usam `SupportsShouldProcess`,
+todos aceitam `-WhatIf` e `-Confirm`.
+
+### GitHub Pages
 
 ```bash
 npm run deploy              # ng deploy --base-href=/fsautomotive.pt.angular/
 ./scripts/deploy.ps1        # o mesmo, com verificações antes de publicar
 ```
-
-O `scripts/deploy.ps1` (PowerShell 5.1+ ou `pwsh` 7+) é a via recomendada:
-executa a partir da raiz do repositório independentemente de onde é invocado,
-instala dependências em falta, **recusa publicar com alterações por commitar**,
-corre o `npm run verify` antes de qualquer publicação e pede confirmação. Como
-usa `SupportsShouldProcess`, aceita `-WhatIf` e `-Confirm`:
 
 | Parâmetro     | Efeito                                            |
 | ------------- | ------------------------------------------------- |
@@ -419,7 +430,7 @@ usa `SupportsShouldProcess`, aceita `-WhatIf` e `-Confirm`:
 
 ```powershell
 ./scripts/deploy.ps1 -WhatIf            # ensaio, não publica nada
-./scripts/deploy.ps1 -BaseHref '/'      # para domínio próprio
+./scripts/deploy.ps1 -BaseHref '/'      # para domínio próprio, sem o script dedicado
 ```
 
 O `--base-href` é obrigatório porque o site é servido a partir de um
@@ -433,6 +444,39 @@ O `angular-cli-ghpages` trata automaticamente de dois detalhes do GitHub Pages:
   abrir `/servicos` diretamente ou recarregar a página devolveria um 404.
 - **`.nojekyll`** — impede o Jekyll de processar (e ignorar) ficheiros do build.
 
+Para um domínio próprio (`fsautomotive.pt`, servido da raiz em vez do
+subdiretório), use `./scripts/deploy-github-pages-custom-domain.ps1` em vez do
+script acima — gera e valida o `CNAME`, e recusa publicar um `bundle`
+construído com o `--base-href` errado (que renderizaria a página em branco).
+
+### Netlify
+
+```bash
+./scripts/deploy-netlify.ps1 -BuildOnly   # constrói e valida, não publica nada
+./scripts/deploy-netlify.ps1              # verifica, constrói, valida, confirma, publica
+```
+
+| Parâmetro     | Efeito                                                          |
+| ------------- | ---------------------------------------------------------------- |
+| `-SkipVerify` | Salta formatação, testes e testes de scripts                     |
+| `-AllowDirty` | Publica mesmo com a árvore de trabalho suja                      |
+| `-Force`      | Publica mesmo que o `nf-pages` já reflita o commit atual         |
+| `-BuildOnly`  | Constrói e valida, sem publicar                                  |
+
+O `nf-pages` guarda o `bundle` de produção já construído, não o código-fonte —
+no Netlify, configure **Build command:** vazio e **Publish directory:** a raiz
+do branch. O Netlify publica automaticamente a cada `push` a esse branch, sem
+correr build nenhum nem precisar de variáveis de ambiente próprias.
+
+Só corre a partir de `main`, e só quando o `main` local coincide exatamente com
+o `origin/main` — cada `push` reescreve o `nf-pages` por completo, por isso o
+que é publicado tem de ser exatamente o que está no remoto. Antes de construir,
+corre `check:env-templates`, confirma que `.env`/`server/.env` estão
+efetivamente ignorados pelo git, e — depois de construir — verifica que nenhum
+valor de `server/.env` aparece no `bundle` publicado.
+
+### Reencaminhamento SPA noutro anfitrião
+
 Para mudar de anfitrião, o requisito é sempre o mesmo — reencaminhar caminhos
 desconhecidos para o `index.html`:
 
@@ -442,9 +486,6 @@ desconhecidos para o `index.html`:
 | Vercel    | `rewrites` para `/index.html`       |
 | Apache    | `RewriteRule ^ index.html [L]`      |
 | Nginx     | `try_files $uri $uri/ /index.html;` |
-
-Se o site passar a ter domínio próprio, o `--base-href` volta a ser `/` e deve
-ser gerado um `CNAME` (`ng deploy --cname=fsautomotive.pt`).
 
 ## Área de gestão (privada)
 
