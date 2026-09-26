@@ -115,8 +115,41 @@ export interface ServiceOrder {
   readonly mechanicId?: string;
   readonly priority?: number;
   readonly total?: number;
+  /**
+   * The standard time booked on this job, summed across its own
+   * interventions' `estimated_time` — real and non-zero, confirmed
+   * 2026-09-26. Detail-only, like `lines`.
+   */
+  readonly estimatedMinutes?: number;
+  /**
+   * The same booked time, per intervention, in `line_number` order — `null`
+   * for a line nobody timed. Unnamed: the names only exist on the monitor's
+   * intervention list, which is paired with this one by position.
+   */
+  readonly interventionMinutes?: readonly (number | null)[];
   /** Billed parts and labour. Detail-only; a list row has none. */
   readonly lines?: readonly ServiceOrderLine[];
+}
+
+/**
+ * One entry in this order's actual clocked time log —
+ * `/workshop/service-orders/{id}/times` on the backend.
+ *
+ * Unlike everything else this application reads about a work order, this
+ * carries a real `endedAt`: it is the one place in the OfficeGest API that
+ * records a mechanic's clock-*out*, not only their clock-on.
+ */
+export interface ServiceOrderTimeEntry {
+  readonly id: string;
+  readonly employeeId?: string;
+  /** On the record itself; no roster lookup needed to show a name. */
+  readonly employeeName?: string;
+  readonly startedAt?: string;
+  /** Absent only for an entry nobody has clocked out of yet. */
+  readonly endedAt?: string;
+  /** Upstream's own `end − start` in minutes, when the entry is closed. */
+  readonly workedMinutes?: number;
+  readonly interventionId?: string;
 }
 
 /**

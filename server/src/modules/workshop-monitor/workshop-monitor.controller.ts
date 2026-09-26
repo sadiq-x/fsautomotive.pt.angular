@@ -3,10 +3,11 @@ import type { Request, RequestHandler, Response } from 'express';
 
 import { validationFor } from '../../middleware/validation.middleware.js';
 import { success } from '../../shared/http/api-response.js';
-import { monitorBoardQuerySchema } from './workshop-monitor.dto.js';
+import { monitorBoardQuerySchema, monitorOrderParamsSchema } from './workshop-monitor.dto.js';
 import type { WorkshopMonitorService } from './workshop-monitor.service.js';
 
 export const monitorBoardValidator = validationFor({ query: monitorBoardQuerySchema });
+export const monitorOrderValidator = validationFor({ params: monitorOrderParamsSchema });
 
 export class WorkshopMonitorController {
   constructor(private readonly service: WorkshopMonitorService) {}
@@ -28,5 +29,26 @@ export class WorkshopMonitorController {
     // would show a mechanic a timer that had silently stopped advancing.
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(success(board));
+  };
+
+  /**
+   * One order's monitor record, whatever its status.
+   *
+   * `data` is `null` rather than a 404 when upstream has nothing for this
+   * number: a closed order with no clock-on history is not an error, it is the
+   * ordinary case on this tenant today, and the detail page treats an absent
+   * body exactly like a board that failed to load — the rest of the page still
+   * works.
+   */
+  readonly order: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+    const { params } = monitorOrderValidator.read(req);
+
+    const snapshot = await this.service.orderSnapshot(params.number, {
+      logger: req.log,
+      signal: req.abortSignal,
+    });
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json(success(snapshot));
   };
 }

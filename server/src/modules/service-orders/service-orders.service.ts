@@ -24,8 +24,8 @@ import { toPaginationMeta } from '../../shared/http/pagination.js';
 import type { UseCaseContext } from '../../shared/use-case-context.js';
 import { formatPlate, normalisePlate } from '../vehicles/plate.js';
 import type { ListServiceOrdersQuery } from './service-order.dto.js';
-import { toServiceOrder, toServiceOrders } from './service-order.mapper.js';
-import type { ServiceOrder } from './service-order.model.js';
+import { toServiceOrder, toServiceOrderTimeEntries, toServiceOrders } from './service-order.mapper.js';
+import type { ServiceOrder, ServiceOrderTimeEntry } from './service-order.model.js';
 
 /**
  * Upstream filter parameter names, CONFIRMED on 2026-09-08 by comparing result
@@ -101,6 +101,35 @@ export class ServiceOrdersService {
     }
 
     return serviceOrder;
+  }
+
+  /**
+   * The real clock-in/clock-out log for one order — start, end and worked
+   * minutes per entry, one per mechanic per session.
+   *
+   * A failure resolves to an empty list rather than rejecting, the same trade
+   * the workshop-monitor roster makes: this decorates a page that shows the
+   * order regardless, so losing it must cost a section, not the screen.
+   */
+  async listTimes(
+    serviceOrderId: string,
+    context: UseCaseContext,
+  ): Promise<readonly ServiceOrderTimeEntry[]> {
+    try {
+      const result = await this.serviceOrders.listTimes(serviceOrderId, {
+        logger: context.logger,
+        signal: context.signal,
+      });
+
+      return toServiceOrderTimeEntries(result.items);
+    } catch (error) {
+      context.logger.warn('could not read the time log for one service order', {
+        serviceOrderId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return [];
+    }
   }
 
   /**

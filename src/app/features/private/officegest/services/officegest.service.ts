@@ -29,8 +29,10 @@ import type {
   Customer,
   Employee,
   MonitorBoard,
+  MonitorServiceOrder,
   ResourceCount,
   ServiceOrder,
+  ServiceOrderTimeEntry,
   Vehicle,
 } from '../models/officegest.models';
 import type {
@@ -141,6 +143,17 @@ export class OfficeGestService {
     return this.one<ServiceOrder>(API_ROUTES.officegest.serviceOrder(id));
   }
 
+  /**
+   * The real clock-in/clock-out log for one order.
+   *
+   * The only OfficeGest data with an actual `endedAt`: read once per order
+   * rather than polled, since a logged entry does not change while the page
+   * that shows it stays open.
+   */
+  getServiceOrderTimes(id: string): Observable<readonly ServiceOrderTimeEntry[]> {
+    return this.one<readonly ServiceOrderTimeEntry[]>(API_ROUTES.officegest.serviceOrderTimes(id));
+  }
+
   /* ------------------------------------------------------------------ */
   /* Appointments                                                        */
   /* ------------------------------------------------------------------ */
@@ -179,6 +192,20 @@ export class OfficeGestService {
    */
   getWorkshopBoard(): Observable<MonitorBoard> {
     return this.one<MonitorBoard>(API_ROUTES.officegest.workshopMonitor);
+  }
+
+  /**
+   * One order's monitor record, whatever its status — `null` when upstream has
+   * nothing for it.
+   *
+   * The board above only ever covers the active states, so a work-order detail
+   * page needs this to keep showing a mechanic's clock-on after the job closes
+   * and drops off the board. A detail page reads this once per order rather
+   * than polling it, since a closed order's history does not change while the
+   * page is open.
+   */
+  getWorkshopMonitorOrder(number: string): Observable<MonitorServiceOrder | null> {
+    return this.one<MonitorServiceOrder | null>(API_ROUTES.officegest.workshopMonitorOrder(number));
   }
 
   /* ------------------------------------------------------------------ */

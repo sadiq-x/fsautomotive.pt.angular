@@ -229,3 +229,62 @@ describe('ServiceOrdersService.list', () => {
     });
   });
 });
+
+describe('ServiceOrdersService.listTimes', () => {
+  /** The real clock-in/clock-out entries this endpoint returns. */
+  function timeRecord(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 1,
+      employee_id: 7,
+      employee_name: 'João Silva',
+      start_time: '2026-09-13 08:15:00',
+      end_time: '2026-09-13 09:45:00',
+      difference_minutes: 90,
+      intervention_id: null,
+      ...overrides,
+    };
+  }
+
+  it('maps every entry, with the mechanic name on the entry itself', async () => {
+    const listTimes = vi.fn().mockResolvedValue({ items: [timeRecord()], meta: {} });
+    const resource = { list: vi.fn(), getById: vi.fn(), listTimes } as unknown as ServiceOrdersResource;
+
+    const result = await service(resource).listTimes('202600642', context);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: '1',
+        employeeId: '7',
+        employeeName: 'João Silva',
+        workedMinutes: 90,
+      }),
+    ]);
+    expect(listTimes).toHaveBeenCalledWith('202600642', expect.anything());
+  });
+
+  it('drops an entry with no id, the same rule every other mapper follows', async () => {
+    const listTimes = vi
+      .fn()
+      .mockResolvedValue({ items: [timeRecord({ id: undefined })], meta: {} });
+    const resource = { list: vi.fn(), getById: vi.fn(), listTimes } as unknown as ServiceOrdersResource;
+
+    const result = await service(resource).listTimes('202600642', context);
+
+    expect(result).toEqual([]);
+  });
+
+  /** A garnish, not the meal: the order page must survive this failing. */
+  it('resolves to an empty list and logs a warning when upstream fails', async () => {
+    const log = { ...silentLogger, warn: vi.fn() };
+    const listTimes = vi.fn().mockRejectedValue(new Error('503'));
+    const resource = { list: vi.fn(), getById: vi.fn(), listTimes } as unknown as ServiceOrdersResource;
+
+    const result = await service(resource).listTimes('202600642', { logger: log });
+
+    expect(result).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith(
+      'could not read the time log for one service order',
+      expect.objectContaining({ serviceOrderId: '202600642', error: '503' }),
+    );
+  });
+});

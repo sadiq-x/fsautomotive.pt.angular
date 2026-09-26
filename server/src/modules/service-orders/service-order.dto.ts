@@ -66,7 +66,12 @@ export const serviceOrderIdParamsSchema = z.object({
     .regex(
       /^[A-Za-z0-9._/-]+$/,
       'must contain only letters, digits, dot, slash, underscore or hyphen',
-    ),
+    )
+    // `encodeURIComponent` escapes a slash but not a dot, so an id of `..`
+    // reaches the upstream URL as a real dot-segment and is resolved away:
+    // `/workshop/service-orders/../times` requests `/workshop/times`. A lone
+    // `.` or `..` is never an order number.
+    .refine((value) => !/^\.+$/.test(value), 'must be a service order number'),
 });
 
 export type ServiceOrderIdParams = z.infer<typeof serviceOrderIdParamsSchema>;

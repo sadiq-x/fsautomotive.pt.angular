@@ -21,7 +21,11 @@
 import { OfficeGestClient, type OfficeGestRequestOptions } from '../officegest.client.js';
 import { OFFICEGEST_PATHS } from '../officegest.constants.js';
 import type { UpstreamRecord } from '../officegest.record-readers.js';
-import { officeGestRecordSchema, type OfficeGestListResult } from '../officegest.types.js';
+import {
+  officeGestListEnvelope,
+  officeGestRecordSchema,
+  type OfficeGestListResult,
+} from '../officegest.types.js';
 
 export interface ListServiceOrdersParams {
   /** Records per request. The upstream maximum observed is 100. */
@@ -62,6 +66,34 @@ export class ServiceOrdersResource {
       officeGestRecordSchema,
       options,
     );
+  }
+
+  /**
+   * `GET /workshop/service-orders/{serviceOrder}/times` — every clocked time
+   * entry on this order, each with its own start, end and worked minutes.
+   *
+   * No query parameters: CONFIRMED against the docs, this endpoint takes only
+   * the order number in its path and returns every entry in one response.
+   *
+   * ⚠️ AN ORDER WITH NO ENTRIES ANSWERS 204, NOT `data: []`. CONFIRMED
+   * 2026-09-26 on order 202600671. `getList` would reject that empty body as
+   * a malformed response and log a schema error on every order nobody has
+   * logged time on — most of them. The client decodes a 204 to `undefined`
+   * and leaves the schema to decide, so the envelope is made optional here
+   * and an absent one read as the empty list it means.
+   */
+  async listTimes(
+    serviceOrderId: string,
+    options: OfficeGestRequestOptions = {},
+  ): Promise<OfficeGestListResult<UpstreamRecord>> {
+    const envelope = await this.client.request(
+      'GET',
+      OFFICEGEST_PATHS.serviceOrderTimes(serviceOrderId),
+      officeGestListEnvelope(officeGestRecordSchema).optional(),
+      options,
+    );
+
+    return { items: envelope?.data ?? [], meta: envelope?.meta };
   }
 }
 

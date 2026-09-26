@@ -38,6 +38,26 @@ export const AUTH_LOGOUT_PATH = '/auth/logout';
 export const AUTH_TOKEN_FIELDS = ['access_token', 'token'] as const;
 
 /* -------------------------------------------------------------------------- */
+/* Timestamps — CONFIRMED against the tenant, 2026-09-26                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The wall clock OfficeGest writes its timestamps in.
+ *
+ * Upstream sends `YYYY-MM-DD HH:mm:ss` with no offset, and `new Date()` reads
+ * that in whatever timezone the *server* runs in: correct on a developer's
+ * Lisbon machine, an hour late on a UTC host in summer. Pinning the zone here
+ * makes the reading independent of where the backend is deployed.
+ *
+ * Why Lisbon and not UTC: on every `/times` entry checked, `created_at`
+ * equals `start_time` to the second and `updated_at` equals `end_time` — one
+ * clock stamps everything — and read as Lisbon that clock gives a working day
+ * of 08:50–18:35 with a 13:00–14:40 lunch gap. It is also what OfficeGest's
+ * own screens show the workshop.
+ */
+export const OFFICEGEST_TIME_ZONE = 'Europe/Lisbon';
+
+/* -------------------------------------------------------------------------- */
 /* Resource paths — EXISTENCE VERIFIED against the tenant, 2026-09-06          */
 /* -------------------------------------------------------------------------- */
 
@@ -71,6 +91,25 @@ export const OFFICEGEST_PATHS = {
   serviceOrders: '/workshop/service-orders',
   serviceOrderById: (serviceOrder: string) =>
     `/workshop/service-orders/${encodeURIComponent(serviceOrder)}`,
+
+  /**
+   * `GET /workshop/service-orders/{serviceOrder}/times` — the actual clocked
+   * time log for one order. CONFIRMED 2026-09-26 against the live tenant and
+   * against `/docs/officegest-api/v2/workshop/service-orders/{serviceOrder}/
+   * times/get`: a `ServiceOrderHourOutputDTO` per entry, carrying
+   * `employee_id`, `employee_name`, `start_time`, `end_time` and
+   * `difference_minutes` — a real clock-in *and* clock-out, with the mechanic's
+   * name on the record itself.
+   *
+   * This is a different table from the monitor's `mechanics[]`: that one is
+   * empty on every job on this tenant (nobody uses the live "OG Oficinas
+   * Colaborador" clock-on), while this one is not — 7 real, fully closed
+   * entries were found on the order this was probed against. Whatever process
+   * populates it, it is the one genuinely reliable source of "who worked this
+   * job, and for how long" this API has.
+   */
+  serviceOrderTimes: (serviceOrder: string) =>
+    `/workshop/service-orders/${encodeURIComponent(serviceOrder)}/times`,
 
   employees: '/entities/employees',
 
@@ -107,7 +146,9 @@ export const OFFICEGEST_PATHS = {
    *    29 rows on this tenant against 1 200 — and adds `document_number`,
    *    `badge_color` and `budgets`. It is what the board reads.
    *  - `monitor` returns every job in every state, so it is the one to read for
-   *    anything historical.
+   *    anything historical — including a single closed order's mechanic
+   *    clock-on, once it has left the active board. See
+   *    `WorkshopMonitorResource.getByNumber`.
    */
   workshopMonitor: '/workshop/monitor',
   monitorServiceOrders: '/workshop/monitor/service-orders',
@@ -143,10 +184,21 @@ export const OFFICEGEST_PATHS = {
    *
    * ⚠️ IT DOES NOT JOIN BY ID. A work order's nested `interventions` carry ids
    * in the 202400008–202400050 range — document references for that year's
-   * sheets — while catalogue ids run 1–226. Zero of 85 order lines matched, and
-   * their `estimated_time` is 0 on every one. The join that *does* work is the
-   * monitor's intervention **name** against this table's `description`: 23 of
-   * 23 matched exactly. See `workshop-monitor.service.ts`.
+   * sheets — while catalogue ids run 1–226. Zero of 85 order lines matched
+   * that way. The join that *does* work by id is the monitor's intervention
+   * **name** against this table's `description`: 23 of 23 matched exactly. See
+   * `workshop-monitor.service.ts`.
+   *
+   * ⚠️ CORRECTED 2026-09-26: the order's own `estimated_time` was recorded here
+   * as "0 on every one" on 2026-09-13, across 85 lines. That is no longer true
+   * — order 202600642's 5 interventions all carry a real, non-zero
+   * `estimated_time`, correctly read straight off the order record without
+   * this catalogue at all. See `readEstimatedMinutes` in
+   * `service-order.mapper.ts`. Whether the earlier probe was wrong or the
+   * tenant has since started filling the field in, this catalogue join is no
+   * longer the only source of a job's estimated time — it remains useful only
+   * for naming an intervention shown on the live monitor board, which this
+   * table's own record does not carry.
    */
   interventionCatalogue: '/workshop/interventions',
 
@@ -191,6 +243,14 @@ export const MONITOR_FILTER_PARAMS = {
   plate: 'vehicle_plate',
   department: 'department',
   awaitingParts: 'awaiting_parts',
+  /**
+   * Narrows either monitor endpoint to one service order. CONFIRMED
+   * 2026-09-26 against the live tenant: `/workshop/monitor?num=<n>` returns
+   * exactly that job, in whatever state it is in — which is what lets a
+   * closed order's mechanic clock-on still be read after it has left the
+   * active board. See `getByNumber` in `workshop-monitor.resource.ts`.
+   */
+  num: 'num',
 } as const;
 
 /* -------------------------------------------------------------------------- */

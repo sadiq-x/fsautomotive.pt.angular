@@ -13,20 +13,37 @@
 
 const LOCALE = 'pt-PT';
 
+/**
+ * The workshop's clock, not the viewer's.
+ *
+ * Every date on these screens is a workshop fact — a clock-on, an opening, a
+ * delivery — and OfficeGest itself shows them in Lisbon time. Rendering them in
+ * the device's own zone would move a 09:15 clock-on to 08:15 for anyone
+ * reading from the Azores or abroad, and a date-only value to the previous day
+ * west of Lisbon. It also kept the tests honest only on a Lisbon machine.
+ */
+const TIME_ZONE = 'Europe/Lisbon';
+
 /** `2026-08-28T09:30:00Z` → `28/08/2026`. */
 export function formatDate(iso: string | undefined): string | null {
   const date = parse(iso);
   return date
-    ? date.toLocaleDateString(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? date.toLocaleDateString(LOCALE, {
+        timeZone: TIME_ZONE,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
     : null;
 }
 
-/** `2026-08-28T09:30:00Z` → `28/08/2026, 09:30`. */
+/** `2026-08-28T09:30:00Z` → `28/08/2026, 10:30` (Lisbon, UTC+1 in summer). */
 export function formatDateTime(iso: string | undefined): string | null {
   const date = parse(iso);
 
   return date
     ? date.toLocaleString(LOCALE, {
+        timeZone: TIME_ZONE,
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',

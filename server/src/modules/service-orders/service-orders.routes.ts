@@ -14,6 +14,7 @@ export function createServiceOrdersRouter(service: ServiceOrdersService): Router
 
   router.get('/', listServiceOrdersValidator.middleware, controller.list);
   router.get('/:serviceOrderId', getServiceOrderValidator.middleware, controller.getById);
+  router.get('/:serviceOrderId/times', getServiceOrderValidator.middleware, controller.getTimes);
 
   return router;
 }

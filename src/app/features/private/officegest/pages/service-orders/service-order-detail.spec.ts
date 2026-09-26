@@ -9,9 +9,14 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, type Observable } from 'rxjs';
+import { of, throwError, type Observable } from 'rxjs';
 
-import type { MonitorBoard, MonitorServiceOrder, ServiceOrder } from '../../models';
+import type {
+  MonitorBoard,
+  MonitorServiceOrder,
+  ServiceOrder,
+  ServiceOrderTimeEntry,
+} from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
 import { ServiceOrderDetail } from './service-order-detail';
 
@@ -60,12 +65,18 @@ function board(rows: readonly MonitorServiceOrder[]): MonitorBoard {
 interface Options {
   readonly order?: ServiceOrder;
   readonly board?: Observable<MonitorBoard>;
+  readonly monitorOrder?: Observable<MonitorServiceOrder | null>;
+  readonly times?: Observable<readonly ServiceOrderTimeEntry[]>;
+  /** Called once per poll, for tests that need successive polls to differ. */
+  readonly boardCall?: () => Observable<MonitorBoard>;
 }
 
 function setup(options: Options = {}) {
   const officegest = {
     getServiceOrder: () => of(options.order ?? order()),
-    getWorkshopBoard: () => options.board ?? of(board([liveRow()])),
+    getWorkshopBoard: options.boardCall ?? (() => options.board ?? of(board([liveRow()]))),
+    getWorkshopMonitorOrder: () => options.monitorOrder ?? of(null),
+    getServiceOrderTimes: () => options.times ?? of([]),
     employeeNames: () => of(new Map<string, string>()),
   };
 
@@ -139,6 +150,30 @@ describe('ServiceOrderDetail', () => {
       const foot = fixture.nativeElement.querySelector('tfoot') as HTMLElement;
 
       expect(foot.textContent?.replace(/\s+/g, ' ')).toContain('61,50');
+    });
+
+    /**
+     * The regression this pins: order 202600642's `total` field is `6.03`,
+     * which is not this job's cost — it is exactly one line's gross, while the
+     * real billed total (nine more lines the order's own `total` never
+     * counted) is `409.54`. The top "Total" field used to read that broken
+     * field directly; it must now agree with the billed-lines table instead.
+     */
+    it("shows the billed-lines total in the field list, not the order's own (unreliable) total", () => {
+      const body = text(
+        setup({ order: order({ total: 6.03, lines: withLine.lines }) }),
+      );
+
+      expect(body).toContain('61,50');
+      expect(body).not.toContain('6,03');
+    });
+
+    it('omits the Total field entirely when there are no billed lines to sum', () => {
+      // The default fixture carries `total: 184.5` but no `lines` — showing
+      // that number would be the exact bug this fix removes.
+      const body = text(setup());
+
+      expect(body).not.toContain('184,50');
     });
   });
 
@@ -224,10 +259,13 @@ describe('ServiceOrderDetail', () => {
      * "aberta há 150 dias" on a job that has left the board is a true sentence
      * that reads as a false one.
      */
-    it('does not claim an age for a job that is no longer on the board', () => {
+    it('explains rather than claims an age for a job that is no longer on the board', () => {
       const body = text(setup({ board: of(board([])) }));
 
-      expect(body).not.toContain('Aberta há');
+      // The label stays — silence would look like a missing field rather than
+      // a deliberate one — but no number is shown, and the reason is stated.
+      expect(body).toContain('Aberta há —');
+      expect(body).toContain('Só é calculada enquanto a folha está em curso no quadro da oficina');
     });
 
     it('reports how late an open job is against its promised delivery', () => {
@@ -265,9 +303,87 @@ describe('ServiceOrderDetail', () => {
       expect(body).toContain('1h 45m');
     });
 
-    it('sums the estimated time from the price list', () => {
-      // 30 + 90 minutes.
+    it('sums the estimated time from the price list when the order carries none of its own', () => {
+      // 30 + 90 minutes, from the monitor-catalogue fallback.
       expect(text(setup())).toContain('Tempo estimado: 2 h 00 min');
+    });
+
+    /**
+     * The regression this pins: order 202600642's own interventions summed to
+     * 480 real minutes, and the page was instead using a name-matched
+     * catalogue join that only found 33 — an order of magnitude off, and the
+     * reason "% do estimado consumido" once read 1827%.
+     */
+    it("prefers the order's own estimated time over the monitor-catalogue join", () => {
+      // The order says 480; the live board's catalogue join would say 120 (30+90).
+      const body = text(setup({ order: order({ estimatedMinutes: 480 }) }));
+
+      expect(body).toContain('Tempo estimado: 8 h 00 min');
+      expect(body).not.toContain('2 h 00 min');
+    });
+
+    it("still shows the order's own estimated time for a closed job, off the board", () => {
+      const body = text(
+        setup({ order: order({ estimatedMinutes: 480 }), board: of(board([])) }),
+      );
+
+      // No "Trabalho em curso" subtitle here (the job is off the board), so
+      // this is the Tempos grid's own dt/dd pair, not the colon-joined form.
+      expect(body).toContain('Tempo estimado 8 h 00 min');
+    });
+
+    it('shows the mechanic’s actual clock-on time beside the running timer', () => {
+      const body = text(setup());
+
+      // 08:15 UTC, rendered in the pt-PT/Lisbon locale (UTC+1 in September).
+      expect(body).toContain('desde 13/09/2026, 09:15');
+    });
+
+    /** Removed: this field never showed a value on this tenant (see git history). */
+    it('no longer shows a "Fim previsto" field at all', () => {
+      expect(text(setup())).not.toContain('Fim previsto');
+    });
+
+    /**
+     * The reason `orderSnapshot` exists on the backend: a closed order drops
+     * off the active board for good, so its mechanic clock-on can only be
+     * read from its full-history monitor record.
+     */
+    describe('once the job has closed', () => {
+      function closedRow(): MonitorServiceOrder {
+        return liveRow({
+          mechanics: [
+            { employeeCode: '7', name: 'João', startedAt: '2026-09-13T08:15:00.000Z' },
+          ],
+        });
+      }
+
+      it('falls back to the historical record and shows a plain clock-on time, not a ticking one', () => {
+        const body = text(
+          setup({ board: of(board([])), monitorOrder: of(closedRow()) }),
+        );
+
+        expect(body).toContain('Registo de picagens');
+        expect(body).toContain('João');
+        expect(body).toContain('Início: 13/09/2026, 09:15');
+        // No live board behind it, so no "time ago" reading is claimed.
+        expect(body).not.toContain('Trabalho em curso');
+      });
+
+      it('still sums the estimated time from the historical record', () => {
+        const body = text(setup({ board: of(board([])), monitorOrder: of(closedRow()) }));
+
+        expect(body).toContain('Tempo estimado: 2 h 00 min');
+      });
+
+      it('does not claim the job is open just because history exists for it', () => {
+        const body = text(setup({ board: of(board([])), monitorOrder: of(closedRow()) }));
+
+        // The label is explained, not a real age — historical monitor data
+        // does not make a closed job "currently open" again.
+        expect(body).toContain('Aberta há —');
+        expect(body).not.toContain('Atraso');
+      });
     });
 
     it('lists the interventions and marks the completed ones', () => {
@@ -293,9 +409,248 @@ describe('ServiceOrderDetail', () => {
       expect(body).toContain('Ana Silva');
     });
 
-    /** The one fact the screen cannot show, said in words rather than implied. */
-    it('says that OfficeGest records no completion time', () => {
-      expect(text(setup())).toContain('não a hora de fecho');
+    /** The board's own limit, said in words rather than implied. */
+    it('says the monitor board itself carries no close time', () => {
+      expect(text(setup())).toContain('sem hora de fecho');
     });
+  });
+
+  describe('Registo de horas', () => {
+    function timeEntry(overrides: Partial<ServiceOrderTimeEntry> = {}): ServiceOrderTimeEntry {
+      return {
+        id: '1',
+        employeeId: '7',
+        employeeName: 'João Silva',
+        startedAt: '2026-09-13T08:00:00.000Z',
+        endedAt: '2026-09-13T09:30:00.000Z',
+        workedMinutes: 90,
+        ...overrides,
+      };
+    }
+
+    it('is absent when the order has no logged time entries', () => {
+      expect(text(setup())).not.toContain('Registo de horas');
+    });
+
+    it('lists a real start and end, and the mechanic name straight off the entry', () => {
+      const body = text(setup({ times: of([timeEntry()]) }));
+
+      expect(body).toContain('Registo de horas');
+      expect(body).toContain('João Silva');
+      // 08:00/09:30 UTC, rendered in the pt-PT/Lisbon locale (UTC+1 in September).
+      expect(body).toContain('13/09/2026, 09:00');
+      expect(body).toContain('13/09/2026, 10:30');
+      expect(body).toContain('1 h 30 min');
+    });
+
+    it('shows an entry with no end as still in progress, not a dash', () => {
+      const body = text(
+        setup({ times: of([timeEntry({ endedAt: undefined, workedMinutes: undefined })]) }),
+      );
+
+      expect(body).toContain('Em curso');
+    });
+
+    it('totals the logged minutes across every entry', () => {
+      const body = text(
+        setup({
+          times: of([
+            timeEntry({ id: '1', workedMinutes: 90 }),
+            timeEntry({ id: '2', employeeId: '8', employeeName: 'Rui', workedMinutes: 30 }),
+          ]),
+        }),
+      );
+
+      expect(body).toContain('2 h 00 min');
+    });
+
+    /** The logged total is real for a closed job too, so it must win over "no live timer". */
+    it('shows the logged total as the worked time even when the job is off the board', () => {
+      const body = text(
+        setup({ board: of(board([])), times: of([timeEntry({ workedMinutes: 90 })]) }),
+      );
+
+      expect(body).toContain('Tempo trabalhado');
+      expect(body).toContain('1 h 30 min');
+      expect(body).toContain('Soma do registo de horas');
+    });
+  });
+
+  describe('mechanics who worked the order', () => {
+    function timeEntry(overrides: Partial<ServiceOrderTimeEntry> = {}): ServiceOrderTimeEntry {
+      return {
+        id: '1',
+        employeeId: '7',
+        employeeName: 'João Silva',
+        startedAt: '2026-09-13T08:00:00.000Z',
+        endedAt: '2026-09-13T09:30:00.000Z',
+        workedMinutes: 90,
+        ...overrides,
+      };
+    }
+
+    it('names everyone who logged time, not just the field the job is assigned to', () => {
+      const body = text(
+        setup({
+          times: of([
+            timeEntry({ id: '1', startedAt: '2026-09-13T08:00:00.000Z' }),
+            timeEntry({
+              id: '2',
+              employeeId: '8',
+              employeeName: 'Rui',
+              startedAt: '2026-09-13T09:00:00.000Z',
+            }),
+          ]),
+        }),
+      );
+
+      expect(body).toContain('Mecânicos que trabalharam');
+      expect(body).toContain('João Silva, Rui');
+    });
+
+    it('lists each mechanic once in the summary, however many entries they logged', () => {
+      const body = text(
+        setup({
+          times: of([
+            timeEntry({ id: '1', startedAt: '2026-09-13T08:00:00.000Z' }),
+            timeEntry({ id: '2', startedAt: '2026-09-13T10:00:00.000Z' }),
+          ]),
+        }),
+      );
+
+      // The table legitimately repeats the name once per session; the summary
+      // field must not.
+      expect(body).toContain('Mecânicos que trabalharam João Silva Abertura');
+    });
+
+    it('is absent when there is no logged time to name anyone from', () => {
+      expect(text(setup())).not.toContain('Mecânicos que trabalharam');
+    });
+
+    it('still works for a closed order, off the active board', () => {
+      const body = text(setup({ board: of(board([])), times: of([timeEntry()]) }));
+
+      expect(body).toContain('Mecânicos que trabalharam');
+      expect(body).toContain('João Silva');
+    });
+  });
+
+  /**
+   * The regression this pins: on 202600642 the header read the order's own
+   * times (8 h 00 min) while each line read the catalogue's standard times
+   * (18 min, 15 min, blanks) — a list that added up to 33 minutes under a
+   * header of 480. The live fixture's catalogue times are 30 and 90.
+   */
+  describe('estimates come from one source at a time', () => {
+    it("uses the order's own times for the header and every line when it has them", () => {
+      const body = text(
+        setup({ order: order({ estimatedMinutes: 75, interventionMinutes: [60, 15] }) }),
+      );
+
+      expect(body).toContain('Tempo estimado: 1 h 15 min');
+      expect(body).toContain('por concluir 1 h 00 min');
+      expect(body).toContain('concluída 15 min');
+      // The catalogue's 90 for Travões must not appear beside the order's 15.
+      expect(body).not.toContain('1 h 30 min');
+      expect(body).not.toContain('Tempo padrão do catálogo');
+    });
+
+    it('shows no per-line time rather than a misaligned one when the lists differ in length', () => {
+      const body = text(
+        setup({ order: order({ estimatedMinutes: 60, interventionMinutes: [60] }) }),
+      );
+
+      expect(body).toContain('Tempo estimado: 1 h 00 min');
+      expect(body).not.toContain('por concluir 1 h 00 min');
+      expect(body).not.toContain('concluída 1 h 30 min');
+    });
+
+    it('falls back to the catalogue for both, and says so, when the order has no times', () => {
+      const body = text(setup());
+
+      expect(body).toContain('Tempo estimado: 2 h 00 min');
+      expect(body).toContain('por concluir 30 min');
+      expect(body).toContain('concluída 1 h 30 min');
+      expect(body).toContain('Tempo padrão do catálogo');
+    });
+  });
+
+  /** The monitor only knows who is clocked on now; closed sessions live in /times. */
+  describe('the mechanic line when nobody is clocked on', () => {
+    const idleBoard = () => of(board([liveRow({ mechanics: [] })]));
+
+    it('says nobody is clocked on right now, not that nothing was ever registered', () => {
+      const body = text(setup({ board: idleBoard() }));
+
+      expect(body).toContain('Nenhum mecânico com picagem aberta neste momento.');
+      expect(body).not.toContain('picagem registada');
+    });
+
+    it('points to the hours log when sessions have already been registered', () => {
+      const body = text(
+        setup({
+          board: idleBoard(),
+          times: of([
+            {
+              id: '1',
+              employeeId: '7',
+              employeeName: 'João Silva',
+              startedAt: '2026-09-13T08:00:00.000Z',
+              endedAt: '2026-09-13T09:30:00.000Z',
+              workedMinutes: 90,
+            },
+          ]),
+        }),
+      );
+
+      expect(body).toContain('As picagens já registadas estão no registo de horas abaixo.');
+    });
+  });
+
+  /**
+   * Audit 2026-09-26: one failed poll used to replace the board with `null`,
+   * making an open job look closed for twenty seconds.
+   */
+  describe('a failed poll', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('keeps the last good board instead of treating the job as closed', () => {
+      vi.useFakeTimers();
+      let calls = 0;
+      const fixture = setup({
+        boardCall: () => (++calls === 1 ? of(board([liveRow()])) : throwError(() => new Error('503'))),
+      });
+
+      expect(text(fixture)).toContain('Trabalho em curso');
+
+      vi.advanceTimersByTime(20_000);
+      fixture.detectChanges();
+
+      expect(calls).toBe(2);
+      expect(text(fixture)).toContain('Trabalho em curso');
+      expect(text(fixture)).not.toContain('Registo de picagens');
+      expect(text(fixture)).toContain('Aberta há 12 dias');
+    });
+  });
+
+  /** Audit 2026-09-26: labour is hours, not calendar days. */
+  it('shows more than a day of logged work in hours, matching the hours log', () => {
+    const body = text(
+      setup({
+        times: of([
+          {
+            id: '1',
+            employeeId: '7',
+            employeeName: 'João Silva',
+            startedAt: '2026-09-13T08:00:00.000Z',
+            endedAt: '2026-09-14T14:00:00.000Z',
+            workedMinutes: 1800,
+          },
+        ]),
+      }),
+    );
+
+    expect(body).toContain('Tempo trabalhado 30 h 00 min');
+    expect(body).not.toContain('1 dia');
   });
 });

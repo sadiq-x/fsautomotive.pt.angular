@@ -30,4 +30,16 @@ export class ServiceOrdersController {
 
     res.status(200).json(success(serviceOrder));
   };
+
+  /** The real clock-in/clock-out log for one order. */
+  readonly getTimes: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+    const { params } = getServiceOrderValidator.read(req);
+
+    const times = await this.service.listTimes(params.serviceOrderId, {
+      logger: req.log,
+      signal: req.abortSignal,
+    });
+
+    res.status(200).json(success(times));
+  };
 }

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { catchError, interval, map, of, scan, startWith, switchMap } from 'rxjs';
+import { catchError, forkJoin, interval, map, of, scan, startWith, switchMap } from 'rxjs';
 
 import { PRIVATE_ROUTES } from '../../../../../core/config/private-routes.config';
 import { ApiError } from '../../../../../core/models/api.model';
@@ -9,8 +9,9 @@ import type { DetailField } from '../../components/detail-list/detail-list';
 import { DetailList } from '../../components/detail-list/detail-list';
 import { DetailPage } from '../../components/detail-page/detail-page';
 import type { DetailStatus } from '../../services/resource-detail.store';
-import type { Employee, MonitorBoard } from '../../models';
+import type { Employee, MonitorBoard, ServiceOrderTimeEntry } from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
+import { formatMinutes } from '../../utils/elapsed';
 import {
   formatCurrency,
   formatDate,
@@ -145,11 +146,14 @@ export class MechanicDetail {
    *
    * WHAT THIS IS, AND WHAT IT IS NOT
    * --------------------------------
-   * It is every work order carrying this person's `mechanic_id`. It is *not* a
-   * record of hours worked, because OfficeGest has none: there is no completion
-   * timestamp on a work order and no history of clock-ons, so the only
-   * measurable time in this API belongs to a job that is open right now. The
-   * section says so rather than leaving the absence to be inferred.
+   * It is every work order carrying this person's `mechanic_id` — an
+   * *assignment*, filled in on only 69 of 1 000 jobs. It is not the same claim
+   * as "this mechanic worked this job": that now has a real answer, from
+   * `/workshop/service-orders/{id}/times`, and `workedTimes` below enriches
+   * these same rows with it rather than replacing this list. An order this
+   * mechanic actually clocked time on but was never *assigned* to will not
+   * appear here at all — see `workedTimes` for why that gap is accepted rather
+   * than closed.
    *
    * Fetched once per mechanic rather than polled: an assignment made this
    * second is not the kind of fact a page needs to discover within twenty.
@@ -184,9 +188,80 @@ export class MechanicDetail {
         plate: formatPlate(order.plate) ?? '—',
         opened: formatDate(order.openedAt) ?? '—',
         status: order.status ?? '—',
+        // ⚠️ KNOWN WRONG on at least some orders, same as the list page's
+        // "Total" column — `order.total` can match a single line's gross
+        // rather than the job's real cost (confirmed 6.03 vs a real 409.54 on
+        // order 202600642). Not fixed here: `listServiceOrders` is a list
+        // fetch, which carries no line items to sum a real total from — see
+        // `service-order-detail.ts`'s `lineTotals` for where that fix lives.
         total: formatCurrency(order.total) ?? '—',
       })),
   );
+
+  /**
+   * This mechanic's own logged minutes, per row actually shown on screen.
+   *
+   * WHY THIS IS BOUNDED TO THE TEN VISIBLE ROWS, NOT THE HUNDRED FETCHED
+   * ----------------------------------------------------------------------
+   * There is no "give me every order this mechanic worked" endpoint — the only
+   * way to know is to ask each order's own `/times` log, one request per order.
+   * Doing that for the full `HISTORY_FETCH_SIZE` of 100 assigned jobs on every
+   * page view would cost 100 upstream requests for a table that shows ten of
+   * them. Asking it only for what is on screen keeps the cost proportional to
+   * what the page actually renders.
+   *
+   * This also means it can only ever enrich an *assigned* row, never surface a
+   * job this mechanic clocked time on without being the assigned mechanic —
+   * the accepted gap `historyOrders` documents.
+   */
+  private readonly workedTimes = toSignal(
+    toObservable(this.historyRows).pipe(
+      switchMap((rows) => {
+        if (rows.length === 0) {
+          return of(new Map<string, number>());
+        }
+
+        return forkJoin(
+          rows.map((row) =>
+            this.officegest
+              .getServiceOrderTimes(row.id)
+              .pipe(catchError(() => of([] as readonly ServiceOrderTimeEntry[]))),
+          ),
+        ).pipe(
+          map((entriesByRow) => {
+            const code = this.employeeCode();
+            const byOrder = new Map<string, number>();
+
+            rows.forEach((row, index) => {
+              const minutes = (entriesByRow[index] ?? [])
+                .filter((entry) => entry.employeeId === code)
+                .map((entry) => entry.workedMinutes)
+                .filter((value): value is number => value !== undefined);
+
+              // Only closed sessions carry worked minutes. A mechanic whose only
+              // entry here is still open has no total yet — a dash, not "0 min".
+              if (minutes.length > 0) {
+                byOrder.set(
+                  row.id,
+                  minutes.reduce((a, b) => a + b, 0),
+                );
+              }
+            });
+
+            return byOrder;
+          }),
+        );
+      }),
+    ),
+    { initialValue: new Map<string, number>() },
+  );
+
+  /** This mechanic's logged time on one row, formatted — `null` when there is none. */
+  protected loggedTimeFor(rowId: string): string | null {
+    const minutes = this.workedTimes().get(rowId);
+
+    return minutes === undefined ? null : formatMinutes(minutes);
+  }
 
   /**
    * The jobs assigned to this mechanic that are open on the board right now.

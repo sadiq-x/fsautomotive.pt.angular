@@ -53,6 +53,9 @@ export const API_ROUTES = {
     employees: '/api/officegest/employees',
     serviceOrders: '/api/officegest/service-orders',
     serviceOrder: (id: string) => `/api/officegest/service-orders/${encodeURIComponent(id)}`,
+    /** The real clock-in/clock-out log for one order — start, end and worked minutes per entry. */
+    serviceOrderTimes: (id: string) =>
+      `/api/officegest/service-orders/${encodeURIComponent(id)}/times`,
     appointments: '/api/officegest/appointments',
     appointment: (id: string) => `/api/officegest/appointments/${encodeURIComponent(id)}`,
     /**
@@ -63,5 +66,14 @@ export const API_ROUTES = {
      * path here that is polled on a timer.
      */
     workshopMonitor: '/api/officegest/workshop-monitor',
+    /**
+     * One order's monitor record, in whatever state it is in.
+     *
+     * Unlike `workshopMonitor`, this reaches an order that has already left the
+     * active board — the only way a closed job's mechanic clock-on can still be
+     * read once the job is no longer one of the ESP/EXE/MAR ones the board shows.
+     */
+    workshopMonitorOrder: (number: string) =>
+      `/api/officegest/workshop-monitor/${encodeURIComponent(number)}`,
   },
 } as const;

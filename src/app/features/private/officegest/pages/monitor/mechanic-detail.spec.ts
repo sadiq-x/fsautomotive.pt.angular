@@ -12,7 +12,13 @@ import { provideRouter } from '@angular/router';
 import { of, throwError, type Observable } from 'rxjs';
 
 import { ApiError, type Paged } from '../../../../../core/models/api.model';
-import type { Employee, MonitorBoard, MonitorServiceOrder, ServiceOrder } from '../../models';
+import type {
+  Employee,
+  MonitorBoard,
+  MonitorServiceOrder,
+  ServiceOrder,
+  ServiceOrderTimeEntry,
+} from '../../models';
 import { OfficeGestService } from '../../services/officegest.service';
 import { MechanicDetail } from './mechanic-detail';
 
@@ -58,6 +64,8 @@ interface Options {
   readonly boardResponse?: Observable<MonitorBoard>;
   readonly employees?: Observable<ReadonlyMap<string, Employee>>;
   readonly history?: Observable<Paged<ServiceOrder>>;
+  /** Keyed by order id; a missing key resolves to no entries. */
+  readonly times?: Readonly<Record<string, readonly ServiceOrderTimeEntry[]>>;
 }
 
 const NO_HISTORY: Paged<ServiceOrder> = {
@@ -67,11 +75,13 @@ const NO_HISTORY: Paged<ServiceOrder> = {
 
 function setup(options: Options = {}) {
   const listServiceOrders = vi.fn(() => options.history ?? of(NO_HISTORY));
+  const getServiceOrderTimes = vi.fn((id: string) => of(options.times?.[id] ?? []));
 
   const officegest = {
     getWorkshopBoard: () => options.boardResponse ?? of(board([order()])),
     employeesById: () => options.employees ?? of(new Map([[JOAO.id, JOAO]])),
     listServiceOrders,
+    getServiceOrderTimes,
   };
 
   TestBed.configureTestingModule({
@@ -86,7 +96,7 @@ function setup(options: Options = {}) {
   fixture.componentRef.setInput('employeeCode', options.employeeCode ?? '7');
   fixture.detectChanges();
 
-  return Object.assign(fixture, { listServiceOrders });
+  return Object.assign(fixture, { listServiceOrders, getServiceOrderTimes });
 }
 
 function text(fixture: ReturnType<typeof setup>): string {
@@ -202,15 +212,80 @@ describe('MechanicDetail', () => {
       expect(link.getAttribute('href')).toBe('/private/service-orders/25143');
     });
 
-    /**
-     * The honest part: no hours are shown, because OfficeGest records none for
-     * a finished job. If this ever renders a duration, something invented it.
-     */
-    it('says why it shows cars and not hours', () => {
+    it('explains what the logged-hours column means', () => {
       const fixture = setup({ history: of(assigned) });
       const body = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
 
-      expect(body).toContain('não guarda o tempo gasto em cada reparação');
+      expect(body).toContain('Horas registadas');
+      expect(body).toContain('soma as picagens reais deste mecânico');
+    });
+
+    describe('logged hours per row', () => {
+      /** '7' is this employee code throughout the fixtures above. */
+      function timeEntry(overrides: Partial<ServiceOrderTimeEntry> = {}): ServiceOrderTimeEntry {
+        return {
+          id: '1',
+          employeeId: '7',
+          employeeName: 'João',
+          startedAt: '2026-05-02T08:00:00.000Z',
+          endedAt: '2026-05-02T09:30:00.000Z',
+          workedMinutes: 90,
+          ...overrides,
+        };
+      }
+
+      it("shows this mechanic's own real worked time on an assigned order", () => {
+        const fixture = setup({
+          history: of(assigned),
+          times: { '25143': [timeEntry()] },
+        });
+        const body = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+
+        expect(body).toContain('1 h 30 min');
+      });
+
+      it("ignores another mechanic's entries on the same order", () => {
+        const fixture = setup({
+          history: of(assigned),
+          times: { '25143': [timeEntry({ employeeId: '8', employeeName: 'Rui' })] },
+        });
+        const body = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+
+        expect(body).not.toContain('1 h 30 min');
+      });
+
+      it('sums more than one logged session on the same order', () => {
+        const fixture = setup({
+          history: of(assigned),
+          times: {
+            '25143': [
+              timeEntry({ id: '1', workedMinutes: 90 }),
+              timeEntry({ id: '2', workedMinutes: 30 }),
+            ],
+          },
+        });
+        const body = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+
+        expect(body).toContain('2 h 00 min');
+      });
+
+      /** Audit 2026-09-26: an open session has no worked minutes yet. */
+      it('shows a dash, not "0 min", when this mechanic’s only session is still open', () => {
+        const fixture = setup({
+          history: of(assigned),
+          times: { '25143': [timeEntry({ endedAt: undefined, workedMinutes: undefined })] },
+        });
+        const body = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+
+        expect(body).not.toContain('0 min');
+      });
+
+      it('asks /times only for the order actually shown, not the full assigned fetch', () => {
+        const fixture = setup({ history: of(assigned) });
+
+        expect(fixture.getServiceOrderTimes).toHaveBeenCalledTimes(1);
+        expect(fixture.getServiceOrderTimes).toHaveBeenCalledWith('25143');
+      });
     });
 
     /** Blank usually means the field was never filled in, not that nobody worked. */

@@ -19,11 +19,13 @@
  * `undefined` on every work order ever mapped, and the detail page's "Fecho"
  * row never rendered. It is gone rather than left as a permanent blank.
  *
- * The consequence is worth stating plainly, because it bounds what this API can
- * answer: **OfficeGest does not publish when a job finished**, so the real
- * duration of a completed repair cannot be derived from it. Only a job that is
- * currently open has a measurable time, and that comes from the monitor's
- * `start_time`, not from here.
+ * The consequence was thought to bound what this API can answer: that
+ * **OfficeGest does not publish when a job finished**, so a completed repair's
+ * real duration could not be derived at all. That turned out to be true only
+ * of the *order* record. `/workshop/service-orders/{id}/times` — a sibling
+ * endpoint, not a field on this one — is a genuine clock-in/clock-out log with
+ * both `start_time` and `end_time` per entry, CONFIRMED 2026-09-26 with seven
+ * fully-closed entries on one real order. See `toServiceOrderTimeEntry` below.
  *
  * THE ONE THAT MATTERED NEXT
  * --------------------------
@@ -41,7 +43,7 @@ import {
   type UpstreamRecord,
 } from '../../integrations/officegest/officegest.record-readers.js';
 import { normalisePlate } from '../vehicles/plate.js';
-import type { ServiceOrder, ServiceOrderLine } from './service-order.model.js';
+import type { ServiceOrder, ServiceOrderLine, ServiceOrderTimeEntry } from './service-order.model.js';
 
 const FIELDS = {
   id: ['number', 'id', 'document_number', 'codigo', 'code', 'service_order_id'],
@@ -105,6 +107,7 @@ export function toServiceOrder(record: UpstreamRecord): ServiceOrder | undefined
   const plate = readString(record, FIELDS.plate);
   const statusName = readString(record, FIELDS.statusName);
   const lines = [...readLines(record, 'lines'), ...readLines(record, 'extra_lines')];
+  const interventionMinutes = readInterventionMinutes(record);
 
   return {
     id,
@@ -129,6 +132,8 @@ export function toServiceOrder(record: UpstreamRecord): ServiceOrder | undefined
     mechanicId: readIdentifier(record, FIELDS.mechanicId),
     priority: readNumber(record, FIELDS.priority),
     total: readNumber(record, FIELDS.total),
+    estimatedMinutes: sumInterventionMinutes(interventionMinutes),
+    interventionMinutes,
     // Absent rather than empty on a list row, so "no lines were billed" and
     // "this response does not carry lines" stay distinguishable.
     lines: lines.length > 0 ? lines : undefined,
@@ -181,6 +186,101 @@ function readLines(record: UpstreamRecord, key: string): ServiceOrderLine[] {
     });
 }
 
+/**
+ * The time booked on each of this job's own interventions, in `line_number`
+ * order — `null` for a line nobody timed.
+ *
+ * CONFIRMED 2026-09-26 against order 202600642: `estimated_time` is a real
+ * number on all 5 of its interventions — 60, 30, 30, 30 and 330 minutes. The
+ * lines carry no name (their `id` is the order number repeated, not a line
+ * key); names only exist on the monitor's own intervention list, which is why
+ * the order is kept here and `line_number` is the sort key. Across all 31
+ * active orders the two lists had the same length and this one always came
+ * back already sorted, which is what makes pairing them by position sound —
+ * see `perLineMinutes` in `service-order-detail.ts`.
+ *
+ * Zero becomes `null` rather than staying `0`, the same rule the intervention
+ * catalogue applies — a job nobody timed is not the same fact as a job that
+ * takes no time. `undefined` when the record carries no interventions array
+ * at all, which is the case on a list row.
+ */
+function readInterventionMinutes(record: UpstreamRecord): (number | null)[] | undefined {
+  const raw = (record as Record<string, unknown>)['interventions'];
+
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+
+  return raw
+    .filter((entry): entry is UpstreamRecord => typeof entry === 'object' && entry !== null)
+    .map((entry) => ({
+      line: readNumber(entry, ['line_number']) ?? Number.POSITIVE_INFINITY,
+      minutes: readNumber(entry, ['estimated_time']),
+    }))
+    .sort((a, b) => a.line - b.line)
+    .map(({ minutes }) => (minutes !== undefined && minutes > 0 ? minutes : null));
+}
+
+/**
+ * The whole job's booked time: the sum of every timed line.
+ *
+ * `undefined` when no line on the order carries a usable estimate, so "not
+ * recorded" stays distinguishable from "recorded as zero".
+ */
+function sumInterventionMinutes(minutes: readonly (number | null)[] | undefined): number | undefined {
+  const timed = (minutes ?? []).filter((value): value is number => value !== null);
+
+  return timed.length > 0 ? timed.reduce((a, b) => a + b, 0) : undefined;
+}
+
 export function toServiceOrders(records: readonly UpstreamRecord[]): ServiceOrder[] {
   return records.map(toServiceOrder).filter((order): order is ServiceOrder => order !== undefined);
+}
+
+/**
+ * `/workshop/service-orders/{id}/times` record → `ServiceOrderTimeEntry`.
+ *
+ * CONFIRMED 2026-09-26 against the live tenant and the published docs at
+ * `.../times/get`: `id`, `employee_id`, `employee_name`, `start_time`,
+ * `end_time` and `difference_minutes` all matched on 7 real entries across 2
+ * mechanics on one order. `difference_hours` and `billable_hours` also exist
+ * but as decimal strings ("1.50") duplicating `difference_minutes` in a less
+ * convenient shape, so they are not read.
+ */
+const TIME_ENTRY_FIELDS = {
+  id: ['id'],
+  employeeId: ['employee_id'],
+  employeeName: ['employee_name'],
+  startedAt: ['start_time'],
+  endedAt: ['end_time'],
+  workedMinutes: ['difference_minutes'],
+  interventionId: ['intervention_id'],
+} as const;
+
+export function toServiceOrderTimeEntry(record: UpstreamRecord): ServiceOrderTimeEntry | undefined {
+  const id = readIdentifier(record, TIME_ENTRY_FIELDS.id);
+
+  // Same rule as everywhere else: an entry that cannot be keyed cannot be
+  // told apart from another one on the same list.
+  if (!id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    employeeId: readIdentifier(record, TIME_ENTRY_FIELDS.employeeId),
+    employeeName: readString(record, TIME_ENTRY_FIELDS.employeeName),
+    startedAt: readIsoDate(record, TIME_ENTRY_FIELDS.startedAt),
+    endedAt: readIsoDate(record, TIME_ENTRY_FIELDS.endedAt),
+    workedMinutes: readNumber(record, TIME_ENTRY_FIELDS.workedMinutes),
+    interventionId: readIdentifier(record, TIME_ENTRY_FIELDS.interventionId),
+  };
+}
+
+export function toServiceOrderTimeEntries(
+  records: readonly UpstreamRecord[],
+): ServiceOrderTimeEntry[] {
+  return records
+    .map(toServiceOrderTimeEntry)
+    .filter((entry): entry is ServiceOrderTimeEntry => entry !== undefined);
 }

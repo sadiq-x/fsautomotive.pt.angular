@@ -243,6 +243,7 @@
                 <th scope="col" class="py-2 text-left font-semibold">Matrícula</th>
                 <th scope="col" class="py-2 text-left font-semibold">Abertura</th>
                 <th scope="col" class="py-2 text-left font-semibold">Estado</th>
+                <th scope="col" class="py-2 text-right font-semibold">Horas registadas</th>
                 <th scope="col" class="py-2 text-right font-semibold">Total</th>
               </tr>
             </thead>
@@ -259,6 +260,13 @@
                   <td class="py-2 pr-4 text-ink-900 tabular-nums">{{ row.plate }}</td>
                   <td class="py-2 pr-4 text-ink-700">{{ row.opened }}</td>
                   <td class="py-2 pr-4 text-ink-700">{{ row.status }}</td>
+                  <td class="py-2 text-right tabular-nums">
+                    @if (loggedTimeFor(row.id); as logged) {
+                      <span class="font-semibold text-emerald-700">{{ logged }}</span>
+                    } @else {
+                      <span class="text-ink-300" title="Sem picagem registada deste mecânico">—</span>
+                    }
+                  </td>
                   <td class="py-2 text-right text-ink-900 tabular-nums">{{ row.total }}</td>
                 </tr>
               }
@@ -270,8 +278,8 @@
           @if (historyTotal(); as total) {
             {{ historyRows().length }} de {{ total }} folhas atribuídas.
           }
-          O OfficeGest não guarda o tempo gasto em cada reparação — só o início da picagem, enquanto o
-          trabalho está aberto — por isso esta lista mostra as viaturas, não as horas.
+          "Horas registadas" soma as picagens reais deste mecânico em cada folha, quando existirem — uma
+          folha sem valor aqui não teve nenhuma picagem sua registada.
         </p>
       </div>
     }

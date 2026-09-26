@@ -83,6 +83,27 @@ export class WorkshopMonitorResource {
   }
 
   /**
+   * `GET /workshop/monitor?num={number}` — one order's record, in any state.
+   *
+   * `listActive` only ever sees the ESP/EXE/MAR states, so a closed order's
+   * mechanic clock-on becomes permanently unreadable the moment it leaves the
+   * active board — the board simply stops returning that row. This reads the
+   * unfiltered `workshopMonitor` path instead, narrowed to one job by `num`,
+   * which CONFIRMED 2026-09-26 against the live tenant returns that order
+   * whatever its status. `limit: 1` because `num` already narrows to at most
+   * one record.
+   */
+  getByNumber(
+    num: string,
+    options: OfficeGestRequestOptions = {},
+  ): Promise<OfficeGestListResult<UpstreamRecord>> {
+    return this.client.getList(OFFICEGEST_PATHS.workshopMonitor, officeGestRecordSchema, {
+      ...options,
+      query: { ...OfficeGestClient.paginationQuery(1, 1), [MONITOR_FILTER_PARAMS.num]: num },
+    });
+  }
+
+  /**
    * `GET /workshop/mechanics` — the roster: `id`, `name`, `department_id`.
    *
    * The board names the mechanics standing at a car, so this is not needed to
@@ -143,10 +164,6 @@ export class WorkshopMonitorResource {
    * `undefined` entries are dropped by the client's URL builder, so an absent
    * filter sends no parameter rather than an empty one — which upstream would
    * treat as "match the empty string" on the `ct` operators.
-   *
-   * `OFFICEGEST_PATHS.workshopMonitor` (every state, not just the active ones)
-   * is deliberately not read here: it has no caller, and it stays in the
-   * constants inventory as contract rather than as unused code in this file.
    */
   private buildQuery(params: ListMonitorParams): Record<string, string | number | undefined> {
     const { schedule } = params;

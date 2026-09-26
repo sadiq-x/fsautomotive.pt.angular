@@ -9,7 +9,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, type Observable } from 'rxjs';
+import { of, throwError, type Observable } from 'rxjs';
 
 import type { Paged } from '../../../../../core/models/api.model';
 import type { ServiceOrder } from '../../models';
@@ -22,15 +22,25 @@ const PAGE: Paged<ServiceOrder> = {
   pagination: { page: 1, perPage: 10, total: 1, totalPages: 1 },
 };
 
-function setup() {
+interface Options {
+  readonly page?: Paged<ServiceOrder>;
+  readonly getServiceOrder?: (id: string) => Observable<ServiceOrder>;
+}
+
+function setup(options: Options = {}) {
   const queries: ServiceOrderListQuery[] = [];
 
   const officegest = {
     listServiceOrders: (query: ServiceOrderListQuery): Observable<Paged<ServiceOrder>> => {
       queries.push(query);
-      return of(PAGE);
+      return of(options.page ?? PAGE);
     },
     employeeNames: (): Observable<ReadonlyMap<string, string>> => of(new Map()),
+    // The real per-row total enrichment; no lines by default, matching the
+    // fixture's own rows carrying none.
+    getServiceOrder:
+      options.getServiceOrder ??
+      ((id: string): Observable<ServiceOrder> => of({ id, lines: [] } as ServiceOrder)),
   };
 
   TestBed.configureTestingModule({
@@ -176,5 +186,73 @@ describe('ServiceOrders', () => {
     fixture.detectChanges();
 
     expect(component.store.isFiltered()).toBe(true);
+  });
+
+  /**
+   * The regression this pins: every row on the live list read the identical
+   * `6,03 €`, because `order.total` is one fixed line's gross, not the job's
+   * cost. The column must show the real billed total instead.
+   */
+  describe('the Total column', () => {
+    const wrongRow: ServiceOrder = {
+      id: '642',
+      number: 'OSV BF2026/642',
+      openedAt: '2026-09-16T00:00:00.000Z',
+      total: 6.03,
+    };
+
+    const wrongPage: Paged<ServiceOrder> = {
+      items: [wrongRow],
+      pagination: { page: 1, perPage: 10, total: 1, totalPages: 1 },
+    };
+
+    function text(fixture: { nativeElement: HTMLElement }): string {
+      return (fixture.nativeElement.textContent ?? '').replace(/\s+/g, ' ');
+    }
+
+    it("shows the real billed total, never the order's own unreliable total", () => {
+      const { fixture } = setup({
+        page: wrongPage,
+        getServiceOrder: (id) =>
+          of({
+            id,
+            lines: [
+              { total: 6.03 },
+              { total: 80.42 },
+              { total: 116.16 },
+              { total: 206.93 },
+            ],
+          } as ServiceOrder),
+      });
+      fixture.detectChanges();
+
+      // 6.03 + 80.42 + 116.16 + 206.93 = 409.54, the real order 202600642 total.
+      expect(text(fixture)).toContain('409,54');
+      expect(text(fixture)).not.toContain('6,03');
+    });
+
+    it('shows a dash rather than the wrong figure when the lookup fails', () => {
+      const { fixture } = setup({
+        page: wrongPage,
+        getServiceOrder: () => throwError(() => new Error('503')),
+      });
+      fixture.detectChanges();
+
+      expect(text(fixture)).not.toContain('6,03');
+    });
+
+    it('asks each visible row for its own record exactly once', () => {
+      const calls: string[] = [];
+
+      setup({
+        page: wrongPage,
+        getServiceOrder: (id) => {
+          calls.push(id);
+          return of({ id, lines: [] } as ServiceOrder);
+        },
+      });
+
+      expect(calls).toEqual(['642']);
+    });
   });
 });

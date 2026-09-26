@@ -383,6 +383,47 @@ believed — the same stale-comment failure §6.1 had.
 **Still open:** 12 — §5.2–§5.10, §5.1, §7.1, §7.2. §5.1 (rotate the leaked
 credential) remains the one item no code change can resolve.
 
+### 2026-09-26 — audit of the workshop-times work (monitor, `/times`, totals)
+
+Scope: everything added on 2026-09-26 — the `/times` hours log, the closed-order
+monitor fallback, "Mecânicos que trabalharam", per-mechanic hours, the status
+names, estimated time from the order's own interventions, and the real billed
+total on the detail and list pages. Each finding was reproduced against the live
+tenant or with a failing test before it was fixed.
+
+| #   | Finding                                                                                                                                                                                                                                                                                                                                                              | Severity  | State        |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------ |
+| T1  | **OfficeGest timestamps were read in the server's timezone.** Upstream sends `2026-09-16 16:19:00` with no offset; `readIsoDate` used `new Date()`, correct on a Lisbon machine and **one hour late on a UTC host** in summer — every clock-on, hours-log start/end, "Entrada no sistema", appointment time, and the live timer. Nothing pinned the zone.              | 🔴 High   | ✅ Corrigido |
+| T2  | **`/times` answers 204 for an order with no entries**, and the client rejected the empty body as a malformed response — a schema error and a warning logged for most orders.                                                                                                                                                                                              | 🟠 Médio  | ✅ Corrigido |
+| T3  | **Dates rendered in the viewer's device timezone** — a Lisbon workshop's times shifted for anyone reading from elsewhere, and three new tests passed only on a Lisbon machine.                                                                                                                                                                                                    | 🟠 Médio  | ✅ Corrigido |
+| T4  | **One failed board poll made an open job look closed** on the detail page for 20 s: heading "Registo de picagens", "Aberta há" with the closed-job reason, timer gone. The board was replaced with `null`; `Monitor` and `MechanicDetail` already kept the last good one. Pre-existing, made visible by the new closed-order states.                                          | 🟠 Médio  | ✅ Corrigido |
+| T5  | **"Tempo trabalhado" rendered labour as calendar days** — 30 h of work read "1 dia 6 h" above an hours-log total of "30 h 00 min".                                                                                                                                                                                                                                        | 🟡 Baixo  | ✅ Corrigido |
+| T6  | **A service-order id of `..` walked up the upstream path**: `encodeURIComponent` does not escape dots, so `/service-orders/../times` requested `/api/v2/workshop/times` with the server's credentials. Pre-existing in the shared validator; the new `/times` route widened it. GET-only, one segment, authenticated.                                                           | 🟡 Baixo  | ✅ Corrigido |
+| T7  | **Mechanic page showed "0 min"** for a mechanic whose only session on an order was still open, and computed an unused `lastWorkedAt` on every load.                                                                                                                                                                                                                     | 🔵 Info   | ✅ Corrigido |
+| T8  | **Service-order date filter is off by one day in summer** (pre-existing): `dateValue` and `toUpstreamDate` slice the UTC form of local midnight, so "1 September" displays as 31/08, OfficeGest is asked for `date_from=2026-08-31`, and a picked date jumps back a day in the input. Visible on the live list.                                                            | 🟠 Médio  | ⬜ Aberto    |
+| T9  | **Appointments calendar depends on the device timezone** (pre-existing): it groups and labels by local `getDate()`/`toLocaleTimeString`, and two `calendar.spec.ts` tests fail under `TZ=America/New_York` / `Asia/Tokyo`. Same class as T3, not changed here.                                                                                                             | 🟡 Baixo  | ⬜ Aberto    |
+| T10 | **Mechanic page "Folhas de obra atribuídas" → Total** still reads `order.total`, which is one fixed eco-tax line (`6.03`) rather than the job's cost. Flagged in code; fixing it costs up to 10 more requests per page view — awaiting a decision.                                                                                                                         | 🟠 Médio  | ⬜ Aberto    |
+| T11 | **The `awaiting_parts` monitor filter**, implemented and tested earlier on 2026-09-26, is absent from the working tree and was never committed — reverted outside the session.                                                                                                                                                                                            | 🔵 Info   | ⬜ Aberto    |
+
+How T1 was fixed, and why Lisbon: `readIsoDate` now reads an offset-less
+`YYYY-MM-DD HH:mm[:ss]` as `OFFICEGEST_TIME_ZONE` (`Europe/Lisbon`) using `Intl`,
+so both DST changeovers are right; a date alone or an ISO string with its own
+offset keeps its old meaning. The zone is evidence, not assumption: on every
+`/times` entry checked, `created_at` equals `start_time` to the second — one
+clock stamps everything — and read as Lisbon that clock gives an 08:50–18:35
+day with a 13:00–14:40 lunch gap. Verified by running the backend suite under
+`TZ=Europe/Lisbon`, `UTC`, `America/New_York` and `Asia/Tokyo` (356/356 each);
+one existing test had encoded the host-timezone behaviour and was pinned.
+
+Known limits, left as designed: the per-line estimate pairs the order's unnamed
+lines with the monitor's named ones by position — sound on all 31 active orders
+checked (equal lengths, sorted), guarded by a length check, but upstream does
+not publish a join key. "Tempo trabalhado" prefers the logged total over a
+currently open picagem, to avoid counting a session twice once it is logged.
+
+Tests: backend 342 → 356, frontend 454 → 457; T4's test was proved to fail with
+the old behaviour restored.
+
 ---
 
 ## 11. Method

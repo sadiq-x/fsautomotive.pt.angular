@@ -40,6 +40,7 @@ import {
   toDepartmentNames,
   toInterventionEstimates,
   toMonitorRoster,
+  toMonitorServiceOrder,
   toMonitorServiceOrders,
 } from './workshop-monitor.mapper.js';
 import type {
@@ -192,6 +193,45 @@ export class WorkshopMonitorService {
       observedAt: this.now().toISOString(),
       activeMechanicCount: serviceOrders.filter((order) => order.mechanics.length > 0).length,
     };
+  }
+
+  /**
+   * One order's monitor record, in whatever state it is in, or `null`.
+   *
+   * WHY THIS EXISTS ALONGSIDE `board`
+   * ---------------------------------
+   * `board` only ever sees the active states (ESP/EXE/MAR): the moment an order
+   * closes, `listActive` stops returning it and a work-order detail page has no
+   * way left to show who clocked on to it. This reads the unfiltered monitor
+   * path instead, narrowed to one job by number, so a closed order's mechanic
+   * clock-on stays readable after the fact.
+   *
+   * Not memoised. Unlike the board, which every open tablet polls on the same
+   * schedule, this is a single detail page asking about a single job — there is
+   * no fan-out to collapse, and the order in question rarely changes twice in
+   * one viewing.
+   *
+   * A failure — including "no such order" — resolves to `null` rather than
+   * rejecting, the same trade `fetchRoster` makes: this data decorates a page
+   * that works without it, so losing it must cost a garnish, not the screen.
+   */
+  async orderSnapshot(num: string, context: UseCaseContext): Promise<MonitorServiceOrder | null> {
+    try {
+      const [result, estimates] = await Promise.all([
+        this.monitor.getByNumber(num, { logger: context.logger, signal: context.signal }),
+        this.estimates.get(),
+      ]);
+
+      const [record] = result.items;
+
+      return (record && toMonitorServiceOrder(record, estimates)) ?? null;
+    } catch (error) {
+      context.logger.warn('could not read the monitor record for one order', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return null;
+    }
   }
 
   /**

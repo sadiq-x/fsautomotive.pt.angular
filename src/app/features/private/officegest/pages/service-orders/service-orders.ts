@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { tap } from 'rxjs';
+import { catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 
 import { PRIVATE_ROUTES } from '../../../../../core/config/private-routes.config';
 import type { TableColumn } from '../../components/data-table/data-table.model';
@@ -13,6 +14,7 @@ import { createResourceList } from '../../services/resource-list.store';
 import { currentMonth, isCurrentMonth } from '../../utils/date-range';
 import { formatCurrency, formatDate, formatPlate, orNull } from '../../utils/format';
 import {
+  computeBilledTotal,
   formatMileageReading,
   formatServiceOrderStatus,
   SERVICE_ORDER_STATUS_OPTIONS,
@@ -173,6 +175,59 @@ export class ServiceOrders {
 
   protected readonly lastUpdated = this.fetchedAt.asReadonly();
 
+  /**
+   * Each visible row's real total, by order id — computed from its own billed
+   * lines rather than trusted from `order.total`.
+   *
+   * WHY THIS IS A SEPARATE, PER-ROW FETCH
+   * ---------------------------------------
+   * `order.total` cannot be shown here: it was confirmed to read `6.03` on
+   * every row on screen, matching one fixed line's gross rather than any
+   * order's real cost — see `computeBilledTotal`. The list endpoint this page
+   * reads has no line items to sum a correct figure from at all (`lines` is
+   * documented as detail-only), so the only way to show a trustworthy total
+   * is to ask each visible order's own record for it, one request per row.
+   *
+   * Bounded to what is actually on screen — `store.items()`, at most the ten
+   * rows this list's fixed page size shows — the same trade
+   * `MechanicDetail`'s "Horas registadas" column already makes for the same
+   * reason. A row whose lookup fails, or has not resolved yet, shows a dash
+   * rather than the wrong number while it does.
+   */
+  private readonly realTotals = toSignal(
+    toObservable(this.store.items).pipe(
+      switchMap((rows) => {
+        if (rows.length === 0) {
+          return of(new Map<string, number>());
+        }
+
+        return forkJoin(
+          rows.map((row) =>
+            this.officegest.getServiceOrder(row.id).pipe(
+              map((full) => computeBilledTotal(full.lines)),
+              catchError(() => of(undefined)),
+            ),
+          ),
+        ).pipe(
+          map((totals) => {
+            const byId = new Map<string, number>();
+
+            rows.forEach((row, index) => {
+              const total = totals[index];
+
+              if (total !== undefined) {
+                byId.set(row.id, total);
+              }
+            });
+
+            return byId;
+          }),
+        );
+      }),
+    ),
+    { initialValue: new Map<string, number>() },
+  );
+
   protected readonly isBusy = computed(
     () => this.store.status() === 'loading' || this.store.isRefreshing(),
   );
@@ -247,8 +302,10 @@ export class ServiceOrders {
     {
       key: 'total',
       header: 'Total',
-      value: (order) => formatCurrency(order.total),
-      sortValue: (order) => order.total ?? null,
+      // Never `order.total` — see `realTotals` for why that field showed the
+      // identical `6.03 €` on every row regardless of the job.
+      value: (order) => formatCurrency(this.realTotals().get(order.id)),
+      sortValue: (order) => this.realTotals().get(order.id) ?? null,
       align: 'end',
       numeric: true,
     },

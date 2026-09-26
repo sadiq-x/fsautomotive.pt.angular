@@ -82,8 +82,9 @@ describe('toMonitorServiceOrder', () => {
         {
           employeeCode: '7',
           name: 'João',
-          // Normalised to ISO at the boundary, so no client parses SQL dates.
-          startedAt: new Date('2026-09-13T08:15:00').toISOString(),
+          // Normalised to ISO at the boundary, so no client parses SQL dates —
+          // and read as Lisbon (UTC+1 in September) whatever zone the server is in.
+          startedAt: '2026-09-13T07:15:00.000Z',
           showInMonitor: true,
         },
       ]);

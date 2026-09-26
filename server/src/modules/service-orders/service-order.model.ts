@@ -100,8 +100,60 @@ export interface ServiceOrder {
   readonly mechanicId?: string;
   /** Upstream's numeric priority. Published verbatim — its scale is not documented. */
   readonly priority?: number;
-  /** Net total. Money is published only as a number the caller may display. */
+  /**
+   * ⚠️ NOT the order's total. Kept for backward compatibility with any caller
+   * still reading it directly, but do not display this as "the total" of a
+   * job — use `lines` (summing `totalWithoutVat` + `vatValue` per entry, as
+   * the frontend's `lineTotals` does) instead.
+   *
+   * CORRECTED 2026-09-26: documented here as "Net total", and read from
+   * upstream's own `total` field on the assumption it was OfficeGest's billed
+   * figure for the whole job, differing from the line sum only by scope or
+   * rounding. On order 202600642 it is `6.03` — not close to the real
+   * `409.54` the lines add up to, and not a rounding gap either: it is
+   * *exactly* the gross of one line ("Taxa de resíduos", 4.90 + 1.13 VAT).
+   * This order's `lines` array holds that one entry; the nine real billed
+   * items sit in `extra_lines`. Whatever upstream's `total` actually sums, it
+   * is not this job's cost.
+   */
   readonly total?: number;
+  /**
+   * The standard time booked on this job, summed across its own interventions.
+   *
+   * CORRECTED 2026-09-26: this was believed unusable — the intervention
+   * catalogue's own header comment says these ids "carry `estimated_time`
+   * zero on every one", confirmed 2026-09-13. That is no longer true on this
+   * tenant: order 202600642's 5 interventions all carry a real, non-zero
+   * `estimated_time` summing to 480 minutes. Detail-only, like `lines`.
+   */
+  readonly estimatedMinutes?: number;
+  /**
+   * The same booked time, per intervention, in `line_number` order — `null`
+   * for a line nobody timed. Unnamed: upstream's order record carries no
+   * intervention names, only the monitor does. Detail-only, like `lines`.
+   */
+  readonly interventionMinutes?: readonly (number | null)[];
   /** Billed parts and labour. Detail-only; a list row has none. */
   readonly lines?: readonly ServiceOrderLine[];
+}
+
+/**
+ * One entry in this order's actual clocked time log.
+ *
+ * Unlike everything else on this order, this carries a real `endedAt` —
+ * OfficeGest's `/times` sub-resource is the one place in this API that
+ * records a mechanic's clock-*out*, not only their clock-on. See
+ * `service-order.mapper.ts` for where that was confirmed.
+ */
+export interface ServiceOrderTimeEntry {
+  readonly id: string;
+  readonly employeeId?: string;
+  /** Present on the record itself; no roster lookup needed to show a name. */
+  readonly employeeName?: string;
+  readonly startedAt?: string;
+  /** Absent only for an entry nobody has clocked out of yet. */
+  readonly endedAt?: string;
+  /** Upstream's own `end - start` in minutes, when the entry is closed. */
+  readonly workedMinutes?: number;
+  readonly interventionId?: string;
 }

@@ -357,3 +357,66 @@ describe('WorkshopMonitorService.board', () => {
     );
   });
 });
+
+describe('WorkshopMonitorService.orderSnapshot', () => {
+  /** A resource whose `getByNumber` answers with one order, or none. */
+  function orderResource(items: Record<string, unknown>[]) {
+    const getByNumber = vi.fn().mockResolvedValue({ items, meta: {} });
+    const listInterventionCatalogue = vi.fn().mockResolvedValue({ items: CATALOGUE, meta: {} });
+
+    return {
+      resource: { getByNumber, listInterventionCatalogue } as unknown as WorkshopMonitorResource,
+      getByNumber,
+    };
+  }
+
+  /**
+   * The whole reason this method exists: a closed order has left the active
+   * board, so its mechanic clock-on can only come from here.
+   */
+  it('reads a mechanic clock-on off a closed order the active board no longer returns', async () => {
+    const { resource } = orderResource([
+      { number: 202600648, status: 'F', mechanics: [{ employee_code: 7, start_time: '2026-09-20T09:00:00Z' }] },
+    ]);
+
+    const snapshot = await service(resource).orderSnapshot('202600648', context);
+
+    expect(snapshot?.mechanics).toEqual([
+      expect.objectContaining({ employeeCode: '7', startedAt: '2026-09-20T09:00:00.000Z' }),
+    ]);
+  });
+
+  it('asks upstream for exactly the one order by number', async () => {
+    const { resource, getByNumber } = orderResource([]);
+
+    await service(resource).orderSnapshot('202600648', context);
+
+    expect(getByNumber).toHaveBeenCalledWith('202600648', expect.anything());
+  });
+
+  it('resolves to null rather than an order with no id when upstream has nothing', async () => {
+    const { resource } = orderResource([]);
+
+    const snapshot = await service(resource).orderSnapshot('999999999', context);
+
+    expect(snapshot).toBeNull();
+  });
+
+  /** A garnish, not the meal: the detail page must survive this failing. */
+  it('resolves to null and logs a warning when upstream fails', async () => {
+    const log = makeLogger();
+    const getByNumber = vi.fn().mockRejectedValue(new Error('503'));
+    const listInterventionCatalogue = vi.fn().mockResolvedValue({ items: [], meta: {} });
+
+    const snapshot = await service(
+      { getByNumber, listInterventionCatalogue } as unknown as WorkshopMonitorResource,
+      log,
+    ).orderSnapshot('202600648', { logger: log });
+
+    expect(snapshot).toBeNull();
+    expect(log.warn).toHaveBeenCalledWith(
+      'could not read the monitor record for one order',
+      expect.objectContaining({ error: '503' }),
+    );
+  });
+});

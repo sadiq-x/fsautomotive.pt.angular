@@ -21,6 +21,7 @@
  * payloads are known, trimming each list to the single correct name is a safe,
  * mechanical edit; nothing else has to change.
  */
+import { OFFICEGEST_TIME_ZONE } from './officegest.constants.js';
 
 /** A validated-but-unmapped upstream record. */
 export type UpstreamRecord = Readonly<Record<string, unknown>>;
@@ -130,9 +131,105 @@ export function readIsoDate(record: UpstreamRecord, keys: readonly string[]): st
     return undefined;
   }
 
-  // `YYYY-MM-DD HH:mm:ss` is the common SQL rendering; `T` makes it ISO.
-  const candidate = typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
-  const parsed = new Date(candidate);
+  if (typeof value === 'string') {
+    // The common SQL rendering carries no offset, and `new Date()` would read
+    // it in the *server's* zone — see `OFFICEGEST_TIME_ZONE`. Anything else
+    // (a date alone, an ISO string with its own offset) keeps its meaning.
+    const naive = NAIVE_DATE_TIME.exec(value.trim());
+
+    if (naive) {
+      return wallClockToIso(naive, OFFICEGEST_TIME_ZONE);
+    }
+  }
+
+  // `T` makes the SQL rendering ISO, as it always has for anything above.
+  const parsed = new Date(typeof value === 'string' ? value.trim().replace(' ', 'T') : value);
 
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+/**
+ * `YYYY-MM-DD HH:mm[:ss[.fff]]`, space- or `T`-separated, with no offset.
+ * Fractional seconds are accepted and dropped — nothing here is timed to the
+ * millisecond.
+ */
+const NAIVE_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
+
+/**
+ * A wall-clock reading in `timeZone`, as the UTC instant it names.
+ *
+ * Offsets are looked up with `Intl` rather than hard-coded, so both daylight-
+ * saving changeovers are handled. The offset is taken once at the naive guess
+ * and once more at the corrected instant, which settles any real zone. An
+ * impossible date (`2026-13-40`) is rejected rather than rolled over, the way
+ * `new Date()` rejected it before.
+ */
+function wallClockToIso(parts: RegExpExecArray, timeZone: string): string | undefined {
+  // An absent seconds group reads as 0; every other group is mandatory in the pattern.
+  const group = (index: number): number => Number(parts[index] ?? 0);
+  const [year, month, day, hour, minute, second] = [1, 2, 3, 4, 5, 6].map(group) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const wall = Date.UTC(year, month - 1, day, hour, minute, second);
+  const check = new Date(wall);
+
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day ||
+    check.getUTCHours() !== hour ||
+    check.getUTCMinutes() !== minute
+  ) {
+    return undefined;
+  }
+
+  const firstGuess = wall - zoneOffsetMs(wall, timeZone);
+
+  return new Date(wall - zoneOffsetMs(firstGuess, timeZone)).toISOString();
+}
+
+/** How far `timeZone`'s wall clock is ahead of UTC at `instant`, in ms. */
+function zoneOffsetMs(instant: number, timeZone: string): number {
+  const parts = zoneFormatter(timeZone).formatToParts(new Date(instant));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((entry) => entry.type === type)?.value);
+
+  const asUtc = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second'),
+  );
+
+  return asUtc - Math.floor(instant / 1000) * 1000;
+}
+
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/** One cached formatter per zone — building them is the expensive part. */
+function zoneFormatter(timeZone: string): Intl.DateTimeFormat {
+  let formatter = formatters.get(timeZone);
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    formatters.set(timeZone, formatter);
+  }
+
+  return formatter;
 }
