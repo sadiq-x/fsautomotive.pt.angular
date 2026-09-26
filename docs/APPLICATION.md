@@ -25,15 +25,15 @@ the code is organised, how to run it, and why it is the way it is.
 
 ### 1.1 Stack
 
-| Concern    | Choice                                   | Note                                                                      |
-| ---------- | ---------------------------------------- | ------------------------------------------------------------------------- |
-| Framework  | Angular `^21.2`                          | Standalone components, signals, zoneless change detection                 |
-| Language   | TypeScript `~5.9`                        | `strict`, plus `strictTemplates` and `noPropertyAccessFromIndexSignature` |
-| Styling    | Tailwind CSS `^4.3`                      | CSS-first config — tokens live in `@theme`, not a JS config file          |
-| Build      | `@angular/build:application`             | esbuild-based; lazy route chunks                                          |
-| Tests      | Vitest `^4` + jsdom                      | Angular's `@angular/build:unit-test` builder                              |
-| Formatting | Prettier + `prettier-plugin-tailwindcss` | Sorts utility classes deterministically                                   |
-| Rendering  | Client-side only                         | No SSR — `server.ts` and `main.server.ts` do not exist                    |
+| Concern    | Choice                                   | Note                                                                              |
+| ---------- | ---------------------------------------- | --------------------------------------------------------------------------------- |
+| Framework  | Angular `^21.2`                          | Standalone components, signals, zoneless change detection                         |
+| Language   | TypeScript `~5.9`                        | `strict`, plus `strictTemplates` and `noPropertyAccessFromIndexSignature`         |
+| Styling    | Tailwind CSS `^4.3`                      | CSS-first config — tokens live in `@theme`, not a JS config file                  |
+| Build      | `@angular/build:application`             | esbuild-based; lazy route chunks                                                  |
+| Tests      | Vitest `^4` + jsdom                      | Angular's `@angular/build:unit-test` builder                                      |
+| Formatting | Prettier + `prettier-plugin-tailwindcss` | Sorts utility classes deterministically                                           |
+| Rendering  | Client-side only                         | No SSR — `server.ts` and `main.server.ts` do not exist                            |
 | Hosting    | GitHub Pages + Netlify                   | Both via `angular-cli-ghpages`, pushing a built bundle to `gh-pages` / `nf-pages` |
 
 ### 1.2 Layer model
@@ -538,14 +538,14 @@ npm run deploy                                     # raw: ng deploy --base-href=
 
 ### 3.8 Troubleshooting
 
-| Symptom                                       | Cause and fix                                                                                     |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `The Angular CLI requires a minimum Node.js…` | Node too old — see §3.1                                                                           |
-| A signal change does not repaint              | The app is zoneless; state must be a `signal`, not a plain field                                  |
-| A Tailwind class has no effect                | Not in a scanned file, or built from a runtime-concatenated string — Tailwind scans literals only |
-| Fonts look wrong offline                      | Google Fonts is external; the fallback stack takes over. Layout is audited with fonts blocked     |
-| `audit:responsive` says "Chrome not found"    | Set `CHROME_PATH` to the binary                                                                   |
-| `audit:responsive` says "port already in use" | A previous run is still alive — `pkill -f audit-responsive`                                       |
+| Symptom                                       | Cause and fix                                                                                                                                                |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `The Angular CLI requires a minimum Node.js…` | Node too old — see §3.1                                                                                                                                      |
+| A signal change does not repaint              | The app is zoneless; state must be a `signal`, not a plain field                                                                                             |
+| A Tailwind class has no effect                | Not in a scanned file, or built from a runtime-concatenated string — Tailwind scans literals only                                                            |
+| Fonts look wrong offline                      | Google Fonts is external; the fallback stack takes over. Layout is audited with fonts blocked                                                                |
+| `audit:responsive` says "Chrome not found"    | Set `CHROME_PATH` to the binary                                                                                                                              |
+| `audit:responsive` says "port already in use" | A previous run is still alive — `pkill -f audit-responsive`                                                                                                  |
 | Deep link 404s on a new host                  | The host needs an SPA fallback to `index.html` (GitHub Pages: `404.html`, written by `angular-cli-ghpages`; Netlify: `public/_redirects`, already committed) |
 
 ---
@@ -719,15 +719,15 @@ runs a build of its own).
 ./scripts/deploy-netlify.ps1 -Force       # publish even if nf-pages already has this commit
 ```
 
-| Parameter     | Effect                                                        |
-| ------------- | -------------------------------------------------------------- |
+| Parameter     | Effect                                                              |
+| ------------- | ------------------------------------------------------------------- |
 | `-SkipVerify` | Skip format, tests and script tests (the build and gates still run) |
-| `-AllowDirty` | Publish despite uncommitted changes                           |
-| `-Force`      | Publish even if `nf-pages` already reflects the current commit |
-| `-BuildOnly`  | Build and check, then stop — publishes nothing                |
+| `-AllowDirty` | Publish despite uncommitted changes                                 |
+| `-Force`      | Publish even if `nf-pages` already reflects the current commit      |
+| `-BuildOnly`  | Build and check, then stop — publishes nothing                      |
 
-Two guards this script has that the GitHub Pages ones do not, both about *not
-publishing the wrong thing*:
+Two guards this script has that the GitHub Pages ones do not, both about _not
+publishing the wrong thing_:
 
 - **Runs only from `main`, and only when local `main` matches `origin/main`
   exactly.** Every push force-rewrites `nf-pages`, so what ships must be

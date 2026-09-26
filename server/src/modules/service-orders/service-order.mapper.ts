@@ -43,7 +43,11 @@ import {
   type UpstreamRecord,
 } from '../../integrations/officegest/officegest.record-readers.js';
 import { normalisePlate } from '../vehicles/plate.js';
-import type { ServiceOrder, ServiceOrderLine, ServiceOrderTimeEntry } from './service-order.model.js';
+import type {
+  ServiceOrder,
+  ServiceOrderLine,
+  ServiceOrderTimeEntry,
+} from './service-order.model.js';
 
 const FIELDS = {
   id: ['number', 'id', 'document_number', 'codigo', 'code', 'service_order_id'],
@@ -227,7 +231,9 @@ function readInterventionMinutes(record: UpstreamRecord): (number | null)[] | un
  * `undefined` when no line on the order carries a usable estimate, so "not
  * recorded" stays distinguishable from "recorded as zero".
  */
-function sumInterventionMinutes(minutes: readonly (number | null)[] | undefined): number | undefined {
+function sumInterventionMinutes(
+  minutes: readonly (number | null)[] | undefined,
+): number | undefined {
   const timed = (minutes ?? []).filter((value): value is number => value !== null);
 
   return timed.length > 0 ? timed.reduce((a, b) => a + b, 0) : undefined;

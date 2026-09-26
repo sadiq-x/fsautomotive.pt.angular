@@ -247,7 +247,11 @@ describe('ServiceOrdersService.listTimes', () => {
 
   it('maps every entry, with the mechanic name on the entry itself', async () => {
     const listTimes = vi.fn().mockResolvedValue({ items: [timeRecord()], meta: {} });
-    const resource = { list: vi.fn(), getById: vi.fn(), listTimes } as unknown as ServiceOrdersResource;
+    const resource = {
+      list: vi.fn(),
+      getById: vi.fn(),
+      listTimes,
+    } as unknown as ServiceOrdersResource;
 
     const result = await service(resource).listTimes('202600642', context);
 
@@ -266,7 +270,11 @@ describe('ServiceOrdersService.listTimes', () => {
     const listTimes = vi
       .fn()
       .mockResolvedValue({ items: [timeRecord({ id: undefined })], meta: {} });
-    const resource = { list: vi.fn(), getById: vi.fn(), listTimes } as unknown as ServiceOrdersResource;
+    const resource = {
+      list: vi.fn(),
+      getById: vi.fn(),
+      listTimes,
+    } as unknown as ServiceOrdersResource;
 
     const result = await service(resource).listTimes('202600642', context);
 
@@ -277,7 +285,11 @@ describe('ServiceOrdersService.listTimes', () => {
   it('resolves to an empty list and logs a warning when upstream fails', async () => {
     const log = { ...silentLogger, warn: vi.fn() };
     const listTimes = vi.fn().mockRejectedValue(new Error('503'));
-    const resource = { list: vi.fn(), getById: vi.fn(), listTimes } as unknown as ServiceOrdersResource;
+    const resource = {
+      list: vi.fn(),
+      getById: vi.fn(),
+      listTimes,
+    } as unknown as ServiceOrdersResource;
 
     const result = await service(resource).listTimes('202600642', { logger: log });
 

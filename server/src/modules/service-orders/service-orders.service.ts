@@ -24,7 +24,11 @@ import { toPaginationMeta } from '../../shared/http/pagination.js';
 import type { UseCaseContext } from '../../shared/use-case-context.js';
 import { formatPlate, normalisePlate } from '../vehicles/plate.js';
 import type { ListServiceOrdersQuery } from './service-order.dto.js';
-import { toServiceOrder, toServiceOrderTimeEntries, toServiceOrders } from './service-order.mapper.js';
+import {
+  toServiceOrder,
+  toServiceOrderTimeEntries,
+  toServiceOrders,
+} from './service-order.mapper.js';
 import type { ServiceOrder, ServiceOrderTimeEntry } from './service-order.model.js';
 
 /**

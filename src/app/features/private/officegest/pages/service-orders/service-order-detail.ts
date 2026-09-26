@@ -122,9 +122,7 @@ const NO_BOARD: BoardReading = { board: null, receivedAt: 0 };
 
         <dl class="mt-5 grid gap-6 sm:grid-cols-2">
           <div>
-            <dt class="text-meta font-semibold tracking-wide text-ink-500 uppercase">
-              Aberta há
-            </dt>
+            <dt class="text-meta font-semibold tracking-wide text-ink-500 uppercase">Aberta há</dt>
             @if (openFor(); as age) {
               <dd class="mt-1 text-h3 text-ink-950 tabular-nums">{{ age }}</dd>
               @if (averageOpenAge(); as average) {
@@ -144,7 +142,10 @@ const NO_BOARD: BoardReading = { board: null, receivedAt: 0 };
                 look like a missing field rather than a deliberate one, so the
                 reason is stated instead.
               -->
-              <dd class="mt-1 text-h3 text-ink-300" title="Só disponível enquanto a folha está em curso">
+              <dd
+                class="mt-1 text-h3 text-ink-300"
+                title="Só disponível enquanto a folha está em curso"
+              >
                 —
               </dd>
               <p class="mt-1 text-meta text-ink-500">
@@ -387,7 +388,10 @@ const NO_BOARD: BoardReading = { board: null, receivedAt: 0 };
                     <td class="py-2 pr-4 text-ink-700 tabular-nums">
                       {{ formatDateTime(entry.startedAt) ?? '—' }}
                     </td>
-                    <td class="py-2 pr-4 tabular-nums" [class]="entry.endedAt ? 'text-ink-700' : 'text-amber-700 font-semibold'">
+                    <td
+                      class="py-2 pr-4 tabular-nums"
+                      [class]="entry.endedAt ? 'text-ink-700' : 'font-semibold text-amber-700'"
+                    >
                       {{ entry.endedAt ? formatDateTime(entry.endedAt) : 'Em curso' }}
                     </td>
                     <td class="py-2 text-right font-semibold text-ink-900 tabular-nums">
@@ -563,7 +567,9 @@ export class ServiceOrderDetail {
    */
   private readonly historicalSnapshot = toSignal(
     toObservable(this.serviceOrderId).pipe(
-      switchMap((id) => this.officegest.getWorkshopMonitorOrder(id).pipe(catchError(() => of(null)))),
+      switchMap((id) =>
+        this.officegest.getWorkshopMonitorOrder(id).pipe(catchError(() => of(null))),
+      ),
     ),
     { initialValue: null as MonitorServiceOrder | null },
   );
@@ -599,7 +605,9 @@ export class ServiceOrderDetail {
   private readonly timeEntries = toSignal(
     toObservable(this.serviceOrderId).pipe(
       switchMap((id) =>
-        this.officegest.getServiceOrderTimes(id).pipe(catchError(() => of([] as readonly ServiceOrderTimeEntry[]))),
+        this.officegest
+          .getServiceOrderTimes(id)
+          .pipe(catchError(() => of([] as readonly ServiceOrderTimeEntry[]))),
       ),
     ),
     { initialValue: [] as readonly ServiceOrderTimeEntry[] },
@@ -748,9 +756,7 @@ export class ServiceOrderDetail {
       case 'order':
         return this.store.data()?.estimatedMinutes ?? null;
       case 'catalogue':
-        return sumDefined(
-          (this.workSession()?.interventions ?? []).map((i) => i.estimatedMinutes),
-        );
+        return sumDefined((this.workSession()?.interventions ?? []).map((i) => i.estimatedMinutes));
       default:
         return null;
     }

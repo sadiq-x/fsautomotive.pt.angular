@@ -61,12 +61,7 @@ export type MonitorBoardQuery = z.infer<typeof monitorBoardQuerySchema>;
 
 /** A service-order number, as it appears in an OfficeGest URL or a plate search. */
 export const monitorOrderParamsSchema = z.object({
-  number: z
-    .string()
-    .trim()
-    .min(1)
-    .max(32)
-    .regex(/^\d+$/, 'must be a service order number'),
+  number: z.string().trim().min(1).max(32).regex(/^\d+$/, 'must be a service order number'),
 });
 
 export type MonitorOrderParams = z.infer<typeof monitorOrderParamsSchema>;

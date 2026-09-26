@@ -160,9 +160,7 @@ describe('ServiceOrderDetail', () => {
      * field directly; it must now agree with the billed-lines table instead.
      */
     it("shows the billed-lines total in the field list, not the order's own (unreliable) total", () => {
-      const body = text(
-        setup({ order: order({ total: 6.03, lines: withLine.lines }) }),
-      );
+      const body = text(setup({ order: order({ total: 6.03, lines: withLine.lines }) }));
 
       expect(body).toContain('61,50');
       expect(body).not.toContain('6,03');
@@ -264,7 +262,7 @@ describe('ServiceOrderDetail', () => {
 
       // The label stays — silence would look like a missing field rather than
       // a deliberate one — but no number is shown, and the reason is stated.
-      expect(body).toContain('Aberta há —');
+      expect(body).toMatch(/Aberta há\s*—/);
       expect(body).toContain('Só é calculada enquanto a folha está em curso no quadro da oficina');
     });
 
@@ -323,9 +321,7 @@ describe('ServiceOrderDetail', () => {
     });
 
     it("still shows the order's own estimated time for a closed job, off the board", () => {
-      const body = text(
-        setup({ order: order({ estimatedMinutes: 480 }), board: of(board([])) }),
-      );
+      const body = text(setup({ order: order({ estimatedMinutes: 480 }), board: of(board([])) }));
 
       // No "Trabalho em curso" subtitle here (the job is off the board), so
       // this is the Tempos grid's own dt/dd pair, not the colon-joined form.
@@ -352,16 +348,12 @@ describe('ServiceOrderDetail', () => {
     describe('once the job has closed', () => {
       function closedRow(): MonitorServiceOrder {
         return liveRow({
-          mechanics: [
-            { employeeCode: '7', name: 'João', startedAt: '2026-09-13T08:15:00.000Z' },
-          ],
+          mechanics: [{ employeeCode: '7', name: 'João', startedAt: '2026-09-13T08:15:00.000Z' }],
         });
       }
 
       it('falls back to the historical record and shows a plain clock-on time, not a ticking one', () => {
-        const body = text(
-          setup({ board: of(board([])), monitorOrder: of(closedRow()) }),
-        );
+        const body = text(setup({ board: of(board([])), monitorOrder: of(closedRow()) }));
 
         expect(body).toContain('Registo de picagens');
         expect(body).toContain('João');
@@ -381,7 +373,7 @@ describe('ServiceOrderDetail', () => {
 
         // The label is explained, not a real age — historical monitor data
         // does not make a closed job "currently open" again.
-        expect(body).toContain('Aberta há —');
+        expect(body).toMatch(/Aberta há\s*—/);
         expect(body).not.toContain('Atraso');
       });
     });
@@ -618,7 +610,8 @@ describe('ServiceOrderDetail', () => {
       vi.useFakeTimers();
       let calls = 0;
       const fixture = setup({
-        boardCall: () => (++calls === 1 ? of(board([liveRow()])) : throwError(() => new Error('503'))),
+        boardCall: () =>
+          ++calls === 1 ? of(board([liveRow()])) : throwError(() => new Error('503')),
       });
 
       expect(text(fixture)).toContain('Trabalho em curso');
@@ -629,7 +622,7 @@ describe('ServiceOrderDetail', () => {
       expect(calls).toBe(2);
       expect(text(fixture)).toContain('Trabalho em curso');
       expect(text(fixture)).not.toContain('Registo de picagens');
-      expect(text(fixture)).toContain('Aberta há 12 dias');
+      expect(text(fixture)).toMatch(/Aberta há\s*12 dias/);
     });
   });
 

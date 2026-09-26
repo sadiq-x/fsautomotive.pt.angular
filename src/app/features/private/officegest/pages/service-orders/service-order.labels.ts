@@ -140,7 +140,9 @@ export function formatMileageReading(mileage: number | undefined): string | null
  * nothing" stay distinguishable, the same rule every sum in this codebase
  * follows.
  */
-export function computeBilledTotal(lines: readonly ServiceOrderLine[] | undefined): number | undefined {
+export function computeBilledTotal(
+  lines: readonly ServiceOrderLine[] | undefined,
+): number | undefined {
   if (!lines || lines.length === 0) {
     return undefined;
   }

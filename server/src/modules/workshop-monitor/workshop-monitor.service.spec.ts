@@ -376,7 +376,11 @@ describe('WorkshopMonitorService.orderSnapshot', () => {
    */
   it('reads a mechanic clock-on off a closed order the active board no longer returns', async () => {
     const { resource } = orderResource([
-      { number: 202600648, status: 'F', mechanics: [{ employee_code: 7, start_time: '2026-09-20T09:00:00Z' }] },
+      {
+        number: 202600648,
+        status: 'F',
+        mechanics: [{ employee_code: 7, start_time: '2026-09-20T09:00:00Z' }],
+      },
     ]);
 
     const snapshot = await service(resource).orderSnapshot('202600648', context);

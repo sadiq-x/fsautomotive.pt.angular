@@ -216,12 +216,7 @@ describe('ServiceOrders', () => {
         getServiceOrder: (id) =>
           of({
             id,
-            lines: [
-              { total: 6.03 },
-              { total: 80.42 },
-              { total: 116.16 },
-              { total: 206.93 },
-            ],
+            lines: [{ total: 6.03 }, { total: 80.42 }, { total: 116.16 }, { total: 206.93 }],
           } as ServiceOrder),
       });
       fixture.detectChanges();

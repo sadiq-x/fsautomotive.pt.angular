@@ -401,11 +401,11 @@ O projeto publica em dois destinos, ambos através do `angular-cli-ghpages`
 (que apesar do nome só faz uma coisa: construir, e depois `commit`/`push` do
 resultado para um branch dedicado — não é exclusivo do GitHub Pages):
 
-| Destino                       | Script                                              | Branch      |
-| ------------------------------ | ---------------------------------------------------- | ----------- |
-| GitHub Pages (subdiretório)     | `./scripts/deploy.ps1`                               | `gh-pages`  |
-| GitHub Pages (domínio próprio)  | `./scripts/deploy-github-pages-custom-domain.ps1`    | `gh-pages`  |
-| Netlify                        | `./scripts/deploy-netlify.ps1`                       | `nf-pages`  |
+| Destino                        | Script                                            | Branch     |
+| ------------------------------ | ------------------------------------------------- | ---------- |
+| GitHub Pages (subdiretório)    | `./scripts/deploy.ps1`                            | `gh-pages` |
+| GitHub Pages (domínio próprio) | `./scripts/deploy-github-pages-custom-domain.ps1` | `gh-pages` |
+| Netlify                        | `./scripts/deploy-netlify.ps1`                    | `nf-pages` |
 
 Todos (PowerShell 5.1+ ou `pwsh` 7+) seguem o mesmo princípio: executam a
 partir da raiz do repositório independentemente de onde são invocados,
@@ -456,12 +456,12 @@ construído com o `--base-href` errado (que renderizaria a página em branco).
 ./scripts/deploy-netlify.ps1              # verifica, constrói, valida, confirma, publica
 ```
 
-| Parâmetro     | Efeito                                                          |
-| ------------- | ---------------------------------------------------------------- |
-| `-SkipVerify` | Salta formatação, testes e testes de scripts                     |
-| `-AllowDirty` | Publica mesmo com a árvore de trabalho suja                      |
-| `-Force`      | Publica mesmo que o `nf-pages` já reflita o commit atual         |
-| `-BuildOnly`  | Constrói e valida, sem publicar                                  |
+| Parâmetro     | Efeito                                                   |
+| ------------- | -------------------------------------------------------- |
+| `-SkipVerify` | Salta formatação, testes e testes de scripts             |
+| `-AllowDirty` | Publica mesmo com a árvore de trabalho suja              |
+| `-Force`      | Publica mesmo que o `nf-pages` já reflita o commit atual |
+| `-BuildOnly`  | Constrói e valida, sem publicar                          |
 
 O `nf-pages` guarda o `bundle` de produção já construído, não o código-fonte —
 no Netlify, configure **Build command:** vazio e **Publish directory:** a raiz
